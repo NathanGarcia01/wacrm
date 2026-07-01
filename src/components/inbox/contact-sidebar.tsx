@@ -15,10 +15,14 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Pencil,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { TagPickerPopover } from "./tag-picker-popover";
+import { DealMiniSheet } from "./deal-mini-sheet";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -32,6 +36,9 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+  const [removingTagId, setRemovingTagId] = useState<string | null>(null);
+  const [dealSheetOpen, setDealSheetOpen] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -85,6 +92,31 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     // React Compiler's inference agrees with the manual dep list —
     // fixes the `preserve-manual-memoization` lint error.
   }, [contact]);
+
+  const handleRemoveTag = useCallback(
+    async (contactTagId: string) => {
+      setRemovingTagId(contactTagId);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("contact_tags")
+        .delete()
+        .eq("id", contactTagId);
+      setRemovingTagId(null);
+      if (error) return;
+      fetchContactData();
+    },
+    [fetchContactData],
+  );
+
+  const handleAddDeal = useCallback(() => {
+    setEditingDeal(null);
+    setDealSheetOpen(true);
+  }, []);
+
+  const handleEditDeal = useCallback((deal: Deal) => {
+    setEditingDeal(deal);
+    setDealSheetOpen(true);
+  }, []);
 
   const handleAddNote = useCallback(async () => {
     if (!contact || !newNote.trim()) return;
@@ -183,23 +215,33 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               <TagIcon className="h-3 w-3" />
               Tags
             </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">No tags</p>
-              ) : (
-                tags.map((tag) => (
-                  <span
-                    key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              {tags.map((tag) => (
+                <span
+                  key={tag.contact_tag_id}
+                  className="group inline-flex items-center gap-1 rounded-full py-0.5 pr-1 pl-2 text-[10px] font-medium"
+                  style={{
+                    backgroundColor: `${tag.color}20`,
+                    color: tag.color,
+                  }}
+                >
+                  {tag.name}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTag(tag.contact_tag_id)}
+                    disabled={removingTagId === tag.contact_tag_id}
+                    aria-label={`Remover tag ${tag.name}`}
+                    className="rounded-full p-0.5 opacity-60 transition-opacity hover:bg-black/10 hover:opacity-100 disabled:opacity-30 dark:hover:bg-white/10"
                   >
-                    {tag.name}
-                  </span>
-                ))
-              )}
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+              <TagPickerPopover
+                contactId={contact.id}
+                existingTagIds={tags.map((t) => t.id)}
+                onChanged={fetchContactData}
+              />
             </div>
           </div>
 
@@ -208,9 +250,19 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Active Deals */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <DollarSign className="h-3 w-3" />
-              Active Deals
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <DollarSign className="h-3 w-3" />
+                Active Deals
+              </div>
+              <button
+                type="button"
+                onClick={handleAddDeal}
+                aria-label="Novo negócio"
+                className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
             </div>
             <div className="mt-2 space-y-2">
               {deals.length === 0 ? (
@@ -219,11 +271,21 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 deals.map((deal) => (
                   <div
                     key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
+                    className="group rounded-lg bg-muted px-3 py-2"
                   >
-                    <p className="text-sm font-medium text-foreground">
-                      {deal.title}
-                    </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">
+                        {deal.title}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleEditDeal(deal)}
+                        aria-label={`Editar ${deal.title}`}
+                        className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-black/10 hover:text-foreground group-hover:opacity-100 dark:hover:bg-white/10"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </div>
                     <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                       <span>
                         {deal.currency ?? "$"}
@@ -294,6 +356,14 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           </div>
         </div>
       </ScrollArea>
+
+      <DealMiniSheet
+        open={dealSheetOpen}
+        onOpenChange={setDealSheetOpen}
+        deal={editingDeal}
+        contactId={contact.id}
+        onSaved={fetchContactData}
+      />
     </div>
   );
 }

@@ -212,6 +212,41 @@ export default function PipelinesPage() {
     setDeals(await loadDeals(selectedPipelineId));
   }, [loadDeals, selectedPipelineId]);
 
+  // Keep the latest refreshDeals in a ref so the realtime subscription
+  // below doesn't need it as a dependency — refreshDeals's identity
+  // changes with `selectedPipelineId`, which would otherwise tear
+  // down and resubscribe the channel on every pipeline switch.
+  const refreshDealsRef = useRef(refreshDeals);
+  useEffect(() => {
+    refreshDealsRef.current = refreshDeals;
+  }, [refreshDeals]);
+
+  // Realtime: reflect deal changes made elsewhere (e.g. the inbox
+  // contact sidebar's mini-sheet) without a manual reload. Scoped to
+  // this account via `filter` so cross-tenant traffic never reaches
+  // the client. One subscription per account, torn down on unmount /
+  // account change — not re-created on every deals/stages refresh.
+  useEffect(() => {
+    if (!accountId) return;
+    const channel = supabase
+      .channel(`deals-changes-${accountId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "deals",
+          filter: `account_id=eq.${accountId}`,
+        },
+        () => refreshDealsRef.current(),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [accountId, supabase]);
+
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
       // Optimistic update — board already animated; just persist.
