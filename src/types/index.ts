@@ -371,6 +371,7 @@ export interface BroadcastRecipient {
 export type AutomationTriggerType =
   | 'new_message_received'
   | 'first_inbound_message'
+  | 'first_outbound_message'
   | 'keyword_match'
   | 'new_contact_created'
   | 'conversation_assigned'

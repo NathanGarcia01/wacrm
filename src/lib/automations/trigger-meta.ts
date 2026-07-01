@@ -15,6 +15,10 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'First Message from Contact',
     pillClass: 'border-teal-500/30 bg-teal-500/10 text-teal-300',
   },
+  first_outbound_message: {
+    label: 'First Outbound Message',
+    pillClass: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
+  },
   keyword_match: {
     label: 'Keyword Match',
     pillClass: 'border-purple-500/30 bg-purple-500/10 text-purple-300',

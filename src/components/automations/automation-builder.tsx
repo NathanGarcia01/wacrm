@@ -122,6 +122,11 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: stri
     label: "Primeira Mensagem do Contato",
     hint: "Primeira vez que esse contato te envia mensagem (funciona também para contatos adicionados manualmente)",
   },
+  {
+    value: "first_outbound_message",
+    label: "Primeira Mensagem Enviada",
+    hint: "Quando o agente envia a primeira mensagem para um contato (lead ativo)",
+  },
   { value: "keyword_match", label: "Correspondência de Palavra-chave", hint: "A mensagem contém palavra(s)-chave específica(s)" },
   { value: "new_contact_created", label: "Novo Contato Criado", hint: "Quando um contato é criado automaticamente a partir de uma mensagem recebida" },
   { value: "conversation_assigned", label: "Conversa Atribuída", hint: "Quando atribuída a um atendente" },

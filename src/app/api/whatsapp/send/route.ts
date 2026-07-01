@@ -8,6 +8,7 @@ import {
 } from '@/lib/whatsapp/meta-api'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
+import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -360,6 +361,17 @@ export async function POST(request: Request) {
         .eq('id', contact.id)
     }
 
+    // Determine whether this is the agent's very first outbound message
+    // in this conversation BEFORE inserting, so the count is accurate —
+    // mirrors the isFirstInboundMessage check in the webhook handler
+    // (src/app/api/whatsapp/webhook/route.ts).
+    const { count: priorAgentMsgCount } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversation_id)
+      .eq('sender_type', 'agent')
+    const isFirstOutboundMessage = (priorAgentMsgCount ?? 0) === 0
+
     // Insert message into DB — field names MUST match the messages schema
     // (see supabase/migrations/001_initial_schema.sql):
     //   conversation_id, sender_type, content_type, content_text,
@@ -397,6 +409,23 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', conversation_id)
+
+    // Fire automations listening for the agent's first outbound message
+    // in this conversation — the "Ativo" (active-outreach) pattern,
+    // mirroring first_inbound_message's dispatch in the webhook handler.
+    // Fire-and-forget: a slow or failing automation must not block the
+    // send response.
+    if (isFirstOutboundMessage) {
+      runAutomationsForTrigger({
+        accountId,
+        triggerType: 'first_outbound_message',
+        contactId: contact.id,
+        context: {
+          message_text: content_text || '',
+          conversation_id,
+        },
+      }).catch((err) => console.error('[automations] dispatch failed:', err))
+    }
 
     // Pause any active Flow run for this contact — the agent stepping
     // in is the strongest "yield, human is here" signal. See PR #2
