@@ -17,9 +17,9 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
   return (
     <section className="flex h-full flex-col rounded-xl border border-border bg-card">
       <header className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Pipeline Value</h2>
+        <h2 className="text-sm font-semibold text-foreground">Valor do Pipeline</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Open deals by stage
+          Deals abertos por etapa
         </p>
       </header>
 
@@ -29,8 +29,8 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
         ) : data.stages.length === 0 ? (
           <EmptyState
             icon={GitBranch}
-            title="No open deals yet"
-            hint="Create deals in Pipelines to see stage breakdowns here."
+            title="Nenhum Deal aberto ainda"
+            hint="Crie Deals em Pipelines para ver o detalhamento por etapa aqui."
           />
         ) : (
           <>
@@ -96,7 +96,7 @@ function Donut({ data, currency }: { data: PipelineDonutData; currency: string }
 
   return (
     <div className="flex items-center justify-center">
-      <svg viewBox={`0 0 ${size} ${size}`} className="h-48 w-48" role="img" aria-label="Pipeline value by stage">
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-48 w-48" role="img" aria-label="Valor do pipeline por etapa">
         {/* background ring */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--muted)" strokeWidth={ringWidth} />
         {segments.map((seg) => (
