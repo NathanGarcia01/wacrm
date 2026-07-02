@@ -39,6 +39,28 @@ export interface VariableSourceContact {
   company?: string | null;
 }
 
+function capitalize(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+/**
+ * Splits a contact's full name into properly-cased first/last/full
+ * variants for template personalization — e.g. "JOÃO SILVA" → first
+ * "João", last "Silva", full "João Silva". Whitespace-only or empty
+ * input yields empty strings throughout rather than throwing, since
+ * `contact.name` is optional and broadcasts must not crash on a
+ * contact who never set one.
+ */
+export function extractNameParts(fullName: string | null | undefined) {
+  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: capitalize(parts[0] || ''),
+    lastName: capitalize(parts[parts.length - 1] || ''),
+    fullName: parts.map(capitalize).join(' '),
+  };
+}
+
 export function resolveVariables(
   variables: Record<string, VariableMapping>,
   contact: VariableSourceContact,
@@ -58,8 +80,11 @@ export function resolveVariables(
     if (v.type === 'static') return v.value;
 
     if (v.type === 'field') {
+      const { firstName, lastName, fullName } = extractNameParts(contact.name);
       const fieldMap: Record<string, string | null | undefined> = {
-        name: contact.name,
+        name: fullName,
+        first_name: firstName,
+        last_name: lastName,
         phone: contact.phone,
         email: contact.email,
         company: contact.company,

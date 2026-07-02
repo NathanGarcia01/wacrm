@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ArrowLeft, ArrowRight, Eye, Loader2 } from 'lucide-react';
+import { extractNameParts } from '@/lib/broadcast-variables';
 
 type VariableType = 'static' | 'field' | 'custom_field';
 
@@ -31,6 +32,8 @@ interface Step3Props {
 
 const contactFields = [
   { value: 'name', label: 'Contact Name' },
+  { value: 'first_name', label: 'First Name' },
+  { value: 'last_name', label: 'Last Name' },
   { value: 'phone', label: 'Phone Number' },
   { value: 'email', label: 'Email Address' },
   { value: 'company', label: 'Company' },
@@ -158,8 +161,11 @@ export function Step3Personalize({
         if (mapping.type === 'static' && mapping.value) {
           replacement = mapping.value;
         } else if (mapping.type === 'field' && mapping.value) {
+          const { firstName, lastName, fullName } = extractNameParts(contact.name);
           const fieldMap: Record<string, string | undefined> = {
-            name: contact.name,
+            name: fullName,
+            first_name: firstName,
+            last_name: lastName,
             phone: contact.phone,
             email: contact.email,
             company: contact.company,
