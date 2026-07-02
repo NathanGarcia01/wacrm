@@ -179,6 +179,9 @@ export interface Message {
   content_type: ContentType;
   content_text?: string;
   media_url?: string;
+  media_mime_type?: string;
+  /** Original filename, populated for document messages only. */
+  media_filename?: string;
   template_name?: string;
   message_id?: string;
   status: MessageStatus;

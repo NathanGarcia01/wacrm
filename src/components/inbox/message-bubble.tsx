@@ -13,6 +13,7 @@ import {
   LayoutTemplate,
   ImageOff,
   CornerDownLeft,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -172,23 +173,25 @@ function MessageContent({ message }: { message: Message }) {
         </div>
       );
 
-    case "document":
+    case "document": {
+      const label = message.media_filename || message.content_text || "Document";
       if (!message.media_url) {
-        return <MediaUnavailable label={message.content_text || "Document"} />;
+        return <MediaUnavailable label={label} />;
       }
       return (
         <a
           href={message.media_url}
+          download={message.media_filename || undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm hover:bg-muted"
         >
           <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <span className="truncate">
-            {message.content_text || "Document"}
-          </span>
+          <span className="truncate">{label}</span>
+          <Download className="h-4 w-4 shrink-0 text-muted-foreground ml-auto" />
         </a>
       );
+    }
 
     case "template":
       return (

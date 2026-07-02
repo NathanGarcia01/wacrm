@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { extensionForMimeType } from '@/lib/whatsapp/mime'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
@@ -541,8 +542,8 @@ async function processMessage(
   }
 
   // Parse message content based on type
-  const { contentText, mediaUrl, mediaType, interactiveReplyId } =
-    await parseMessageContent(message, accessToken)
+  const { contentText, mediaUrl, mediaMimeType, mediaFilename, interactiveReplyId } =
+    await parseMessageContent(message, accessToken, accountId)
 
   // Resolve swipe-reply context if present. A missing parent is fine —
   // we just store NULL and the UI renders the message without a quote.
@@ -561,13 +562,11 @@ async function processMessage(
   }
 
   // Insert message — field names MUST match the messages table schema
-  // (see supabase/migrations/001_initial_schema.sql):
+  // (see supabase/migrations/001_initial_schema.sql, plus
+  // add_message_media_columns for media_mime_type/media_filename):
   //   conversation_id, sender_type, content_type, content_text,
-  //   media_url, template_name, message_id, status, created_at
-  // `mediaType` is intentionally unused — the schema has no media_type
-  // column; the MIME type is only used to construct the proxy URL during
-  // parseMessageContent. Silence the unused-var warning:
-  void mediaType
+  //   media_url, media_mime_type, media_filename, template_name,
+  //   message_id, status, created_at
 
   // The messages.content_type CHECK constraint (widened in migration 010
   // to add 'interactive' for button/list taps) allows:
@@ -601,6 +600,8 @@ async function processMessage(
     content_type: contentType,
     content_text: contentText,
     media_url: mediaUrl,
+    media_mime_type: mediaMimeType,
+    media_filename: mediaFilename,
     message_id: message.id,
     status: 'delivered',
     created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
@@ -715,13 +716,59 @@ async function processMessage(
   }
 }
 
+/**
+ * Download an inbound media item from Meta and persist it to the
+ * `media` Storage bucket so the inbox never depends on Meta's
+ * short-lived signed URL — or on the media_id remaining resolvable —
+ * again. Returns null on any failure (network, decode, upload); the
+ * caller degrades to "media unavailable" rather than dropping the
+ * whole inbound message.
+ */
+async function downloadAndStoreMedia(
+  mediaId: string,
+  accessToken: string,
+  accountId: string,
+): Promise<{ url: string; mimeType: string } | null> {
+  try {
+    const { url: tempUrl, mimeType } = await getMediaUrl({ mediaId, accessToken })
+    const { buffer, contentType } = await downloadMedia({
+      downloadUrl: tempUrl,
+      accessToken,
+    })
+    const resolvedMime = contentType || mimeType
+    const path = `${accountId}/${mediaId}.${extensionForMimeType(resolvedMime)}`
+
+    const { error: uploadError } = await supabaseAdmin()
+      .storage
+      .from('media')
+      .upload(path, buffer, { contentType: resolvedMime, upsert: true })
+    if (uploadError) {
+      console.error(`Failed to upload media ${mediaId} to Storage:`, uploadError)
+      return null
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabaseAdmin().storage.from('media').getPublicUrl(path)
+    return { url: publicUrl, mimeType: resolvedMime }
+  } catch (error) {
+    console.error(
+      `Failed to download/store media ${mediaId}:`,
+      error instanceof Error ? error.message : error,
+    )
+    return null
+  }
+}
+
 async function parseMessageContent(
   message: WhatsAppMessage,
-  accessToken: string
+  accessToken: string,
+  accountId: string,
 ): Promise<{
   contentText: string | null
   mediaUrl: string | null
-  mediaType: string | null
+  mediaMimeType: string | null
+  mediaFilename: string | null
   /**
    * For interactive button / list replies: the stable id of the tapped
    * option (whatever we put on the button when sending). Used by the
@@ -731,31 +778,13 @@ async function parseMessageContent(
    */
   interactiveReplyId: string | null
 }> {
-  // getMediaUrl signature is (mediaId, accessToken) — earlier code had
-  // the args swapped, so every verification hit an invalid Meta URL and
-  // fell through to the catch block, leaving mediaUrl as null. That's
-  // why images showed up as empty bubbles in the inbox.
-  const verifyAndBuildUrl = async (
-    mediaId: string
-  ): Promise<string | null> => {
-    try {
-      await getMediaUrl({ mediaId, accessToken })
-      return `/api/whatsapp/media/${mediaId}`
-    } catch (error) {
-      console.error(
-        `Failed to verify media ${mediaId} with Meta:`,
-        error instanceof Error ? error.message : error
-      )
-      return null
-    }
-  }
-
   // Default shape — each case overrides only the fields it cares about.
-  // Keeps the new `interactiveReplyId` field DRY across every return site.
+  // Keeps new fields DRY across every return site.
   const empty = {
     contentText: null,
     mediaUrl: null,
-    mediaType: null,
+    mediaMimeType: null,
+    mediaFilename: null,
     interactiveReplyId: null,
   }
 
@@ -765,44 +794,49 @@ async function parseMessageContent(
 
     case 'image':
       if (message.image?.id) {
+        const stored = await downloadAndStoreMedia(message.image.id, accessToken, accountId)
         return {
           ...empty,
           contentText: message.image.caption || null,
-          mediaUrl: await verifyAndBuildUrl(message.image.id),
-          mediaType: message.image.mime_type,
+          mediaUrl: stored?.url ?? null,
+          mediaMimeType: stored?.mimeType ?? message.image.mime_type,
         }
       }
       return empty
 
     case 'video':
       if (message.video?.id) {
+        const stored = await downloadAndStoreMedia(message.video.id, accessToken, accountId)
         return {
           ...empty,
           contentText: message.video.caption || null,
-          mediaUrl: await verifyAndBuildUrl(message.video.id),
-          mediaType: message.video.mime_type,
+          mediaUrl: stored?.url ?? null,
+          mediaMimeType: stored?.mimeType ?? message.video.mime_type,
         }
       }
       return empty
 
     case 'document':
       if (message.document?.id) {
+        const stored = await downloadAndStoreMedia(message.document.id, accessToken, accountId)
         return {
           ...empty,
           contentText:
             message.document.caption || message.document.filename || null,
-          mediaUrl: await verifyAndBuildUrl(message.document.id),
-          mediaType: message.document.mime_type,
+          mediaUrl: stored?.url ?? null,
+          mediaMimeType: stored?.mimeType ?? message.document.mime_type,
+          mediaFilename: message.document.filename || null,
         }
       }
       return empty
 
     case 'audio':
       if (message.audio?.id) {
+        const stored = await downloadAndStoreMedia(message.audio.id, accessToken, accountId)
         return {
           ...empty,
-          mediaUrl: await verifyAndBuildUrl(message.audio.id),
-          mediaType: message.audio.mime_type,
+          mediaUrl: stored?.url ?? null,
+          mediaMimeType: stored?.mimeType ?? message.audio.mime_type,
         }
       }
       return empty
@@ -812,10 +846,11 @@ async function parseMessageContent(
       // MessageBubble renders the <img>. The caller maps the DB
       // content_type to 'image' for the CHECK constraint.
       if (message.sticker?.id) {
+        const stored = await downloadAndStoreMedia(message.sticker.id, accessToken, accountId)
         return {
           ...empty,
-          mediaUrl: await verifyAndBuildUrl(message.sticker.id),
-          mediaType: message.sticker.mime_type,
+          mediaUrl: stored?.url ?? null,
+          mediaMimeType: stored?.mimeType ?? message.sticker.mime_type,
         }
       }
       return empty
