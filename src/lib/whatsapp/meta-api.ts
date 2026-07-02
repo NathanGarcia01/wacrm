@@ -24,18 +24,39 @@ export interface MetaPhoneInfo {
 }
 
 interface MetaErrorResponse {
-  error?: { message?: string; code?: number; type?: string }
+  error?: { message?: string; code?: number; type?: string; error_subcode?: number }
+}
+
+/**
+ * Carries Meta's numeric error `code` alongside the message so callers
+ * that need to branch on it (rate limiting: 130429, template rejected:
+ * 132000+) don't have to regex the message text. Every other caller can
+ * keep treating this as a plain `Error`.
+ */
+export class MetaApiError extends Error {
+  code?: number
+  subcode?: number
+  constructor(message: string, code?: number, subcode?: number) {
+    super(message)
+    this.name = 'MetaApiError'
+    this.code = code
+    this.subcode = subcode
+  }
 }
 
 async function throwMetaError(response: Response, fallback: string): Promise<never> {
   let message = fallback
+  let code: number | undefined
+  let subcode: number | undefined
   try {
     const data = (await response.json()) as MetaErrorResponse
     if (data.error?.message) message = data.error.message
+    code = data.error?.code
+    subcode = data.error?.error_subcode
   } catch {
     // response body wasn't JSON — keep the fallback
   }
-  throw new Error(message)
+  throw new MetaApiError(message, code, subcode)
 }
 
 // ============================================================

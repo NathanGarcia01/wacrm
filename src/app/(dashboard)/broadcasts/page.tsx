@@ -272,6 +272,12 @@ export default function BroadcastsPage() {
                         )}
                         {status.label}
                       </span>
+                      {broadcast.status === 'sending' && broadcast.batch_size > 0 && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Lote {broadcast.current_batch + 1} de{' '}
+                          {Math.max(1, Math.ceil(broadcast.total_recipients / broadcast.batch_size))}
+                        </p>
+                      )}
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground sm:table-cell">
                       {new Date(broadcast.created_at).toLocaleDateString()}

@@ -317,7 +317,7 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'paused';
 export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 
 export interface Broadcast {
@@ -337,6 +337,21 @@ export interface Broadcast {
   replied_count: number;
   failed_count: number;
   created_at: string;
+  /** Messages per batch — anti-ban cadence control (min 10, max 200, default 50). */
+  batch_size: number;
+  /** Pause between batches, in minutes (min 2, max 60, default 10). */
+  batch_interval_minutes: number;
+  /** Random per-message delay range, in seconds (defaults 3-8). */
+  message_delay_min_seconds: number;
+  message_delay_max_seconds: number;
+  /** When true, the cron worker only sends between 08:00-20:00 America/Sao_Paulo. */
+  respect_business_hours: boolean;
+  /** Next time the cron worker should pick this broadcast up. Null once terminal. */
+  next_batch_at?: string | null;
+  /** 0-indexed batch counter, surfaced in the UI as "Lote N de M". */
+  current_batch: number;
+  /** Recipients processed (sent or failed) within the current batch. */
+  current_batch_sent: number;
 }
 
 export interface BroadcastRecipient {

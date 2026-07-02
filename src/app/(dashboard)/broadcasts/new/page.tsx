@@ -11,6 +11,7 @@ import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audien
 import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
+import type { CadenceSettings } from '@/lib/broadcast-cadence';
 import { Check } from 'lucide-react';
 
 const steps = [
@@ -23,7 +24,7 @@ const steps = [
 export default function NewBroadcastPage() {
   const router = useRouter();
   const { accountId } = useAuth();
-  const { createAndSendBroadcast, isProcessing, progress } = useBroadcastSending();
+  const { createBroadcast, isProcessing, progress } = useBroadcastSending();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
@@ -43,11 +44,11 @@ export default function NewBroadcastPage() {
   >({});
   const [name, setName] = useState('');
 
-  async function handleSend() {
+  async function handleSend(cadence: CadenceSettings, scheduledAt: Date | null) {
     if (!template) return;
 
     try {
-      const broadcastId = await createAndSendBroadcast({
+      const broadcastId = await createBroadcast({
         name,
         template,
         audience: {
@@ -58,6 +59,8 @@ export default function NewBroadcastPage() {
           excludeTagIds: audience.excludeTagIds,
         },
         variables,
+        cadence,
+        scheduledAt,
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {

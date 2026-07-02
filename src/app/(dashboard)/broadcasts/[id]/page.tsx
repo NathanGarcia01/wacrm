@@ -32,6 +32,8 @@ import {
   Download,
   ChevronDown,
   Trash2,
+  Pause,
+  Play,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -111,6 +113,56 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
   );
 }
 
+/**
+ * Live status strip shown above the stat cards while a broadcast is
+ * scheduled, sending, or paused. Sourced entirely from the polled
+ * `broadcast` row — no separate ticking clock, so resolution matches
+ * the 5s poll interval (see the effect above), which is plenty for a
+ * "~4min remaining" style countdown.
+ */
+function BatchProgress({ broadcast }: { broadcast: Broadcast }) {
+  const totalBatches = Math.max(1, Math.ceil(broadcast.total_recipients / (broadcast.batch_size || 1)));
+  const processed = broadcast.sent_count + broadcast.failed_count;
+  const pct = broadcast.total_recipients > 0 ? Math.round((processed / broadcast.total_recipients) * 100) : 0;
+
+  if (broadcast.status === 'scheduled') {
+    return (
+      <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-blue-300">
+        Scheduled to start{' '}
+        {broadcast.scheduled_at ? new Date(broadcast.scheduled_at).toLocaleString() : 'soon'}.
+      </div>
+    );
+  }
+
+  if (broadcast.status === 'paused') {
+    return (
+      <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4 text-sm text-orange-300">
+        Paused — {processed} of {broadcast.total_recipients} sent so far. Resume when you're ready.
+      </div>
+    );
+  }
+
+  // sending
+  const minutesRemaining = broadcast.next_batch_at
+    ? Math.max(0, Math.ceil((new Date(broadcast.next_batch_at).getTime() - Date.now()) / 60_000))
+    : 0;
+
+  return (
+    <div className="space-y-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium text-foreground">
+          Enviando lote {broadcast.current_batch + 1} de {totalBatches}
+          {minutesRemaining > 0 ? ` — aguardando próximo lote (${minutesRemaining}min restantes)` : '...'}
+        </span>
+        <span className="text-xs text-muted-foreground">{processed}/{broadcast.total_recipients}</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-muted">
+        <div className="h-1.5 rounded-full bg-yellow-500 transition-all duration-300" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
   'pending',
   'sent',
@@ -155,38 +207,72 @@ export default function BroadcastDetailPage() {
   );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [pausing, setPausing] = useState(false);
+
+  async function fetchData() {
+    try {
+      const supabase = createClient();
+
+      const { data: bc, error: bcError } = await supabase
+        .from('broadcasts')
+        .select('*')
+        .eq('id', broadcastId)
+        .single();
+
+      if (bcError) throw bcError;
+      setBroadcast(bc);
+
+      const { data: recs, error: recsError } = await supabase
+        .from('broadcast_recipients')
+        .select('*, contact:contacts(*)')
+        .eq('broadcast_id', broadcastId)
+        .order('created_at', { ascending: false });
+
+      if (recsError) throw recsError;
+      setRecipients(recs ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load broadcast');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const supabase = createClient();
-
-        const { data: bc, error: bcError } = await supabase
-          .from('broadcasts')
-          .select('*')
-          .eq('id', broadcastId)
-          .single();
-
-        if (bcError) throw bcError;
-        setBroadcast(bc);
-
-        const { data: recs, error: recsError } = await supabase
-          .from('broadcast_recipients')
-          .select('*, contact:contacts(*)')
-          .eq('broadcast_id', broadcastId)
-          .order('created_at', { ascending: false });
-
-        if (recsError) throw recsError;
-        setRecipients(recs ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load broadcast');
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [broadcastId]);
+
+  // Poll while actively sending so the batch progress / countdown and
+  // recipient statuses stay fresh without a manual refresh — mirrors
+  // the list page's polling.
+  useEffect(() => {
+    if (broadcast?.status !== 'sending') return;
+    const timer = setInterval(fetchData, 5_000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcast?.status]);
+
+  async function handleTogglePause() {
+    if (!broadcast) return;
+    setPausing(true);
+    const supabase = createClient();
+    const resuming = broadcast.status === 'paused';
+    const { error: updateError } = await supabase
+      .from('broadcasts')
+      .update(
+        resuming
+          ? { status: 'sending', next_batch_at: new Date().toISOString() }
+          : { status: 'paused' },
+      )
+      .eq('id', broadcastId);
+    setPausing(false);
+    if (updateError) {
+      toast.error(`Failed to ${resuming ? 'resume' : 'pause'}: ${updateError.message}`);
+      return;
+    }
+    toast.success(resuming ? 'Broadcast resumed' : 'Broadcast paused');
+    fetchData();
+  }
 
   const filteredRecipients = useMemo(
     () =>
@@ -303,6 +389,29 @@ export default function BroadcastDetailPage() {
           </div>
         </div>
 
+        <div className="flex items-center gap-2">
+        {(broadcast.status === 'sending' || broadcast.status === 'paused') && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTogglePause}
+            disabled={pausing}
+            className="border-border text-muted-foreground hover:bg-muted"
+          >
+            {broadcast.status === 'paused' ? (
+              <>
+                <Play className="h-3.5 w-3.5" />
+                {pausing ? 'Resuming…' : 'Resume'}
+              </>
+            ) : (
+              <>
+                <Pause className="h-3.5 w-3.5" />
+                {pausing ? 'Pausing…' : 'Pause'}
+              </>
+            )}
+          </Button>
+        )}
+
         {/* Delete — inline-confirm pattern matches the pipeline-settings
             "Delete Pipeline" flow. Mid-send broadcasts can't be deleted
             because orphaning in-flight Meta messages would leave the
@@ -345,7 +454,16 @@ export default function BroadcastDetailPage() {
             Delete
           </Button>
         )}
+        </div>
       </div>
+
+      {/* Batch progress — only meaningful while the cron worker is
+          actively pacing this broadcast. Scheduled shows the start
+          time; sending shows current batch + countdown to the next
+          one; paused explains why nothing is moving. */}
+      {broadcast.status !== 'draft' && broadcast.status !== 'sent' && broadcast.status !== 'failed' && (
+        <BatchProgress broadcast={broadcast} />
+      )}
 
       {/* Stats — 6 cards: Total / Sent / Delivered / Read / Replied / Failed */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
