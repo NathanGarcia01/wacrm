@@ -1,0 +1,54 @@
+{
+  "nav": {
+    "dashboard": "Panel",
+    "inbox": "Bandeja de Entrada",
+    "contacts": "Contactos",
+    "pipelines": "Pipelines",
+    "broadcasts": "Difusiones",
+    "automations": "Automatizaciones",
+    "flows": "Flujos",
+    "reports": "Informes",
+    "settings": "Configuración",
+    "beta": "Beta"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "send": "Enviar",
+    "search": "Buscar",
+    "loading": "Cargando"
+  },
+  "sidebar": {
+    "profile": "Perfil",
+    "settingsMenu": "Configuración",
+    "signOut": "Cerrar sesión"
+  },
+  "dashboard": {
+    "title": "Panel",
+    "subtitle": "Análisis en tiempo real de conversaciones, contactos, negocios, difusiones y automatizaciones.",
+    "activeConversations": "Conversaciones Activas",
+    "newContactsToday": "Nuevos Contactos Hoy",
+    "openDealsValue": "Valor en Negocios Abiertos",
+    "messagesSentToday": "Mensajes Enviados Hoy",
+    "newTodayVsYesterday": "nuevos hoy vs ayer",
+    "vsYesterday": "vs ayer",
+    "noChange": "Sin cambios {suffix}",
+    "delta": "{sign}{value} {suffix}",
+    "openDealsCount": "{count, plural, one {# negocio abierto} other {# negocios abiertos}}"
+  },
+  "settings": {
+    "preferences": {
+      "navLabel": "Preferencias",
+      "title": "Preferencias",
+      "description": "Elige el idioma usado en toda la interfaz.",
+      "language": "Idioma",
+      "pt": "Português",
+      "en": "English",
+      "es": "Español",
+      "saved": "Idioma actualizado"
+    }
+  }
+}

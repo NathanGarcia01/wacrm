@@ -9,6 +9,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
@@ -19,6 +20,12 @@ import {
   isAccountRole,
   type AccountRole,
 } from "@/lib/auth/roles";
+import {
+  DEFAULT_LOCALE,
+  LOCALE_COOKIE_NAME,
+  isLocale,
+  type Locale,
+} from "@/i18n/locales";
 
 interface Profile {
   id: string;
@@ -34,6 +41,8 @@ interface Profile {
   beta_features: string[];
   account_id: string | null;
   account_role: AccountRole | null;
+  /** UI language — `pt` | `en` | `es`. NOT NULL DEFAULT 'pt' in the DB. */
+  language: Locale;
 }
 
 interface AccountSummary {
@@ -136,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name, default_currency)",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, account:accounts!inner(id, name, default_currency)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -196,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           beta_features: data.beta_features ?? [],
           account_id: data.account_id ?? null,
           account_role: accountRole,
+          language: isLocale(data.language) ? data.language : DEFAULT_LOCALE,
         });
         setAccount(accountRow);
       }
@@ -291,6 +301,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user?.id) return;
     await fetchProfile(user.id);
   }, [user?.id, fetchProfile]);
+
+  const router = useRouter();
+
+  // Keep the `NEXT_LOCALE` cookie (read server-side by next-intl, see
+  // src/i18n/request.ts) in step with `profiles.language`. Covers the
+  // case where the user's saved language differs from whatever locale
+  // this device last rendered with — e.g. first login on a new device,
+  // or a language change made from another device. A refresh() re-runs
+  // the server layout so it picks up the new cookie/messages; skipped
+  // when they already agree so we don't refresh on every profile fetch.
+  useEffect(() => {
+    if (!profile) return;
+    const current = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${LOCALE_COOKIE_NAME}=`))
+      ?.split("=")[1];
+    if (current === profile.language) return;
+    document.cookie = `${LOCALE_COOKIE_NAME}=${profile.language}; path=/; max-age=31536000; SameSite=Lax`;
+    router.refresh();
+  }, [profile, router]);
 
   // Derive the role booleans once per profile change rather than on
   // every consumer render. Cheap regardless, but the memo also gives
