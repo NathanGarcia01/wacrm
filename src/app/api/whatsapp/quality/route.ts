@@ -4,10 +4,11 @@ import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
 /**
- * Surfaces the WhatsApp number's `quality_rating` for the broadcast
- * Send step's anti-ban badge. A dedicated route (rather than calling
- * Meta from the client) because the access token only ever gets
- * decrypted server-side.
+ * Surfaces the WhatsApp number's `quality_rating` (used by the broadcast
+ * Send step's anti-ban badge) plus `messaging_limit_tier` and
+ * `display_phone_number` (used by the Reports Quality tab). A dedicated
+ * route (rather than calling Meta from the client) because the access
+ * token only ever gets decrypted server-side.
  */
 export async function GET() {
   const supabase = await createClient()
@@ -52,7 +53,11 @@ export async function GET() {
       phoneNumberId: config.phone_number_id,
       accessToken,
     })
-    return NextResponse.json({ quality_rating: info.quality_rating ?? null })
+    return NextResponse.json({
+      quality_rating: info.quality_rating ?? null,
+      messaging_limit_tier: info.messaging_limit_tier ?? null,
+      display_phone_number: info.display_phone_number ?? null,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json({ error: message }, { status: 502 })

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
-import { Clock, DollarSign, MessageSquare, Trophy, Users } from "lucide-react"
+import { Clock, DollarSign, MessageSquare, MessageSquareReply, Percent, Trophy, Users } from "lucide-react"
 
 import { loadReportsBundle } from "@/lib/reports/queries"
 import { resolvePeriod } from "@/lib/reports/period"
@@ -16,6 +16,21 @@ import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
 import { PeriodFilter } from "@/components/reports/period-filter"
 import { UserRankingTable } from "@/components/reports/user-ranking-table"
+import { MessagesPerDayChart } from "@/components/reports/messages-per-day-chart"
+import { PipelineTab } from "@/components/reports/pipeline-tab"
+import { BroadcastsTab } from "@/components/reports/broadcasts-tab"
+import { QualityTab } from "@/components/reports/quality-tab"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+type ReportTab = "overview" | "pipeline" | "broadcasts" | "quality"
+
+function isPeriodKey(v: string | null): v is PeriodKey {
+  return v === "today" || v === "week" || v === "month" || v === "custom"
+}
+
+function isReportTab(v: string | null): v is ReportTab {
+  return v === "overview" || v === "pipeline" || v === "broadcasts" || v === "quality"
+}
 
 // `useSearchParams` opts the page out of static prerendering unless
 // it sits under a Suspense boundary — same split used by
@@ -28,14 +43,13 @@ export default function ReportsPage() {
   )
 }
 
-function isPeriodKey(v: string | null): v is PeriodKey {
-  return v === "today" || v === "week" || v === "month" || v === "custom"
-}
-
 function ReportsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { defaultCurrency } = useAuth()
+
+  const tabParam = searchParams.get("tab")
+  const tab: ReportTab = isReportTab(tabParam) ? tabParam : "overview"
 
   const periodParam = searchParams.get("period")
   const periodKey: PeriodKey = isPeriodKey(periodParam) ? periodParam : "today"
@@ -77,14 +91,26 @@ function ReportsPageInner() {
     }
   }, [period])
 
-  function updatePeriod(next: { period: PeriodKey; from?: string; to?: string }) {
+  function buildParams(next: { tab?: ReportTab; period: PeriodKey; from?: string; to?: string }) {
     const params = new URLSearchParams()
+    params.set("tab", next.tab ?? tab)
     params.set("period", next.period)
     if (next.period === "custom" && next.from && next.to) {
       params.set("from", next.from)
       params.set("to", next.to)
     }
-    router.replace(`/reports?${params.toString()}`, { scroll: false })
+    return params
+  }
+
+  function updatePeriod(next: { period: PeriodKey; from?: string; to?: string }) {
+    router.replace(`/reports?${buildParams(next).toString()}`, { scroll: false })
+  }
+
+  function updateTab(next: ReportTab) {
+    router.replace(
+      `/reports?${buildParams({ tab: next, period: periodKey, from: fromParam ?? undefined, to: toParam ?? undefined }).toString()}`,
+      { scroll: false },
+    )
   }
 
   return (
@@ -92,57 +118,88 @@ function ReportsPageInner() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Métricas de atendimento e vendas por período, gerais e por usuário.
+          Métricas de atendimento, vendas, transmissões e qualidade da conta por período.
         </p>
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <Tabs value={tab} onValueChange={(v) => updateTab(v as ReportTab)}>
+          <TabsList>
+            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="pipeline">Pipeline &amp; Vendas</TabsTrigger>
+            <TabsTrigger value="broadcasts">Transmissões</TabsTrigger>
+            <TabsTrigger value="quality">Qualidade da conta</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       <PeriodFilter period={period} onChange={updatePeriod} />
 
-      {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          {error}
+      {tab === "overview" && (
+        <div className="space-y-5">
+          {error && (
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {loading || !bundle ? (
+              Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : (
+              <>
+                <MetricCard
+                  title="Mensagens enviadas"
+                  value={bundle.cards.messagesSent.toLocaleString()}
+                  icon={MessageSquare}
+                />
+                <MetricCard
+                  title="Mensagens recebidas"
+                  value={bundle.cards.messagesReceived.toLocaleString()}
+                  icon={MessageSquareReply}
+                />
+                <MetricCard
+                  title="Conversas atendidas"
+                  value={bundle.cards.conversationsHandled.toLocaleString()}
+                  icon={Users}
+                />
+                <MetricCard
+                  title="Taxa de resposta"
+                  value={bundle.cards.responseRatePct == null ? "—" : `${bundle.cards.responseRatePct.toFixed(0)}%`}
+                  icon={Percent}
+                />
+                <MetricCard
+                  title="Deals ganhos"
+                  value={bundle.cards.dealsWon.toLocaleString()}
+                  icon={Trophy}
+                />
+                <MetricCard
+                  title="Valor vendido"
+                  value={formatCurrency(bundle.cards.valueWon, defaultCurrency)}
+                  icon={DollarSign}
+                />
+                <MetricCard
+                  title="Tempo médio de resposta"
+                  value={formatResponseTime(bundle.cards.avgResponseMinutes)}
+                  icon={Clock}
+                />
+              </>
+            )}
+          </div>
+
+          <MessagesPerDayChart data={bundle?.messagesPerDay ?? []} />
+
+          <UserRankingTable
+            rows={bundle?.users ?? []}
+            loading={loading}
+            currency={defaultCurrency}
+          />
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {loading || !bundle ? (
-          Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
-        ) : (
-          <>
-            <MetricCard
-              title="Mensagens enviadas"
-              value={bundle.cards.messagesSent.toLocaleString()}
-              icon={MessageSquare}
-            />
-            <MetricCard
-              title="Conversas atendidas"
-              value={bundle.cards.conversationsHandled.toLocaleString()}
-              icon={Users}
-            />
-            <MetricCard
-              title="Deals ganhos"
-              value={bundle.cards.dealsWon.toLocaleString()}
-              icon={Trophy}
-            />
-            <MetricCard
-              title="Valor vendido"
-              value={formatCurrency(bundle.cards.valueWon, defaultCurrency)}
-              icon={DollarSign}
-            />
-            <MetricCard
-              title="Tempo médio de resposta"
-              value={formatResponseTime(bundle.cards.avgResponseMinutes)}
-              icon={Clock}
-            />
-          </>
-        )}
-      </div>
-
-      <UserRankingTable
-        rows={bundle?.users ?? []}
-        loading={loading}
-        currency={defaultCurrency}
-      />
+      {tab === "pipeline" && <PipelineTab period={period} />}
+      {tab === "broadcasts" && <BroadcastsTab period={period} />}
+      {tab === "quality" && <QualityTab />}
     </div>
   )
 }

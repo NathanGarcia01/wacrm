@@ -1,5 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { AccountReportCards, PeriodRange, ReportsBundle, UserReportRow } from './types'
+import { localDayKey } from '@/lib/dashboard/date-utils'
+import type {
+  AccountReportCards,
+  MessagesPerDayPoint,
+  PeriodRange,
+  ReportsBundle,
+  UserReportRow,
+} from './types'
 
 // ------------------------------------------------------------
 // All client-side aggregation, same convention as
@@ -85,12 +92,17 @@ export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<Re
   const wonDeals = (wonDealsRes.data ?? []) as WonDealRow[]
   const members = (membersRes.data ?? []) as MemberRow[]
 
+  const allMessages = (allMsgsRes.data ?? []) as RawMessageRow[]
+  const responseMetrics = computeResponseMetrics(allMessages)
+
   const cards: AccountReportCards = {
     messagesSent: agentMessages.length,
+    messagesReceived: allMessages.filter((m) => m.sender_type === 'customer').length,
     conversationsHandled: new Set(agentMessages.map((m) => m.conversation_id)).size,
     dealsWon: wonDeals.length,
     valueWon: wonDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
-    avgResponseMinutes: averageResponseMinutes((allMsgsRes.data ?? []) as RawMessageRow[]),
+    avgResponseMinutes: responseMetrics.avgResponseMinutes,
+    responseRatePct: responseMetrics.responseRatePct,
   }
 
   const users: UserReportRow[] = members.map((member) => {
@@ -108,7 +120,7 @@ export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<Re
     }
   })
 
-  return { cards, users }
+  return { cards, users, messagesPerDay: buildMessagesPerDay(allMessages, period) }
 }
 
 function assignedAgentOf(msg: AgentMessageRow): string | null {
@@ -122,26 +134,83 @@ function assignedAgentOf(msg: AgentMessageRow): string | null {
  * bot) message in the same conversation. `sender_id` isn't reliable
  * enough to attribute this per-agent (see the task brief) — this
  * average is intentionally account-scoped only.
+ *
+ * Also derives the response rate: of the conversations an agent (or
+ * bot) sent at least one message in during the period, what
+ * percentage saw the customer reply afterward (within the period)?
+ * Both metrics walk the same conversation-ordered, time-ordered rows
+ * in one pass to avoid a second grouping pass over the data.
  */
-function averageResponseMinutes(rows: RawMessageRow[]): number | null {
+function computeResponseMetrics(rows: RawMessageRow[]): {
+  avgResponseMinutes: number | null
+  responseRatePct: number | null
+} {
   let currentConv = ''
   let pendingCustomer: Date | null = null
   const diffsMinutes: number[] = []
+  const contactedConversations = new Set<string>()
+  const repliedConversations = new Set<string>()
+  let lastOutboundConv: string | null = null
 
   for (const row of rows) {
     if (row.conversation_id !== currentConv) {
       currentConv = row.conversation_id
       pendingCustomer = null
+      lastOutboundConv = null
     }
     const ts = new Date(row.created_at)
     if (row.sender_type === 'customer') {
       if (!pendingCustomer) pendingCustomer = ts
-    } else if (pendingCustomer) {
-      diffsMinutes.push((ts.getTime() - pendingCustomer.getTime()) / 60_000)
-      pendingCustomer = null
+      if (lastOutboundConv === row.conversation_id) {
+        repliedConversations.add(row.conversation_id)
+      }
+    } else {
+      contactedConversations.add(row.conversation_id)
+      lastOutboundConv = row.conversation_id
+      if (pendingCustomer) {
+        diffsMinutes.push((ts.getTime() - pendingCustomer.getTime()) / 60_000)
+        pendingCustomer = null
+      }
     }
   }
 
-  if (diffsMinutes.length === 0) return null
-  return diffsMinutes.reduce((a, b) => a + b, 0) / diffsMinutes.length
+  const avgResponseMinutes =
+    diffsMinutes.length === 0
+      ? null
+      : diffsMinutes.reduce((a, b) => a + b, 0) / diffsMinutes.length
+
+  const responseRatePct =
+    contactedConversations.size === 0
+      ? null
+      : (repliedConversations.size / contactedConversations.size) * 100
+
+  return { avgResponseMinutes, responseRatePct }
+}
+
+/**
+ * One point per calendar day in the period (local timezone), even
+ * days with zero messages — a LineChart with gaps at zero-message
+ * days would otherwise misrepresent the trend as missing data.
+ */
+function buildMessagesPerDay(rows: RawMessageRow[], period: PeriodRange): MessagesPerDayPoint[] {
+  const byDay = new Map<string, { sent: number; received: number }>()
+  for (const row of rows) {
+    if (row.sender_type !== 'agent' && row.sender_type !== 'customer') continue
+    const key = localDayKey(row.created_at)
+    const bucket = byDay.get(key) ?? { sent: 0, received: 0 }
+    if (row.sender_type === 'agent') bucket.sent++
+    else bucket.received++
+    byDay.set(key, bucket)
+  }
+
+  const points: MessagesPerDayPoint[] = []
+  const cursor = new Date(period.startISO)
+  const end = new Date(period.endISO)
+  while (cursor < end) {
+    const key = localDayKey(cursor)
+    const bucket = byDay.get(key) ?? { sent: 0, received: 0 }
+    points.push({ date: key, ...bucket })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return points
 }
