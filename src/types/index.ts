@@ -313,11 +313,24 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  lost_reason?: string;
+  lost_at?: string;
   created_at: string;
   updated_at?: string;
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
+}
+
+export interface DealProduct {
+  id: string;
+  deal_id: string;
+  account_id: string;
+  name: string;
+  value: number;
+  quantity: number;
+  notes?: string;
+  created_at: string;
 }
 
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'paused';

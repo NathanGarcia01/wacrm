@@ -101,6 +101,26 @@
       "unknownContact": "Desconocido",
       "noMessagesYet": "Sin mensajes todavía"
     },
+    "filters": {
+      "filters": "Filtros",
+      "filtersCount": "Filtros ({count})",
+      "clearFilters": "Limpiar filtros",
+      "assignedTo": "Responsable",
+      "any": "Cualquiera",
+      "unassigned": "Sin responsable",
+      "stage": "Etapa del embudo",
+      "dealStatus": "Estado del negocio",
+      "dealOpen": "Abierto",
+      "dealWon": "Ganado",
+      "dealLost": "Perdido",
+      "dealNone": "Sin negocio",
+      "tags": "Tags",
+      "noTagsAvailable": "Ninguna tag disponible",
+      "date": "Último mensaje",
+      "dateToday": "Hoy",
+      "dateWeek": "Esta semana",
+      "dateMonth": "Este mes"
+    },
     "sidebar": {
       "selectConversation": "Selecciona una conversación",
       "tags": "Tags",
@@ -110,7 +130,20 @@
       "noDeals": "Sin negocios",
       "editDeal": "Editar {title}",
       "notes": "Notas",
-      "addNotePlaceholder": "Agregar una nota..."
+      "addNotePlaceholder": "Agregar una nota...",
+      "namePlaceholder": "Agregar nombre",
+      "phonePlaceholder": "Agregar teléfono",
+      "phoneRequired": "El teléfono es obligatorio",
+      "emailPlaceholder": "Agregar email",
+      "emailInvalid": "Email inválido",
+      "updateFailed": "Error al actualizar el contacto",
+      "saving": "Guardando...",
+      "saved": "Guardado ✓",
+      "copyPhone": "Copiar teléfono",
+      "customFields": "Campos personalizados",
+      "enterFieldPlaceholder": "Ingresa {field}...",
+      "deleteNote": "Eliminar nota",
+      "deleteNoteFailed": "Error al eliminar la nota"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título y etapa son obligatorios",
@@ -411,7 +444,31 @@
       "confirmDeleteDeal": "¿Eliminar este negocio?",
       "confirm": "Confirmar",
       "deleting": "Eliminando...",
-      "deleteDeal": "Eliminar Negocio"
+      "deleteDeal": "Eliminar Negocio",
+      "productsLabel": "Productos",
+      "addProduct": "Agregar producto",
+      "noProducts": "Ningún producto agregado",
+      "productNameLabel": "Producto",
+      "productValueLabel": "Valor unitario",
+      "productQuantityLabel": "Cant.",
+      "productTotalLabel": "Total",
+      "productsTotalLabel": "Total del negocio",
+      "productNamePlaceholder": "Nombre del producto",
+      "saveProduct": "Guardar producto",
+      "editProduct": "Editar producto",
+      "deleteProduct": "Eliminar producto",
+      "productSaveFailed": "Error al guardar el producto",
+      "productDeleteFailed": "Error al eliminar el producto",
+      "lostReasonLabel": "Motivo",
+      "lostReasonTitle": "Motivo de la pérdida",
+      "lostReasonPlaceholder": "Describe el motivo de la pérdida...",
+      "lostReasonChips": {
+        "priceTooHigh": "Precio alto",
+        "choseCompetitor": "Eligió a la competencia",
+        "noInterest": "Sin interés",
+        "noContact": "Sin respuesta",
+        "other": "Otro"
+      }
     }
   },
   "automations": {

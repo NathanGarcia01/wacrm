@@ -10,6 +10,7 @@ import type {
   Contact,
   Conversation,
   Deal,
+  DealProduct,
   DealStatus,
   PipelineStage,
   Profile,
@@ -20,6 +21,21 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,8 +47,18 @@ import {
   MessageSquare,
   DollarSign,
   Loader2,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
+
+const LOST_REASON_CHIPS = [
+  "priceTooHigh",
+  "choseCompetitor",
+  "noInterest",
+  "noContact",
+  "other",
+] as const;
 
 interface DealFormProps {
   open: boolean;
@@ -75,6 +101,22 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const [products, setProducts] = useState<DealProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [addingProduct, setAddingProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({ name: "", value: "", quantity: "1" });
+  const [savingNewProduct, setSavingNewProduct] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editProductDraft, setEditProductDraft] = useState({ name: "", value: "", quantity: "1" });
+  const [savingProductId, setSavingProductId] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+
+  const [lostReasonOpen, setLostReasonOpen] = useState(false);
+  const [lostReason, setLostReason] = useState("");
+  const [savingLostReason, setSavingLostReason] = useState(false);
+
+  const productsTotal = products.reduce((sum, p) => sum + p.value * p.quantity, 0);
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -150,6 +192,131 @@ export function DealForm({
       cancelled = true;
     };
   }, [open, contactId, supabase]);
+
+  // Line items for the deal. Only fetchable once the deal exists — a
+  // deal being created has no id yet, so the section renders empty
+  // (guarded by `deal &&` below) until the first save.
+  useEffect(() => {
+    if (!open || !deal) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProducts([]);
+      return;
+    }
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoadingProducts(true);
+    (async () => {
+      const { data } = await supabase
+        .from("deal_products")
+        .select("*")
+        .eq("deal_id", deal.id)
+        .order("created_at", { ascending: true });
+      if (cancelled) return;
+      setProducts((data ?? []) as DealProduct[]);
+      setLoadingProducts(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, deal, supabase]);
+
+  async function handleAddProduct() {
+    if (!deal || !accountId || !newProduct.name.trim()) return;
+    setSavingNewProduct(true);
+    const { data, error } = await supabase
+      .from("deal_products")
+      .insert({
+        deal_id: deal.id,
+        account_id: accountId,
+        name: newProduct.name.trim(),
+        value: parseFloat(newProduct.value) || 0,
+        quantity: parseInt(newProduct.quantity, 10) || 1,
+      })
+      .select()
+      .single();
+    setSavingNewProduct(false);
+    if (error || !data) {
+      toast.error(t("productSaveFailed"));
+      return;
+    }
+    setProducts((prev) => [...prev, data as DealProduct]);
+    setNewProduct({ name: "", value: "", quantity: "1" });
+    setAddingProduct(false);
+  }
+
+  function startEditProduct(product: DealProduct) {
+    setEditingProductId(product.id);
+    setEditProductDraft({
+      name: product.name,
+      value: String(product.value),
+      quantity: String(product.quantity),
+    });
+  }
+
+  async function handleSaveProduct(productId: string) {
+    if (!editProductDraft.name.trim()) return;
+    setSavingProductId(productId);
+    const parsedValue = parseFloat(editProductDraft.value) || 0;
+    const parsedQuantity = parseInt(editProductDraft.quantity, 10) || 1;
+    const { error } = await supabase
+      .from("deal_products")
+      .update({
+        name: editProductDraft.name.trim(),
+        value: parsedValue,
+        quantity: parsedQuantity,
+      })
+      .eq("id", productId);
+    setSavingProductId(null);
+    if (error) {
+      toast.error(t("productSaveFailed"));
+      return;
+    }
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === productId
+          ? { ...p, name: editProductDraft.name.trim(), value: parsedValue, quantity: parsedQuantity }
+          : p,
+      ),
+    );
+    setEditingProductId(null);
+  }
+
+  async function handleDeleteProduct(productId: string) {
+    setDeletingProductId(productId);
+    const { error } = await supabase.from("deal_products").delete().eq("id", productId);
+    setDeletingProductId(null);
+    if (error) {
+      toast.error(t("productDeleteFailed"));
+      return;
+    }
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+  }
+
+  function handleReasonChip(key: (typeof LOST_REASON_CHIPS)[number]) {
+    if (key === "other") {
+      setLostReason("");
+      return;
+    }
+    setLostReason(t(`lostReasonChips.${key}`));
+  }
+
+  async function confirmMarkLost() {
+    if (!deal || !lostReason.trim()) return;
+    setSavingLostReason(true);
+    const { error } = await supabase
+      .from("deals")
+      .update({ status: "lost", lost_reason: lostReason.trim() })
+      .eq("id", deal.id);
+    setSavingLostReason(false);
+    if (error) {
+      toast.error(t("updateStatusFailed"));
+      return;
+    }
+    toast.success(t("markedAsLost"));
+    setLostReasonOpen(false);
+    onOpenChange(false);
+    onSaved();
+  }
 
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
@@ -246,6 +413,7 @@ export function DealForm({
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
@@ -377,6 +545,218 @@ export function DealForm({
             </div>
 
             {deal && (
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-muted-foreground">{t("productsLabel")}</Label>
+                  <button
+                    type="button"
+                    onClick={() => setAddingProduct(true)}
+                    aria-label={t("addProduct")}
+                    className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {loadingProducts ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : products.length === 0 && !addingProduct ? (
+                  <p className="text-xs text-muted-foreground">{t("noProducts")}</p>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead className="text-muted-foreground">{t("productNameLabel")}</TableHead>
+                          <TableHead className="text-muted-foreground">{t("productValueLabel")}</TableHead>
+                          <TableHead className="text-muted-foreground">{t("productQuantityLabel")}</TableHead>
+                          <TableHead className="text-muted-foreground">{t("productTotalLabel")}</TableHead>
+                          <TableHead className="w-16 text-muted-foreground" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {products.map((product) =>
+                          editingProductId === product.id ? (
+                            <TableRow key={product.id} className="border-border">
+                              <TableCell>
+                                <Input
+                                  value={editProductDraft.name}
+                                  onChange={(e) =>
+                                    setEditProductDraft((prev) => ({ ...prev, name: e.target.value }))
+                                  }
+                                  className="h-7 border-border bg-muted text-xs text-foreground"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  value={editProductDraft.value}
+                                  onChange={(e) =>
+                                    setEditProductDraft((prev) => ({ ...prev, value: e.target.value }))
+                                  }
+                                  className="h-7 w-20 border-border bg-muted text-xs text-foreground"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  value={editProductDraft.quantity}
+                                  onChange={(e) =>
+                                    setEditProductDraft((prev) => ({ ...prev, quantity: e.target.value }))
+                                  }
+                                  className="h-7 w-16 border-border bg-muted text-xs text-foreground"
+                                />
+                              </TableCell>
+                              <TableCell className="text-xs text-foreground">
+                                {(
+                                  (parseFloat(editProductDraft.value) || 0) *
+                                  (parseInt(editProductDraft.quantity, 10) || 1)
+                                ).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveProduct(product.id)}
+                                    disabled={savingProductId === product.id || !editProductDraft.name.trim()}
+                                    aria-label={t("saveProduct")}
+                                    className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
+                                  >
+                                    {savingProductId === product.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Check className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingProductId(null)}
+                                    aria-label={t("cancel")}
+                                    className="rounded p-1 text-muted-foreground hover:bg-muted"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            <TableRow key={product.id} className="group border-border">
+                              <TableCell className="text-xs text-foreground">{product.name}</TableCell>
+                              <TableCell className="text-xs text-foreground">{product.value.toLocaleString()}</TableCell>
+                              <TableCell className="text-xs text-foreground">{product.quantity}</TableCell>
+                              <TableCell className="text-xs font-medium text-foreground">
+                                {(product.value * product.quantity).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditProduct(product)}
+                                    aria-label={t("editProduct")}
+                                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteProduct(product.id)}
+                                    disabled={deletingProductId === product.id}
+                                    aria-label={t("deleteProduct")}
+                                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-400 disabled:opacity-50"
+                                  >
+                                    {deletingProductId === product.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ),
+                        )}
+
+                        {addingProduct && (
+                          <TableRow className="border-border">
+                            <TableCell>
+                              <Input
+                                autoFocus
+                                value={newProduct.name}
+                                onChange={(e) => setNewProduct((prev) => ({ ...prev, name: e.target.value }))}
+                                placeholder={t("productNamePlaceholder")}
+                                className="h-7 border-border bg-muted text-xs text-foreground"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={newProduct.value}
+                                onChange={(e) => setNewProduct((prev) => ({ ...prev, value: e.target.value }))}
+                                placeholder="0"
+                                className="h-7 w-20 border-border bg-muted text-xs text-foreground"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={newProduct.quantity}
+                                onChange={(e) => setNewProduct((prev) => ({ ...prev, quantity: e.target.value }))}
+                                className="h-7 w-16 border-border bg-muted text-xs text-foreground"
+                              />
+                            </TableCell>
+                            <TableCell className="text-xs text-foreground">
+                              {(
+                                (parseFloat(newProduct.value) || 0) * (parseInt(newProduct.quantity, 10) || 1)
+                              ).toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={handleAddProduct}
+                                  disabled={savingNewProduct || !newProduct.name.trim()}
+                                  aria-label={t("saveProduct")}
+                                  className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
+                                >
+                                  {savingNewProduct ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddingProduct(false);
+                                    setNewProduct({ name: "", value: "", quantity: "1" });
+                                  }}
+                                  aria-label={t("cancel")}
+                                  className="rounded p-1 text-muted-foreground hover:bg-muted"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                    {products.length > 0 && (
+                      <div className="flex items-center justify-between border-t border-border bg-muted/50 px-2 py-1.5 text-xs font-medium text-foreground">
+                        <span className="text-muted-foreground">{t("productsTotalLabel")}</span>
+                        <span>{productsTotal.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {deal && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {t("statusLabel")}
@@ -399,20 +779,22 @@ export function DealForm({
                   </Button>
                   <Button
                     type="button"
-                    onClick={() => handleStatusChange("lost")}
+                    onClick={() => {
+                      setLostReason("");
+                      setLostReasonOpen(true);
+                    }}
                     disabled={!!statusAction || deal.status === "lost"}
                     className="flex-1 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
                   >
-                    {statusAction === "lost" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <X className="mr-1 h-4 w-4" />
-                        {t("markAsLost")}
-                      </>
-                    )}
+                    <X className="mr-1 h-4 w-4" />
+                    {t("markAsLost")}
                   </Button>
                 </div>
+                {deal.status === "lost" && deal.lost_reason && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("lostReasonLabel")}: {deal.lost_reason}
+                  </p>
+                )}
                 {deal.status && deal.status !== "open" && (
                   <Button
                     type="button"
@@ -483,5 +865,56 @@ export function DealForm({
         </div>
       </SheetContent>
     </Sheet>
+
+      <Dialog open={lostReasonOpen} onOpenChange={setLostReasonOpen}>
+        <DialogContent className="bg-popover border-border sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">{t("lostReasonTitle")}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-1.5">
+              {LOST_REASON_CHIPS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => handleReasonChip(key)}
+                  className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                >
+                  {t(`lostReasonChips.${key}`)}
+                </button>
+              ))}
+            </div>
+            <Textarea
+              value={lostReason}
+              onChange={(e) => setLostReason(e.target.value)}
+              placeholder={t("lostReasonPlaceholder")}
+              className="min-h-[90px] border-border bg-muted text-foreground"
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLostReasonOpen(false)}
+              disabled={savingLostReason}
+              className="border-border bg-transparent text-muted-foreground hover:bg-muted"
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmMarkLost}
+              disabled={savingLostReason || !lostReason.trim()}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {savingLostReason ? <Loader2 className="h-4 w-4 animate-spin" /> : t("markAsLost")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

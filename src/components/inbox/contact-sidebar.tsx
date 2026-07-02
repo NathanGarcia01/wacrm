@@ -1,23 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { Contact, Deal, ContactNote, Tag, CustomField } from "@/types";
 import {
   Phone,
   Mail,
   Copy,
   Check,
-  User,
   Tag as TagIcon,
   DollarSign,
   StickyNote,
   Plus,
   Pencil,
+  Trash2,
   X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,17 +27,25 @@ import { format } from "date-fns";
 import { TagPickerPopover } from "./tag-picker-popover";
 import { DealMiniSheet } from "./deal-mini-sheet";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 interface ContactSidebarProps {
   contact: Contact | null;
+  /** Fired after a direct field edit (name/phone/email/custom field)
+   *  commits successfully, so the parent can keep its own copy of the
+   *  contact (and any conversation list rows derived from it) in sync. */
+  onContactUpdated?: (contact: Contact) => void;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, onContactUpdated }: ContactSidebarProps) {
   const t = useTranslations("inbox.sidebar");
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   const [removingTagId, setRemovingTagId] = useState<string | null>(null);
@@ -47,8 +57,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
     const supabase = createClient();
 
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
+    // Fetch deals, notes, tags, and custom fields/values in parallel
+    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes] = await Promise.all([
       supabase
         .from("deals")
         .select("*, stage:pipeline_stages(*)")
@@ -63,6 +73,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         .from("contact_tags")
         .select("id, tag_id, tags(*)")
         .eq("contact_id", contact.id),
+      supabase.from("custom_fields").select("*").order("field_name"),
+      supabase
+        .from("contact_custom_values")
+        .select("*")
+        .eq("contact_id", contact.id),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
@@ -75,6 +90,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           contact_tag_id: ct.id as string,
         }));
       setTags(mapped);
+    }
+    if (fieldsRes.data) setCustomFields(fieldsRes.data as CustomField[]);
+    if (valuesRes.data) {
+      const map: Record<string, string> = {};
+      for (const v of valuesRes.data) map[v.custom_field_id] = v.value ?? "";
+      setCustomValues(map);
     }
   }, [contact]);
 
@@ -94,6 +115,54 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     // React Compiler's inference agrees with the manual dep list —
     // fixes the `preserve-manual-memoization` lint error.
   }, [contact]);
+
+  const handleUpdateField = useCallback(
+    async (field: "name" | "phone" | "email", value: string) => {
+      if (!contact) return;
+      const supabase = createClient();
+      const payload = { [field]: value || null, updated_at: new Date().toISOString() };
+      const { error } = await supabase
+        .from("contacts")
+        .update(payload)
+        .eq("id", contact.id);
+      if (error) {
+        toast.error(t("updateFailed"));
+        throw error;
+      }
+      onContactUpdated?.({ ...contact, ...payload } as Contact);
+    },
+    [contact, onContactUpdated, t],
+  );
+
+  const handleCommitCustomField = useCallback(
+    async (fieldId: string, value: string) => {
+      if (!contact) return;
+      const supabase = createClient();
+      const trimmed = value.trim();
+      if (!trimmed) {
+        const { error } = await supabase
+          .from("contact_custom_values")
+          .delete()
+          .eq("contact_id", contact.id)
+          .eq("custom_field_id", fieldId);
+        if (error) {
+          toast.error(t("updateFailed"));
+          throw error;
+        }
+      } else {
+        const { error } = await supabase.from("contact_custom_values").upsert(
+          { contact_id: contact.id, custom_field_id: fieldId, value: trimmed },
+          { onConflict: "contact_id,custom_field_id" },
+        );
+        if (error) {
+          toast.error(t("updateFailed"));
+          throw error;
+        }
+      }
+      setCustomValues((prev) => ({ ...prev, [fieldId]: trimmed }));
+    },
+    [contact, t],
+  );
 
   const handleRemoveTag = useCallback(
     async (contactTagId: string) => {
@@ -149,6 +218,19 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     setAddingNote(false);
   }, [contact, newNote, accountId]);
 
+  const handleDeleteNote = useCallback(
+    async (noteId: string) => {
+      const supabase = createClient();
+      const { error } = await supabase.from("contact_notes").delete().eq("id", noteId);
+      if (error) {
+        toast.error(t("deleteNoteFailed"));
+        return;
+      }
+      setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    },
+    [t],
+  );
+
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
@@ -177,35 +259,57 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 initials
               )}
             </div>
-            <h3 className="mt-3 text-sm font-semibold text-foreground">
-              {displayName}
-            </h3>
+            <div className="mt-3 w-full">
+              <InlineEditField
+                value={contact.name ?? ""}
+                placeholder={t("namePlaceholder")}
+                onCommit={(v) => handleUpdateField("name", v)}
+                inputClassName="text-center text-sm font-semibold"
+                displayClassName="justify-center text-sm font-semibold text-foreground"
+              />
+            </div>
             {contact.company && (
               <p className="text-xs text-muted-foreground">{contact.company}</p>
             )}
           </div>
 
           {/* Phone */}
-          <div className="mt-4 space-y-2">
-            <button
-              onClick={handleCopyPhone}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted"
-            >
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="flex-1 text-left">{contact.phone}</span>
-              {copied ? (
-                <Check className="h-3 w-3 text-primary" />
-              ) : (
-                <Copy className="h-3 w-3 text-muted-foreground" />
-              )}
-            </button>
+          <div className="mt-4 space-y-1">
+            <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
+              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <InlineEditField
+                value={contact.phone}
+                placeholder={t("phonePlaceholder")}
+                type="tel"
+                validate={(v) => (!v ? t("phoneRequired") : null)}
+                onCommit={(v) => handleUpdateField("phone", v)}
+                displayClassName="flex-1"
+              />
+              <button
+                type="button"
+                onClick={handleCopyPhone}
+                aria-label={t("copyPhone")}
+                className="shrink-0 rounded p-1 hover:bg-muted"
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-primary" />
+                ) : (
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                )}
+              </button>
+            </div>
 
-            {contact.email && (
-              <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <span className="truncate">{contact.email}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
+              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <InlineEditField
+                value={contact.email ?? ""}
+                placeholder={t("emailPlaceholder")}
+                type="email"
+                validate={(v) => (v && !EMAIL_RE.test(v) ? t("emailInvalid") : null)}
+                onCommit={(v) => handleUpdateField("email", v)}
+                displayClassName="flex-1"
+              />
+            </div>
           </div>
 
           {/* Divider */}
@@ -314,6 +418,38 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
+          {/* Custom fields */}
+          {customFields.length > 0 && (
+            <>
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {t("customFields")}
+                </div>
+                <div className="mt-2 space-y-1">
+                  {customFields.map((field) => (
+                    <div
+                      key={field.id}
+                      className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground"
+                    >
+                      <span className="w-20 shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {field.field_name}
+                      </span>
+                      <InlineEditField
+                        value={customValues[field.id] ?? ""}
+                        placeholder={t("enterFieldPlaceholder", { field: field.field_name })}
+                        onCommit={(v) => handleCommitCustomField(field.id, v)}
+                        displayClassName="flex-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
+
           {/* Notes */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -343,11 +479,21 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                 {notes.map((note) => (
                   <div
                     key={note.id}
-                    className="rounded-lg bg-muted px-3 py-2"
+                    className="group rounded-lg bg-muted px-3 py-2"
                   >
-                    <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-                      {note.note_text}
-                    </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                        {note.note_text}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteNote(note.id)}
+                        aria-label={t("deleteNote")}
+                        className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                     <p className="mt-1 text-[10px] text-muted-foreground">
                       {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
                     </p>
@@ -367,5 +513,142 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         onSaved={fetchContactData}
       />
     </div>
+  );
+}
+
+interface InlineEditFieldProps {
+  value: string;
+  placeholder?: string;
+  type?: "text" | "email" | "tel";
+  /** Return an error message to block the commit, or null/undefined to allow it. */
+  validate?: (value: string) => string | null | undefined;
+  /** Persist the new value. Throw (or reject) to keep the field in edit mode. */
+  onCommit: (value: string) => Promise<void>;
+  displayClassName?: string;
+  inputClassName?: string;
+}
+
+/**
+ * Click-to-edit text field used throughout the sidebar for contact
+ * attributes. Enter/blur commits, Escape reverts. `status` drives the
+ * "Salvando…" / "Salvo ✓" affordance the task spec calls for.
+ */
+function InlineEditField({
+  value,
+  placeholder,
+  type = "text",
+  validate,
+  onCommit,
+  displayClassName,
+  inputClassName,
+}: InlineEditFieldProps) {
+  const t = useTranslations("inbox.sidebar");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Keep the draft in sync when the underlying value changes elsewhere
+  // (e.g. another tab updates the contact) while this field isn't being
+  // edited — a legitimate prop-driven sync, not a fetch side effect.
+  useEffect(() => {
+    if (!editing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDraft(value);
+    }
+  }, [value, editing]);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  useEffect(() => {
+    return () => clearTimeout(savedTimeoutRef.current);
+  }, []);
+
+  const startEdit = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+  }, [value]);
+
+  const cancel = useCallback(() => {
+    setDraft(value);
+    setEditing(false);
+  }, [value]);
+
+  const commit = useCallback(async () => {
+    const trimmed = draft.trim();
+    if (trimmed === (value ?? "").trim()) {
+      setEditing(false);
+      return;
+    }
+    const error = validate?.(trimmed);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setStatus("saving");
+    try {
+      await onCommit(trimmed);
+      setEditing(false);
+      setStatus("saved");
+      savedTimeoutRef.current = setTimeout(() => setStatus("idle"), 1500);
+    } catch {
+      setStatus("idle");
+    }
+  }, [draft, value, validate, onCommit]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type={type}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commit();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        placeholder={placeholder}
+        className={cn(
+          "w-full rounded-md border border-primary/50 bg-muted px-2 py-1 text-sm text-foreground outline-none",
+          inputClassName,
+        )}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={startEdit}
+      className={cn(
+        "group/field flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left hover:bg-muted",
+        displayClassName,
+      )}
+    >
+      <span className="min-w-0 flex-1 truncate">
+        {value || <span className="text-muted-foreground">{placeholder}</span>}
+      </span>
+      {status === "saving" && (
+        <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {t("saving")}
+        </span>
+      )}
+      {status === "saved" && (
+        <span className="shrink-0 text-[10px] text-primary">{t("saved")}</span>
+      )}
+      {status === "idle" && (
+        <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/field:opacity-100" />
+      )}
+    </button>
   );
 }

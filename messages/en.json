@@ -101,6 +101,26 @@
       "unknownContact": "Unknown",
       "noMessagesYet": "No messages yet"
     },
+    "filters": {
+      "filters": "Filters",
+      "filtersCount": "Filters ({count})",
+      "clearFilters": "Clear filters",
+      "assignedTo": "Assigned to",
+      "any": "Any",
+      "unassigned": "Unassigned",
+      "stage": "Pipeline stage",
+      "dealStatus": "Deal status",
+      "dealOpen": "Open",
+      "dealWon": "Won",
+      "dealLost": "Lost",
+      "dealNone": "No deal",
+      "tags": "Tags",
+      "noTagsAvailable": "No tags available",
+      "date": "Last message",
+      "dateToday": "Today",
+      "dateWeek": "This week",
+      "dateMonth": "This month"
+    },
     "sidebar": {
       "selectConversation": "Select a conversation",
       "tags": "Tags",
@@ -110,7 +130,20 @@
       "noDeals": "No deals",
       "editDeal": "Edit {title}",
       "notes": "Notes",
-      "addNotePlaceholder": "Add a note..."
+      "addNotePlaceholder": "Add a note...",
+      "namePlaceholder": "Add name",
+      "phonePlaceholder": "Add phone",
+      "phoneRequired": "Phone is required",
+      "emailPlaceholder": "Add email",
+      "emailInvalid": "Invalid email",
+      "updateFailed": "Failed to update contact",
+      "saving": "Saving...",
+      "saved": "Saved ✓",
+      "copyPhone": "Copy phone",
+      "customFields": "Custom fields",
+      "enterFieldPlaceholder": "Enter {field}...",
+      "deleteNote": "Delete note",
+      "deleteNoteFailed": "Failed to delete note"
     },
     "dealSheet": {
       "titleAndStageRequired": "Title and stage are required",
@@ -411,7 +444,31 @@
       "confirmDeleteDeal": "Delete this deal?",
       "confirm": "Confirm",
       "deleting": "Deleting...",
-      "deleteDeal": "Delete Deal"
+      "deleteDeal": "Delete Deal",
+      "productsLabel": "Products",
+      "addProduct": "Add product",
+      "noProducts": "No products added",
+      "productNameLabel": "Product",
+      "productValueLabel": "Unit value",
+      "productQuantityLabel": "Qty.",
+      "productTotalLabel": "Total",
+      "productsTotalLabel": "Deal total",
+      "productNamePlaceholder": "Product name",
+      "saveProduct": "Save product",
+      "editProduct": "Edit product",
+      "deleteProduct": "Delete product",
+      "productSaveFailed": "Failed to save product",
+      "productDeleteFailed": "Failed to delete product",
+      "lostReasonLabel": "Reason",
+      "lostReasonTitle": "Reason for loss",
+      "lostReasonPlaceholder": "Describe why this deal was lost...",
+      "lostReasonChips": {
+        "priceTooHigh": "Price too high",
+        "choseCompetitor": "Chose a competitor",
+        "noInterest": "Not interested",
+        "noContact": "No response",
+        "other": "Other"
+      }
     }
   },
   "automations": {

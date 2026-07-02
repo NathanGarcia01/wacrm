@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus } from "@/types";
+import type { Contact, Conversation, ConversationStatus } from "@/types";
 import { Search, ChevronDown } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ConversationFiltersPopover,
+  EMPTY_CONVERSATION_FILTERS,
+  type ConversationFiltersState,
+} from "./conversation-filters";
+
+/** Extra joins fetched only for client-side filtering — not part of the
+ *  shared `Contact` type since nothing outside this filter logic needs them. */
+type ContactWithFilterJoins = Contact & {
+  contact_tags?: { tag_id: string }[];
+  deals?: { status: string | null; stage_id: string }[];
+};
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -57,6 +69,9 @@ export function ConversationList({
   const t = useTranslations("inbox.list");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
+  const [advancedFilters, setAdvancedFilters] = useState<ConversationFiltersState>(
+    EMPTY_CONVERSATION_FILTERS,
+  );
   const [loading, setLoading] = useState(true);
 
   // Keep the latest callback in a ref so the fetch effect below can
@@ -83,7 +98,7 @@ export function ConversationList({
     (async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("*, contact:contacts(*)")
+        .select("*, contact:contacts(*, contact_tags(tag_id), deals(status, stage_id))")
         .order("last_message_at", { ascending: false });
 
       if (cancelled) return;
@@ -131,8 +146,56 @@ export function ConversationList({
       });
     }
 
+    if (advancedFilters.assignedTo) {
+      result = result.filter((c) =>
+        advancedFilters.assignedTo === "unassigned"
+          ? !c.assigned_agent_id
+          : c.assigned_agent_id === advancedFilters.assignedTo,
+      );
+    }
+
+    if (advancedFilters.stageId || advancedFilters.dealStatus) {
+      result = result.filter((c) => {
+        const deals = (c.contact as ContactWithFilterJoins | undefined)?.deals ?? [];
+        if (advancedFilters.dealStatus === "none" && deals.length > 0) return false;
+        if (
+          advancedFilters.dealStatus &&
+          advancedFilters.dealStatus !== "none" &&
+          !deals.some((d) => (d.status ?? "open") === advancedFilters.dealStatus)
+        ) {
+          return false;
+        }
+        if (advancedFilters.stageId && !deals.some((d) => d.stage_id === advancedFilters.stageId)) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    if (advancedFilters.tagIds.length > 0) {
+      result = result.filter((c) => {
+        const contactTags = (c.contact as ContactWithFilterJoins | undefined)?.contact_tags ?? [];
+        const ids = new Set(contactTags.map((ct) => ct.tag_id));
+        return advancedFilters.tagIds.every((id) => ids.has(id));
+      });
+    }
+
+    if (advancedFilters.dateRange) {
+      const from = new Date();
+      if (advancedFilters.dateRange === "today") {
+        from.setHours(0, 0, 0, 0);
+      } else if (advancedFilters.dateRange === "week") {
+        from.setDate(from.getDate() - 7);
+      } else {
+        from.setMonth(from.getMonth() - 1);
+      }
+      result = result.filter(
+        (c) => !!c.last_message_at && new Date(c.last_message_at) >= from,
+      );
+    }
+
     return result;
-  }, [conversations, filter, search]);
+  }, [conversations, filter, search, advancedFilters]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,31 +231,35 @@ export function ConversationList({
           />
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
-              {activeFilterLabel}
-              <ChevronDown className="h-3 w-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="border-border bg-popover"
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => setFilter(opt.value)}
-                className={cn(
-                  "text-sm",
-                  filter === opt.value
-                    ? "text-primary"
-                    : "text-popover-foreground"
-                )}
-              >
-                {t(opt.labelKey)}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
+                {activeFilterLabel}
+                <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="border-border bg-popover"
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => setFilter(opt.value)}
+                  className={cn(
+                    "text-sm",
+                    filter === opt.value
+                      ? "text-primary"
+                      : "text-popover-foreground"
+                  )}
+                >
+                  {t(opt.labelKey)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <ConversationFiltersPopover filters={advancedFilters} onChange={setAdvancedFilters} />
+        </div>
       </div>
 
       {/* Conversation Items.
