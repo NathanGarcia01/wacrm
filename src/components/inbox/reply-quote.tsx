@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { Message } from "@/types";
 
@@ -26,6 +27,7 @@ export function ReplyQuote({
   onDismiss,
   onPrimary = false,
 }: ReplyQuoteProps) {
+  const t = useTranslations("inbox.replyQuote");
   const isChip = !!onDismiss;
   return (
     <div
@@ -63,7 +65,7 @@ export function ReplyQuote({
         <button
           type="button"
           onClick={onDismiss}
-          aria-label="Cancelar resposta"
+          aria-label={t("cancelReply")}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
@@ -73,23 +75,32 @@ export function ReplyQuote({
   );
 }
 
-/** Build the one-line preview text shown inside a reply quote. */
-export function buildReplyPreview(message: Message): string {
+/**
+ * Build the one-line preview text shown inside a reply quote. Takes the
+ * translator as a parameter rather than calling `useTranslations`
+ * itself — this is a plain function (not a component/hook), called
+ * from message-thread.tsx's render body where the hook is already in
+ * scope.
+ */
+export function buildReplyPreview(
+  message: Message,
+  t: (key: string) => string,
+): string {
   if (message.content_text) return message.content_text;
   switch (message.content_type) {
     case "image":
-      return "[Imagem]";
+      return t("previewImage");
     case "video":
-      return "[Vídeo]";
+      return t("previewVideo");
     case "audio":
-      return "[Áudio]";
+      return t("previewAudio");
     case "document":
-      return "[Documento]";
+      return t("previewDocument");
     case "location":
-      return "[Localização]";
+      return t("previewLocation");
     case "template":
-      return "[Modelo]";
+      return t("previewTemplate");
     default:
-      return "[Mensagem]";
+      return t("previewMessage");
   }
 }

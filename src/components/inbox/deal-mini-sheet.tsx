@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -41,6 +42,8 @@ export function DealMiniSheet({
   contactId,
   onSaved,
 }: DealMiniSheetProps) {
+  const t = useTranslations("inbox.dealSheet");
+  const tc = useTranslations("common");
   const { user, accountId, defaultCurrency } = useAuth();
 
   const [title, setTitle] = useState("");
@@ -134,7 +137,7 @@ export function DealMiniSheet({
 
   async function handleSave() {
     if (!title.trim() || !stageId) {
-      toast.error("Título e etapa são obrigatórios");
+      toast.error(t("titleAndStageRequired"));
       return;
     }
     setSaving(true);
@@ -152,18 +155,18 @@ export function DealMiniSheet({
         .eq("id", deal.id);
       setSaving(false);
       if (error) {
-        toast.error("Falha ao salvar negócio");
+        toast.error(t("saveFailed"));
         return;
       }
-      toast.success("Negócio atualizado");
+      toast.success(t("dealUpdated"));
     } else {
       if (!user || !accountId) {
-        toast.error("Não autenticado");
+        toast.error(t("notAuthenticated"));
         setSaving(false);
         return;
       }
       if (!pipelineId) {
-        toast.error("Nenhum pipeline disponível — crie um pipeline primeiro");
+        toast.error(t("noPipelineAvailable"));
         setSaving(false);
         return;
       }
@@ -181,10 +184,10 @@ export function DealMiniSheet({
       });
       setSaving(false);
       if (error) {
-        toast.error("Falha ao criar negócio");
+        toast.error(t("createFailed"));
         return;
       }
-      toast.success("Negócio criado");
+      toast.success(t("dealCreated"));
     }
 
     onOpenChange(false);
@@ -200,30 +203,30 @@ export function DealMiniSheet({
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-border/50 p-4">
             <SheetTitle className="text-popover-foreground">
-              {deal ? "Editar negócio" : "Novo negócio"}
+              {deal ? t("editDeal") : t("newDeal")}
             </SheetTitle>
           </SheetHeader>
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Título</Label>
+              <Label className="text-muted-foreground">{t("titleLabel")}</Label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Título do negócio"
+                placeholder={t("titlePlaceholder")}
                 className="border-border bg-muted text-foreground"
               />
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Etapa</Label>
+              <Label className="text-muted-foreground">{t("stageLabel")}</Label>
               <Select
                 value={stageId}
                 onValueChange={(v) => setStageId(v ?? "")}
                 disabled={loadingStages}
               >
                 <SelectTrigger className="w-full bg-muted">
-                  <SelectValue placeholder="Selecione a etapa" />
+                  <SelectValue placeholder={t("stagePlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {stages.map((s) => (
@@ -236,7 +239,9 @@ export function DealMiniSheet({
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Valor (BRL)</Label>
+              <Label className="text-muted-foreground">
+                {t("valueLabel", { currency: defaultCurrency || "BRL" })}
+              </Label>
               <div className="relative">
                 <DollarSign className="absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -250,7 +255,7 @@ export function DealMiniSheet({
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Responsável</Label>
+              <Label className="text-muted-foreground">{t("assignedToLabel")}</Label>
               <Select
                 value={assignedTo || "__unassigned__"}
                 onValueChange={(v) => setAssignedTo(!v || v === "__unassigned__" ? "" : v)}
@@ -259,7 +264,7 @@ export function DealMiniSheet({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__unassigned__">Sem responsável</SelectItem>
+                  <SelectItem value="__unassigned__">{t("unassigned")}</SelectItem>
                   {profiles.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.full_name || p.email}
@@ -278,7 +283,7 @@ export function DealMiniSheet({
                 onClick={() => onOpenChange(false)}
                 className="flex-1 border-border bg-transparent text-muted-foreground hover:bg-muted"
               >
-                Cancelar
+                {tc("cancel")}
               </Button>
               <Button
                 type="button"
@@ -289,9 +294,9 @@ export function DealMiniSheet({
                 {saving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : deal ? (
-                  "Salvar alterações"
+                  t("saveChanges")
                 ) : (
-                  "Criar negócio"
+                  t("newDeal")
                 )}
               </Button>
             </div>

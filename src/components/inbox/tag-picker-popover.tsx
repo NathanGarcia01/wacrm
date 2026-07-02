@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -37,6 +38,7 @@ export function TagPickerPopover({
   existingTagIds,
   onChanged,
 }: TagPickerPopoverProps) {
+  const t = useTranslations("inbox.tagPicker");
   const { user, accountId } = useAuth();
   const [open, setOpen] = useState(false);
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -92,7 +94,7 @@ export function TagPickerPopover({
       .insert({ contact_id: contactId, tag_id: tagId });
     setAddingId(null);
     if (error) {
-      toast.error("Falha ao adicionar tag");
+      toast.error(t("addFailed"));
       return;
     }
     onChanged();
@@ -102,7 +104,7 @@ export function TagPickerPopover({
     const name = newName.trim();
     if (!name) return;
     if (!user || !accountId) {
-      toast.error("Não autenticado");
+      toast.error(t("notAuthenticated"));
       return;
     }
     setSavingNew(true);
@@ -113,7 +115,7 @@ export function TagPickerPopover({
       .select()
       .single();
     if (error || !tag) {
-      toast.error("Falha ao criar tag");
+      toast.error(t("createFailed"));
       setSavingNew(false);
       return;
     }
@@ -122,7 +124,7 @@ export function TagPickerPopover({
       .insert({ contact_id: contactId, tag_id: tag.id });
     setSavingNew(false);
     if (linkError) {
-      toast.error("Tag criada, mas falhou ao adicionar ao contato");
+      toast.error(t("createdButLinkFailed"));
       return;
     }
     setNewName("");
@@ -137,7 +139,7 @@ export function TagPickerPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        aria-label="Adicionar tag"
+        aria-label={t("addTag")}
         className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
       >
         <Plus className="h-3 w-3" />
@@ -148,7 +150,7 @@ export function TagPickerPopover({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar tags…"
+            placeholder={t("searchTagsPlaceholder")}
             className="h-8 bg-muted pl-7 text-xs"
             autoFocus
           />
@@ -161,7 +163,7 @@ export function TagPickerPopover({
             </div>
           ) : available.length === 0 ? (
             <p className="px-1 py-2 text-xs text-muted-foreground">
-              {query ? "Nenhuma tag encontrada." : "Todas as tags já estão neste contato."}
+              {query ? t("noTagsFound") : t("allTagsAlreadyAdded")}
             </p>
           ) : (
             <ul className="flex flex-col gap-0.5">
@@ -194,7 +196,7 @@ export function TagPickerPopover({
               <Input
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Nome da nova tag"
+                placeholder={t("newTagNamePlaceholder")}
                 maxLength={40}
                 className="h-8 bg-muted text-xs"
                 autoFocus
@@ -208,7 +210,7 @@ export function TagPickerPopover({
                     key={c}
                     type="button"
                     onClick={() => setNewColor(c)}
-                    aria-label={`Usar cor ${c}`}
+                    aria-label={t("useColor", { color: c })}
                     aria-pressed={newColor === c}
                     className={cn(
                       "h-4 w-4 rounded-full transition-transform hover:scale-110",
@@ -228,7 +230,7 @@ export function TagPickerPopover({
                   onClick={() => setCreating(false)}
                   disabled={savingNew}
                 >
-                  Cancelar
+                  {t("cancel")}
                 </Button>
                 <Button
                   type="button"
@@ -237,7 +239,7 @@ export function TagPickerPopover({
                   onClick={handleCreateAndAdd}
                   disabled={savingNew || !newName.trim()}
                 >
-                  {savingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : "Criar"}
+                  {savingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : t("create")}
                 </Button>
               </div>
             </div>
@@ -248,7 +250,7 @@ export function TagPickerPopover({
               className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-primary hover:bg-primary/10"
             >
               <Plus className="h-3.5 w-3.5" />
-              Criar nova tag
+              {t("createNewTag")}
             </button>
           )}
         </div>

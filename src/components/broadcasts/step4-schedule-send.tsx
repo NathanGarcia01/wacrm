@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -69,11 +70,12 @@ function normalizeQuality(raw: string | null): QualityRating {
 }
 
 function QualityBadge({ quality, loading }: { quality: QualityRating; loading: boolean }) {
+  const t = useTranslations('broadcasts.step4');
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-card/50 p-3 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Checking account quality…
+        {t('checkingQuality')}
       </div>
     );
   }
@@ -83,23 +85,23 @@ function QualityBadge({ quality, loading }: { quality: QualityRating; loading: b
     { label: string; classes: string; icon: React.ReactNode; warning?: string }
   > = {
     GREEN: {
-      label: 'Qualidade alta — seguro para disparar',
+      label: t('qualityHigh'),
       classes: 'border-primary/30 bg-primary/10 text-primary',
       icon: <ShieldCheck className="h-4 w-4" />,
     },
     YELLOW: {
-      label: 'Qualidade média — dispare com cautela e reduza o volume',
+      label: t('qualityMedium'),
       classes: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
       icon: <ShieldAlert className="h-4 w-4" />,
     },
     RED: {
-      label: 'Qualidade baixa — risco alto de banimento',
+      label: t('qualityLow'),
       classes: 'border-red-500/30 bg-red-500/10 text-red-400',
       icon: <ShieldAlert className="h-4 w-4" />,
-      warning: 'Sua conta está em risco. Recomendamos não disparar agora.',
+      warning: t('qualityLowWarning'),
     },
     UNKNOWN: {
-      label: 'Não foi possível verificar a qualidade da conta',
+      label: t('qualityUnknown'),
       classes: 'border-border bg-card/50 text-muted-foreground',
       icon: <ShieldQuestion className="h-4 w-4" />,
     },
@@ -141,6 +143,7 @@ export function Step4ScheduleSend({
   isProcessing,
   progress,
 }: Step4Props) {
+  const t = useTranslations('broadcasts.step4');
   const [showConfirm, setShowConfirm] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
@@ -209,12 +212,12 @@ export function Step4ScheduleSend({
 
   const audienceLabel =
     audience.type === 'all'
-      ? 'All Contacts'
+      ? t('allContacts')
       : audience.type === 'tags'
-        ? `Tags (${audience.tagIds?.length ?? 0} selected)`
+        ? t('tagsSelected', { count: audience.tagIds?.length ?? 0 })
         : audience.type === 'csv'
-          ? 'CSV Upload'
-          : 'Custom';
+          ? t('csvUpload')
+          : t('custom');
 
   const scheduledAt: Date | null =
     scheduleEnabled && scheduleDate && scheduleTime
@@ -237,37 +240,37 @@ export function Step4ScheduleSend({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-foreground">Review & Send</h2>
+        <h2 className="text-lg font-semibold text-foreground">{t('reviewAndSend')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Name your broadcast, review the details, and send.
+          {t('reviewAndSendHint')}
         </p>
       </div>
 
       {/* Broadcast Name */}
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-foreground">Broadcast Name</label>
+        <label className="mb-1.5 block text-sm font-medium text-foreground">{t('broadcastName')}</label>
         <Input
           value={name}
           onChange={(e) => onNameChange(e.target.value)}
-          placeholder="e.g. Summer Sale Announcement"
+          placeholder={t('broadcastNamePlaceholder')}
           className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
         />
       </div>
 
       {/* Account quality */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-foreground">Account quality</h3>
+        <h3 className="text-sm font-medium text-foreground">{t('accountQuality')}</h3>
         <QualityBadge quality={quality} loading={loadingQuality} />
       </div>
 
       {/* Cadence controls */}
       <div className="space-y-4 rounded-xl border border-border bg-card/50 p-4">
-        <p className="text-sm font-medium text-foreground">Cadência de envio (anti-banimento)</p>
+        <p className="text-sm font-medium text-foreground">{t('cadenceTitle')}</p>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <Label className="mb-1.5 block text-xs text-muted-foreground">
-              Tamanho do lote ({BATCH_SIZE_MIN}-{BATCH_SIZE_MAX} mensagens)
+              {t('batchSizeLabel', { min: BATCH_SIZE_MIN, max: BATCH_SIZE_MAX })}
             </Label>
             <Input
               type="number"
@@ -287,7 +290,7 @@ export function Step4ScheduleSend({
           </div>
           <div>
             <Label className="mb-1.5 block text-xs text-muted-foreground">
-              Intervalo entre lotes ({BATCH_INTERVAL_MINUTES_MIN}-{BATCH_INTERVAL_MINUTES_MAX} min)
+              {t('batchIntervalLabel', { min: BATCH_INTERVAL_MINUTES_MIN, max: BATCH_INTERVAL_MINUTES_MAX })}
             </Label>
             <Input
               type="number"
@@ -307,7 +310,7 @@ export function Step4ScheduleSend({
           </div>
           <div>
             <Label className="mb-1.5 block text-xs text-muted-foreground">
-              Delay mínimo entre mensagens (segundos)
+              {t('minDelayLabel')}
             </Label>
             <Input
               type="number"
@@ -321,7 +324,7 @@ export function Step4ScheduleSend({
           </div>
           <div>
             <Label className="mb-1.5 block text-xs text-muted-foreground">
-              Delay máximo entre mensagens (segundos)
+              {t('maxDelayLabel')}
             </Label>
             <Input
               type="number"
@@ -347,10 +350,9 @@ export function Step4ScheduleSend({
             className="mt-0.5"
           />
           <span>
-            <span className="block text-sm text-foreground">Respeitar horário comercial</span>
+            <span className="block text-sm text-foreground">{t('respectBusinessHours')}</span>
             <span className="block text-xs text-muted-foreground">
-              Envia só entre 08:00 e 20:00 (horário de Brasília). Fora disso, pausa e retoma no
-              próximo horário permitido.
+              {t('respectBusinessHoursHint')}
             </span>
           </span>
         </label>
@@ -360,18 +362,18 @@ export function Step4ScheduleSend({
       <div className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-medium text-foreground">Agendar para depois</p>
+            <p className="text-sm font-medium text-foreground">{t('scheduleForLater')}</p>
             <p className="text-xs text-muted-foreground">
-              {scheduleEnabled ? 'O disparo começa na data/hora escolhida.' : 'Dispara imediatamente ao confirmar.'}
+              {scheduleEnabled ? t('scheduleEnabledHint') : t('scheduleDisabledHint')}
             </p>
           </div>
-          <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} aria-label="Agendar para depois" />
+          <Switch checked={scheduleEnabled} onCheckedChange={setScheduleEnabled} aria-label={t('scheduleForLater')} />
         </div>
 
         {scheduleEnabled && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label className="mb-1.5 block text-xs text-muted-foreground">Data</Label>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t('dateLabel')}</Label>
               <Input
                 type="date"
                 value={scheduleDate}
@@ -380,7 +382,7 @@ export function Step4ScheduleSend({
               />
             </div>
             <div>
-              <Label className="mb-1.5 block text-xs text-muted-foreground">Hora</Label>
+              <Label className="mb-1.5 block text-xs text-muted-foreground">{t('timeLabel')}</Label>
               <Input
                 type="time"
                 value={scheduleTime}
@@ -390,7 +392,7 @@ export function Step4ScheduleSend({
             </div>
             {scheduleInvalid && (
               <p className="text-xs text-red-400 sm:col-span-2">
-                Escolha uma data e hora no futuro.
+                {t('futureDateHint')}
               </p>
             )}
           </div>
@@ -399,18 +401,18 @@ export function Step4ScheduleSend({
 
       {/* Summary Card */}
       <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
-        <p className="text-sm font-medium text-foreground">Summary</p>
+        <p className="text-sm font-medium text-foreground">{t('summary')}</p>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <p className="text-xs text-muted-foreground">Template</p>
+            <p className="text-xs text-muted-foreground">{t('templateLabel')}</p>
             <p className="text-foreground">{template.name}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Audience</p>
+            <p className="text-xs text-muted-foreground">{t('audienceLabel')}</p>
             <p className="text-foreground">{audienceLabel}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Estimated Reach</p>
+            <p className="text-xs text-muted-foreground">{t('estimatedReach')}</p>
             <div className="flex items-center gap-1.5">
               {loadingReach ? (
                 <Loader2 className="h-3 w-3 animate-spin text-primary" />
@@ -423,7 +425,7 @@ export function Step4ScheduleSend({
             </div>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Language</p>
+            <p className="text-xs text-muted-foreground">{t('languageLabel')}</p>
             <p className="text-foreground">{template.language ?? 'en_US'}</p>
           </div>
         </div>
@@ -432,12 +434,16 @@ export function Step4ScheduleSend({
           <div className="flex items-start gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
             <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              {estimatedReach.toLocaleString()} contatos em {estimate.totalBatches}{' '}
-              {estimate.totalBatches === 1 ? 'lote' : 'lotes'} de até {cadence.batchSize} msgs, ~
-              {formatDuration(estimate.lowSeconds)}-{formatDuration(estimate.highSeconds)} de envio
-              (estimativa, não considera pausas por horário comercial).
+              {t('summaryEstimate', {
+                count: estimatedReach.toLocaleString(),
+                batches: estimate.totalBatches,
+                batchWord: estimate.totalBatches === 1 ? t('batch') : t('batches'),
+                batchSize: cadence.batchSize,
+                low: formatDuration(estimate.lowSeconds),
+                high: formatDuration(estimate.highSeconds),
+              })}
               <br />
-              Conclusão estimada:{' '}
+              {t('estimatedCompletion')}{' '}
               {completionLow.toLocaleString()} – {completionHigh.toLocaleString()}
             </span>
           </div>
@@ -450,7 +456,7 @@ export function Step4ScheduleSend({
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
-              <p className="text-sm font-medium text-foreground">Preparing broadcast...</p>
+              <p className="text-sm font-medium text-foreground">{t('preparingBroadcast')}</p>
             </div>
             <span className="text-xs font-medium text-primary">{progress}%</span>
           </div>
@@ -471,7 +477,7 @@ export function Step4ScheduleSend({
           className="border-border text-muted-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back
+          {t('back')}
         </Button>
 
         <div className="flex items-center gap-2">
@@ -483,7 +489,7 @@ export function Step4ScheduleSend({
               className="border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
-              Save as Draft
+              {t('saveAsDraft')}
             </Button>
           )}
 
@@ -497,29 +503,29 @@ export function Step4ScheduleSend({
             }
           >
             <Send className="h-4 w-4" />
-            {scheduleEnabled ? 'Schedule Broadcast' : 'Send Broadcast'}
+            {scheduleEnabled ? t('scheduleBroadcast') : t('sendBroadcast')}
           </DialogTrigger>
           <DialogContent className="border-border bg-popover sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-popover-foreground">Confirm Broadcast</DialogTitle>
+              <DialogTitle className="text-popover-foreground">{t('confirmBroadcast')}</DialogTitle>
               <DialogDescription className="text-muted-foreground">
-                You are about to send this broadcast to{' '}
+                {t('confirmBroadcastPrefix')}{' '}
                 <span className="font-medium text-popover-foreground">{estimatedReach.toLocaleString()}</span>{' '}
-                contacts using the{' '}
-                <span className="font-medium text-popover-foreground">{template.name}</span> template.
+                {t('confirmBroadcastMiddle')}{' '}
+                <span className="font-medium text-popover-foreground">{template.name}</span> {t('confirmBroadcastTemplateSuffix')}
                 {scheduledAt && (
                   <>
-                    {' '}It will start on{' '}
+                    {' '}{t('itWillStartOn')}{' '}
                     <span className="font-medium text-popover-foreground">
                       {scheduledAt.toLocaleString()}
                     </span>
                     .
                   </>
                 )}{' '}
-                This action cannot be undone.
+                {t('actionCannotBeUndone')}
                 {quality === 'RED' && (
                   <span className="mt-2 block font-medium text-red-400">
-                    Aviso: sua conta está com qualidade baixa — o risco de banimento é alto.
+                    {t('lowQualityWarning')}
                   </span>
                 )}
               </DialogDescription>
@@ -530,7 +536,7 @@ export function Step4ScheduleSend({
                 onClick={() => setShowConfirm(false)}
                 className="border-border text-muted-foreground"
               >
-                Cancel
+                {t('cancel')}
               </Button>
               <Button
                 onClick={() => {
@@ -540,7 +546,7 @@ export function Step4ScheduleSend({
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Send className="h-4 w-4" />
-                Confirm & Send
+                {t('confirmAndSend')}
               </Button>
             </DialogFooter>
           </DialogContent>

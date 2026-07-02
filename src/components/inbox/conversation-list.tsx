@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
@@ -38,12 +39,12 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 type InboxFilter = ConversationStatus | "all" | "unread";
 
-const FILTER_OPTIONS: { label: string; value: InboxFilter }[] = [
-  { label: "All", value: "all" },
-  { label: "Unread", value: "unread" },
-  { label: "Open", value: "open" },
-  { label: "Pending", value: "pending" },
-  { label: "Closed", value: "closed" },
+const FILTER_OPTIONS: { labelKey: string; value: InboxFilter }[] = [
+  { labelKey: "all", value: "all" },
+  { labelKey: "unread", value: "unread" },
+  { labelKey: "open", value: "open" },
+  { labelKey: "pending", value: "pending" },
+  { labelKey: "closed", value: "closed" },
 ];
 
 export function ConversationList({
@@ -53,6 +54,7 @@ export function ConversationList({
   onConversationsLoaded,
   resyncToken = 0,
 }: ConversationListProps) {
+  const t = useTranslations("inbox.list");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
@@ -147,6 +149,7 @@ export function ConversationList({
   );
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
+  const activeFilterLabel = activeFilter ? t(activeFilter.labelKey) : t("all");
 
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
@@ -160,14 +163,14 @@ export function ConversationList({
           <Input
             value={search}
             onChange={handleSearchChange}
-            placeholder="Search conversations..."
+            placeholder={t("searchPlaceholder")}
             className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
           />
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
-              {activeFilter?.label ?? "All"}
+              {activeFilterLabel}
               <ChevronDown className="h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -185,7 +188,7 @@ export function ConversationList({
                     : "text-popover-foreground"
                 )}
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -205,7 +208,7 @@ export function ConversationList({
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">No conversations found</p>
+            <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
           </div>
         ) : (
           <div className="flex flex-col">
@@ -235,8 +238,9 @@ function ConversationItem({
   isActive,
   onSelect,
 }: ConversationItemProps) {
+  const t = useTranslations("inbox.list");
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || "Unknown";
+  const displayName = contact?.name || contact?.phone || t("unknownContact");
   const initials = displayName.charAt(0).toUpperCase();
 
   const handleClick = useCallback(() => {
@@ -280,7 +284,7 @@ function ConversationItem({
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-muted-foreground">
-            {conversation.last_message_text || "No messages yet"}
+            {conversation.last_message_text || t("noMessagesYet")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (

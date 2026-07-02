@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   MessageSquare,
   UserPlus,
@@ -39,6 +40,7 @@ const KIND_THEME: Record<ActivityKind, KindTheme> = {
 }
 
 export function ActivityFeed({ items, loading }: ActivityFeedProps) {
+  const t = useTranslations('dashboard')
   // Start at 5 — a quick scan of the most recent events without
   // dominating vertical real estate. User expands explicitly via the
   // footer control when they want deeper history.
@@ -56,12 +58,12 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
   return (
     <section className="rounded-xl border border-border bg-card">
       <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t('recentActivity')}</h2>
         <Link
           href="/inbox"
           className="text-xs font-medium text-primary hover:text-primary/80"
         >
-          View all →
+          {t('viewAll')}
         </Link>
       </header>
 
@@ -75,8 +77,8 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
         <div className="p-5">
           <EmptyState
             icon={Inbox}
-            title="No activity yet"
-            hint="Activity from messages, deals, broadcasts, and automations will appear here."
+            title={t('noActivityYet')}
+            hint={t('activityHint')}
           />
         </div>
       ) : (
@@ -122,11 +124,13 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
           </ul>
           <footer className="flex items-center justify-between border-t border-border px-5 py-3 text-xs">
             <span className="text-muted-foreground tabular-nums">
-              Showing {visible.length} of {totalLoaded}
-              {totalLoaded === 50 ? '+' : ''}
+              {t('activityShowing', {
+                shown: visible.length,
+                total: `${totalLoaded}${totalLoaded === 50 ? '+' : ''}`,
+              })}
             </span>
             <div className="flex items-center gap-1">
-              <span className="mr-1 text-muted-foreground">Show</span>
+              <span className="mr-1 text-muted-foreground">{t('activityShow')}</span>
               {PAGE_SIZES.map((size, i) => {
                 const disabled = !isSizeUseful(size, i)
                 return (
