@@ -152,3 +152,53 @@ export interface AccountQualityInfo {
   displayPhoneNumber: string | null
   checkedAt: string
 }
+
+// ------------------------------------------------------------
+// Satisfaction (NPS) tab
+// ------------------------------------------------------------
+
+export interface NpsReportCards {
+  /** Average of all surveys with a rating in the period. Null if none. */
+  avgRating: number | null
+  totalSent: number
+  /** Surveys that got at least a rating (comment is optional). */
+  totalResponded: number
+  /** 0-100. Null when totalSent is 0. */
+  responseRatePct: number | null
+}
+
+export interface NpsRatingDistributionPoint {
+  rating: 1 | 2 | 3 | 4 | 5
+  count: number
+}
+
+export interface NpsReviewRow {
+  id: string
+  contactName: string | null
+  rating: number | null
+  comment: string | null
+  agentName: string | null
+  sentAt: string
+  respondedAt: string | null
+}
+
+export interface NpsAgentRankingRow {
+  userId: string
+  name: string
+  avgRating: number | null
+  totalResponses: number
+}
+
+/** One point per calendar day in the period, local-day keyed. */
+export interface NpsTrendPoint {
+  date: string
+  avgRating: number | null
+}
+
+export interface NpsReportBundle {
+  cards: NpsReportCards
+  distribution: NpsRatingDistributionPoint[]
+  reviews: NpsReviewRow[]
+  agentRanking: NpsAgentRankingRow[]
+  trend: NpsTrendPoint[]
+}

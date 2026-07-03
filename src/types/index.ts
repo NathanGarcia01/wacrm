@@ -333,6 +333,41 @@ export interface DealProduct {
   created_at: string;
 }
 
+export type NpsTriggerType = 'manual_close' | 'inactivity';
+export type NpsSurveyStatus = 'sent' | 'responded' | 'expired';
+
+export interface NpsSurvey {
+  id: string;
+  account_id: string;
+  conversation_id: string;
+  contact_id: string | null;
+  assigned_agent_id?: string | null;
+  sent_at: string;
+  trigger_type: NpsTriggerType;
+  responded_at?: string | null;
+  /**
+   * NULL until the customer answers. status stays 'sent' after the
+   * rating lands (the DB has no fourth "awaiting comment" status) —
+   * rating != null on a 'sent' row means "captured, waiting on an
+   * optional comment".
+   */
+  rating?: number | null;
+  comment?: string | null;
+  status: NpsSurveyStatus;
+  created_at: string;
+}
+
+export interface NpsSettings {
+  id: string;
+  account_id: string;
+  enabled: boolean;
+  inactivity_hours: number;
+  message_template: string;
+  follow_up_message: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'paused';
 export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
 

@@ -33,6 +33,8 @@
     "newContactsToday": "New Contacts Today",
     "openDealsValue": "Open Deals Value",
     "messagesSentToday": "Messages Sent Today",
+    "npsAvgRating": "Satisfaction (NPS)",
+    "npsSubtitle": "{responses} responses · {rate} response rate",
     "newTodayVsYesterday": "new today vs yesterday",
     "vsYesterday": "vs yesterday",
     "noChange": "No change {suffix}",
@@ -143,7 +145,15 @@
       "customFields": "Custom fields",
       "enterFieldPlaceholder": "Enter {field}...",
       "deleteNote": "Delete note",
-      "deleteNoteFailed": "Failed to delete note"
+      "deleteNoteFailed": "Failed to delete note",
+      "satisfaction": "Satisfaction",
+      "sendNpsNow": "Send survey now",
+      "npsAwaitingRating": "Survey sent — awaiting response",
+      "npsAwaitingComment": "Awaiting comment",
+      "npsExpired": "Survey expired with no response",
+      "npsSent": "Satisfaction survey sent",
+      "npsSendFailed": "Failed to send survey",
+      "npsDisabled": "Satisfaction survey is disabled in Settings"
     },
     "dealSheet": {
       "titleAndStageRequired": "Title and stage are required",

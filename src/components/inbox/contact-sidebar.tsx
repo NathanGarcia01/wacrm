@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag, CustomField } from "@/types";
+import type { Contact, Deal, ContactNote, Tag, CustomField, NpsSurvey } from "@/types";
 import {
   Phone,
   Mail,
@@ -20,6 +20,8 @@ import {
   Trash2,
   X,
   Loader2,
+  Star,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,13 +33,16 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  /** Drives the SATISFAÇÃO section — NPS surveys are per-conversation,
+   *  not per-contact, so this can't be derived from `contact`. */
+  conversationId?: string | null;
   /** Fired after a direct field edit (name/phone/email/custom field)
    *  commits successfully, so the parent can keep its own copy of the
    *  contact (and any conversation list rows derived from it) in sync. */
   onContactUpdated?: (contact: Contact) => void;
 }
 
-export function ContactSidebar({ contact, onContactUpdated }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversationId, onContactUpdated }: ContactSidebarProps) {
   const t = useTranslations("inbox.sidebar");
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
@@ -51,6 +56,9 @@ export function ContactSidebar({ contact, onContactUpdated }: ContactSidebarProp
   const [removingTagId, setRemovingTagId] = useState<string | null>(null);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [npsSurvey, setNpsSurvey] = useState<NpsSurvey | null>(null);
+  const [npsLoading, setNpsLoading] = useState(false);
+  const [sendingNps, setSendingNps] = useState(false);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -230,6 +238,47 @@ export function ContactSidebar({ contact, onContactUpdated }: ContactSidebarProp
     },
     [t],
   );
+
+  const fetchNpsSurvey = useCallback(async () => {
+    if (!conversationId) {
+      setNpsSurvey(null);
+      return;
+    }
+    setNpsLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("nps_surveys")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .maybeSingle();
+    setNpsSurvey((data as NpsSurvey) ?? null);
+    setNpsLoading(false);
+  }, [conversationId]);
+
+  useEffect(() => {
+    fetchNpsSurvey();
+  }, [fetchNpsSurvey]);
+
+  const handleSendNpsNow = useCallback(async () => {
+    if (!conversationId) return;
+    setSendingNps(true);
+    try {
+      const res = await fetch("/api/nps/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversation_id: conversationId }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(payload?.error === "disabled" ? t("npsDisabled") : t("npsSendFailed"));
+        return;
+      }
+      toast.success(t("npsSent"));
+      fetchNpsSurvey();
+    } finally {
+      setSendingNps(false);
+    }
+  }, [conversationId, fetchNpsSurvey, t]);
 
   if (!contact) {
     return (
@@ -417,6 +466,76 @@ export function ContactSidebar({ contact, onContactUpdated }: ContactSidebarProp
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
+
+          {/* Satisfaction (NPS) */}
+          {conversationId && (
+            <>
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Star className="h-3 w-3" />
+                  {t("satisfaction")}
+                </div>
+                <div className="mt-2">
+                  {npsLoading ? (
+                    <div className="flex justify-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !npsSurvey ? (
+                    <button
+                      type="button"
+                      onClick={handleSendNpsNow}
+                      disabled={sendingNps}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+                    >
+                      {sendingNps ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Send className="h-3 w-3" />
+                      )}
+                      {t("sendNpsNow")}
+                    </button>
+                  ) : (
+                    <div className="space-y-1.5 rounded-lg bg-muted px-3 py-2">
+                      {npsSurvey.rating == null ? (
+                        <p className="text-xs text-muted-foreground">
+                          {npsSurvey.status === "expired"
+                            ? t("npsExpired")
+                            : t("npsAwaitingRating")}
+                        </p>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={
+                                  i < (npsSurvey.rating ?? 0)
+                                    ? "h-3.5 w-3.5 fill-amber-400 text-amber-400"
+                                    : "h-3.5 w-3.5 text-muted-foreground/30"
+                                }
+                              />
+                            ))}
+                          </div>
+                          {npsSurvey.comment ? (
+                            <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                              {npsSurvey.comment}
+                            </p>
+                          ) : npsSurvey.status === "sent" ? (
+                            <p className="text-xs text-muted-foreground">
+                              {t("npsAwaitingComment")}
+                            </p>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Custom fields */}
           {customFields.length > 0 && (

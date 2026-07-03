@@ -33,6 +33,8 @@
     "newContactsToday": "Nuevos Contactos Hoy",
     "openDealsValue": "Valor en Negocios Abiertos",
     "messagesSentToday": "Mensajes Enviados Hoy",
+    "npsAvgRating": "Satisfacción (NPS)",
+    "npsSubtitle": "{responses} respuestas · {rate} tasa de respuesta",
     "newTodayVsYesterday": "nuevos hoy vs ayer",
     "vsYesterday": "vs ayer",
     "noChange": "Sin cambios {suffix}",
@@ -143,7 +145,15 @@
       "customFields": "Campos personalizados",
       "enterFieldPlaceholder": "Ingresa {field}...",
       "deleteNote": "Eliminar nota",
-      "deleteNoteFailed": "Error al eliminar la nota"
+      "deleteNoteFailed": "Error al eliminar la nota",
+      "satisfaction": "Satisfacción",
+      "sendNpsNow": "Enviar encuesta ahora",
+      "npsAwaitingRating": "Encuesta enviada — esperando respuesta",
+      "npsAwaitingComment": "Esperando comentario",
+      "npsExpired": "Encuesta expirada sin respuesta",
+      "npsSent": "Encuesta de satisfacción enviada",
+      "npsSendFailed": "Error al enviar la encuesta",
+      "npsDisabled": "La encuesta de satisfacción está desactivada en Configuración"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título y etapa son obligatorios",

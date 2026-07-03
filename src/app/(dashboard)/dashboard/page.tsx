@@ -10,6 +10,7 @@ import {
   UserPlus,
   DollarSign,
   Send,
+  Star,
 } from 'lucide-react'
 
 import {
@@ -176,6 +177,22 @@ export default function DashboardPage() {
                   t('vsYesterday'),
                 ),
               }}
+            />
+            <MetricCard
+              title={t('npsAvgRating')}
+              value={
+                metrics.nps.avgRating == null
+                  ? '—'
+                  : `⭐ ${metrics.nps.avgRating.toFixed(1)}/5`
+              }
+              icon={Star}
+              subtitle={t('npsSubtitle', {
+                responses: metrics.nps.totalResponses,
+                rate:
+                  metrics.nps.responseRatePct == null
+                    ? '—'
+                    : `${metrics.nps.responseRatePct.toFixed(0)}%`,
+              })}
             />
           </>
         )}

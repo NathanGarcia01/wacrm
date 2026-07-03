@@ -7,12 +7,22 @@ export interface MetricDelta {
   previous: number
 }
 
+export interface NpsSummary {
+  /** Average of rated surveys sent this calendar month. Null if none. */
+  avgRating: number | null
+  /** Surveys that got at least a rating this month. */
+  totalResponses: number
+  /** 0-100, responded ÷ sent. Null when none were sent this month. */
+  responseRatePct: number | null
+}
+
 export interface MetricsBundle {
   activeConversations: MetricDelta
   newContactsToday: MetricDelta
   openDealsValue: number
   openDealsCount: number
   messagesSentToday: MetricDelta
+  nps: NpsSummary
 }
 
 export interface ConversationsSeriesPoint {

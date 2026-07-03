@@ -8,6 +8,7 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { handleNpsResponse } from '@/lib/nps/webhook-handler'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -276,7 +277,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          config.phone_number_id
         )
       }
     }
@@ -510,7 +512,8 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  phoneNumberId: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -630,6 +633,22 @@ async function processMessage(
 
   if (convError) {
     console.error('Error updating conversation:', convError)
+  }
+
+  // NPS survey response check — must run before flow/automation
+  // dispatch below. A message answering a pending survey (rating or
+  // follow-up comment) is consumed here and must NOT also trigger
+  // keyword-match automations or advance an unrelated flow.
+  if (message.type === 'text') {
+    const npsConsumed = await handleNpsResponse({
+      accountId,
+      conversationId: conversation.id,
+      contactPhone: contactRecord.phone,
+      phoneNumberId,
+      accessToken,
+      text: contentText ?? message.text?.body ?? '',
+    })
+    if (npsConsumed) return
   }
 
   // If this contact was a recent broadcast recipient, flag the reply

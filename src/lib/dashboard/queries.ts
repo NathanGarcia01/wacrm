@@ -11,6 +11,7 @@ import type {
   ActivityItem,
   ConversationsSeriesPoint,
   MetricsBundle,
+  NpsSummary,
   PipelineDonutData,
   PipelineStageSlice,
   ResponseTimeBucket,
@@ -32,6 +33,8 @@ type DB = SupabaseClient
 export async function loadMetrics(db: DB): Promise<MetricsBundle> {
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
   const [
     openConvCur,
@@ -42,6 +45,7 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
     openDeals,
     messagesToday,
     messagesYesterday,
+    npsSurveysThisMonth,
   ] = await Promise.all([
     db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     db
@@ -73,10 +77,22 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .eq('sender_type', 'agent')
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
+    db.from('nps_surveys').select('rating').gte('sent_at', monthStart),
   ])
 
   const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
   const openDealsValue = openDealsRows.reduce((sum, d) => sum + (d.value ?? 0), 0)
+
+  const npsRows = (npsSurveysThisMonth.data ?? []) as { rating: number | null }[]
+  const npsRated = npsRows.filter((r) => r.rating != null)
+  const nps: NpsSummary = {
+    avgRating:
+      npsRated.length === 0
+        ? null
+        : npsRated.reduce((sum, r) => sum + (r.rating ?? 0), 0) / npsRated.length,
+    totalResponses: npsRated.length,
+    responseRatePct: npsRows.length === 0 ? null : (npsRated.length / npsRows.length) * 100,
+  }
 
   return {
     activeConversations: {
@@ -96,6 +112,7 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       current: messagesToday.count ?? 0,
       previous: messagesYesterday.count ?? 0,
     },
+    nps,
   }
 }
 

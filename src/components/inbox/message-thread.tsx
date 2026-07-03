@@ -576,6 +576,19 @@ export function MessageThread({
         .eq("id", conversation.id);
 
       onStatusChange(conversation.id, status);
+
+      // Fire-and-forget: the NPS survey send happens server-side (it
+      // needs the account's WhatsApp token), so we just kick off the
+      // request and don't block the status change on its result.
+      // sendNpsSurvey itself is a no-op if NPS is disabled or a
+      // survey was already sent for this conversation.
+      if (status === "closed") {
+        fetch("/api/nps/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversation_id: conversation.id }),
+        }).catch((err) => console.error("[nps] auto-send on close failed:", err));
+      }
     },
     [conversation, onStatusChange]
   );

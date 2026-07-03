@@ -624,7 +624,11 @@ export default function InboxPage() {
             toggle — which is itself desktop-only — never affects it. */}
         {contactPanelOpen && (
           <div className="hidden lg:block">
-            <ContactSidebar contact={activeContact} onContactUpdated={handleContactUpdated} />
+            <ContactSidebar
+              contact={activeContact}
+              conversationId={activeConversation?.id ?? null}
+              onContactUpdated={handleContactUpdated}
+            />
           </div>
         )}
       </div>

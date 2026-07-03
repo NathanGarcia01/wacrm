@@ -33,6 +33,8 @@
     "newContactsToday": "Novos Contatos Hoje",
     "openDealsValue": "Valor em Negócios Abertos",
     "messagesSentToday": "Mensagens Enviadas Hoje",
+    "npsAvgRating": "Satisfação (NPS)",
+    "npsSubtitle": "{responses} respostas · {rate} taxa de resposta",
     "newTodayVsYesterday": "novos hoje vs ontem",
     "vsYesterday": "vs ontem",
     "noChange": "Sem alteração {suffix}",
@@ -143,7 +145,15 @@
       "customFields": "Campos personalizados",
       "enterFieldPlaceholder": "Digite {field}...",
       "deleteNote": "Excluir nota",
-      "deleteNoteFailed": "Falha ao excluir nota"
+      "deleteNoteFailed": "Falha ao excluir nota",
+      "satisfaction": "Satisfação",
+      "sendNpsNow": "Enviar pesquisa agora",
+      "npsAwaitingRating": "Pesquisa enviada — aguardando resposta",
+      "npsAwaitingComment": "Aguardando comentário",
+      "npsExpired": "Pesquisa expirada sem resposta",
+      "npsSent": "Pesquisa de satisfação enviada",
+      "npsSendFailed": "Falha ao enviar pesquisa",
+      "npsDisabled": "Pesquisa de satisfação está desativada em Configurações"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título e etapa são obrigatórios",
