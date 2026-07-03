@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { parseContactCsv } from '@/lib/contacts/parse-contact-csv';
+import { isValidE164, normalizePhone } from '@/lib/whatsapp/phone-utils';
 import {
   Users,
   Tags,
@@ -14,6 +16,8 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
+  FileText,
+  AlertTriangle,
 } from 'lucide-react';
 
 type AudienceType = 'all' | 'tags' | 'custom_field' | 'csv';
@@ -91,6 +95,10 @@ export function Step2SelectAudience({
   const [loadingFields, setLoadingFields] = useState(false);
   const [estimatedCount, setEstimatedCount] = useState<number | null>(null);
   const [loadingCount, setLoadingCount] = useState(false);
+  const [csvFileName, setCsvFileName] = useState<string | null>(null);
+  const [csvInvalidCount, setCsvInvalidCount] = useState(0);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   // Tags are used both by the primary "Filter by Tags" audience type
   // AND by the exclude-list below — so always load once on mount.
@@ -238,6 +246,42 @@ export function Step2SelectAudience({
     onUpdate({ ...audience, customField: { ...prev, ...patch } });
   }
 
+  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+
+    setCsvFileName(selected.name);
+    setCsvError(null);
+    setCsvInvalidCount(0);
+
+    const text = await selected.text();
+    const { rows } = parseContactCsv(text);
+
+    if (rows.length === 0) {
+      setCsvError(t('csvNoHeaderError'));
+      onUpdate({ ...audience, csvContacts: [] });
+      return;
+    }
+
+    let invalid = 0;
+    const seen = new Set<string>();
+    const contacts: { phone: string; name?: string }[] = [];
+
+    for (const row of rows) {
+      const normalized = normalizePhone(row.phone);
+      if (!isValidE164(normalized)) {
+        invalid++;
+        continue;
+      }
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      contacts.push({ phone: row.phone, name: row.name });
+    }
+
+    setCsvInvalidCount(invalid);
+    onUpdate({ ...audience, csvContacts: contacts });
+  }
+
   const isValid =
     audience.type === 'all' ||
     (audience.type === 'tags' && audience.tagIds && audience.tagIds.length > 0) ||
@@ -264,7 +308,13 @@ export function Step2SelectAudience({
           return (
             <button
               key={option.type}
-              onClick={() =>
+              onClick={() => {
+                if (option.type !== 'csv') {
+                  setCsvFileName(null);
+                  setCsvInvalidCount(0);
+                  setCsvError(null);
+                  if (csvInputRef.current) csvInputRef.current.value = '';
+                }
                 onUpdate({
                   ...audience,
                   type: option.type,
@@ -277,8 +327,8 @@ export function Step2SelectAudience({
                       : undefined,
                   csvContacts:
                     option.type === 'csv' ? audience.csvContacts : undefined,
-                })
-              }
+                });
+              }}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
                 isSelected
                   ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
@@ -386,6 +436,84 @@ export function Step2SelectAudience({
                 placeholder={t('valuePlaceholder')}
                 className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary"
               />
+            </div>
+          )}
+        </div>
+      )}
+
+      {audience.type === 'csv' && (
+        <div className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
+          <p className="text-sm font-medium text-foreground">{t('uploadCsv')}</p>
+
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => csvInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ')
+                csvInputRef.current?.click();
+            }}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-5 text-center transition-all ${
+              csvFileName
+                ? 'border-primary/35 bg-primary/[0.04]'
+                : 'border-border bg-background/40 hover:border-primary/40'
+            }`}
+          >
+            {csvFileName ? (
+              <>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <FileText className="h-4 w-4 text-primary" />
+                </div>
+                <p className="max-w-full truncate px-2 text-sm font-medium text-foreground">
+                  {csvFileName}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted">
+                  <Upload className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">{t('csvUploadPrompt')}</p>
+              </>
+            )}
+            <p className="text-xs text-muted-foreground">{t('csvUploadHint')}</p>
+          </div>
+
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleCsvFile}
+            className="hidden"
+          />
+
+          {csvError && (
+            <div className="flex items-center gap-2 text-xs text-red-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{csvError}</span>
+            </div>
+          )}
+
+          {!csvError && audience.csvContacts && audience.csvContacts.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-primary">
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {t('csvContactsFound', { count: audience.csvContacts.length })}
+              </span>
+            </div>
+          )}
+
+          {!csvError && csvFileName && (audience.csvContacts?.length ?? 0) === 0 && (
+            <div className="flex items-center gap-2 text-xs text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{t('csvNoValidRows')}</span>
+            </div>
+          )}
+
+          {csvInvalidCount > 0 && (
+            <div className="flex items-center gap-2 text-xs text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>{t('csvInvalidNumbers', { count: csvInvalidCount })}</span>
             </div>
           )}
         </div>
