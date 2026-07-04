@@ -426,6 +426,12 @@ export interface BroadcastRecipient {
    * Added in migration 003.
    */
   whatsapp_message_id?: string;
+  /**
+   * Label of the template Quick Reply button this recipient tapped, if
+   * any. Set by the webhook's trackBroadcastButtonClick (migration 029).
+   */
+  button_clicked?: string;
+  button_clicked_at?: string;
   created_at: string;
   contact?: Contact;
 }

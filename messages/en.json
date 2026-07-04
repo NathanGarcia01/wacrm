@@ -810,7 +810,10 @@
       "tableError": "Error",
       "unknownContact": "Unknown",
       "templateLabel": "Template",
-      "createdOn": "Created"
+      "createdOn": "Created",
+      "buttonTracking": "Button click tracking",
+      "buttonTrackingWaiting": "Awaiting interactions...",
+      "buttonClickCount": "{count} clicks ({pct}%)"
     }
   },
   "auth": {

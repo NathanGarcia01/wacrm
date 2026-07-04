@@ -167,6 +167,63 @@ function BatchProgress({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
+interface ButtonClickStat {
+  label: string;
+  count: number;
+  pct: number;
+}
+
+/**
+ * Aggregates button_clicked across the already-fetched recipients list —
+ * no separate query needed since the recipients table select('*') already
+ * includes the column (migration 029). Percent is of sent_count, matching
+ * the funnel chart's convention of using "Sent" as the base.
+ */
+function ButtonClickTracking({
+  recipients,
+  sentCount,
+}: {
+  recipients: BroadcastRecipient[];
+  sentCount: number;
+}) {
+  const t = useTranslations('broadcasts.detail');
+  const counts = new Map<string, number>();
+  for (const r of recipients) {
+    if (!r.button_clicked) continue;
+    counts.set(r.button_clicked, (counts.get(r.button_clicked) ?? 0) + 1);
+  }
+  const stats: ButtonClickStat[] = Array.from(counts.entries())
+    .map(([label, count]) => ({
+      label,
+      count,
+      pct: sentCount > 0 ? Math.round((count / sentCount) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <h3 className="mb-4 text-sm font-medium text-foreground">{t('buttonTracking')}</h3>
+      {stats.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('buttonTrackingWaiting')}</p>
+      ) : (
+        <div className="space-y-2">
+          {stats.map((stat) => (
+            <div
+              key={stat.label}
+              className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+            >
+              <span className="font-medium text-foreground">{stat.label}</span>
+              <span className="text-muted-foreground">
+                {t('buttonClickCount', { count: stat.count, pct: stat.pct })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
   'pending',
   'sent',
@@ -523,6 +580,8 @@ export default function BroadcastDetailPage() {
       </div>
 
       <FunnelChart steps={funnelSteps} />
+
+      <ButtonClickTracking recipients={recipients} sentCount={broadcast.sent_count} />
 
       {/* Recipients Table */}
       <div className="rounded-xl border border-border bg-card">
