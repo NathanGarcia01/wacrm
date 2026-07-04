@@ -51,6 +51,14 @@ interface WhatsAppMessage {
     button_reply?: { id: string; title: string }
     list_reply?: { id: string; title: string; description?: string }
   }
+  /**
+   * Set when the customer taps a Quick Reply button on a template
+   * message we sent. This is a distinct shape from `interactive` above —
+   * Meta uses `type: "button"` (not `type: "interactive"`) for taps on
+   * template quick-reply buttons, vs. taps on interactive list/button
+   * messages sent outside of templates.
+   */
+  button?: { payload: string; text: string }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
 }
@@ -905,6 +913,11 @@ async function parseMessageContent(
       }
       return { ...empty, contentText: '[Interactive reply]' }
     }
+
+    case 'button':
+      // Quick Reply button tap on a template message. Render like a
+      // normal text message using the button's visible label.
+      return { ...empty, contentText: message.button?.text || null }
 
     default:
       return {

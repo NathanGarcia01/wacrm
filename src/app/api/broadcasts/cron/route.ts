@@ -94,6 +94,45 @@ function oneContact(contact: RecipientRow['contact']): RecipientContact | null {
   return Array.isArray(contact) ? (contact[0] ?? null) : contact
 }
 
+/** Substitutes {{1}}, {{2}}, … in a template body with resolved params,
+ *  so the inbox shows the actual rendered text rather than a placeholder. */
+function renderTemplateText(bodyText: string, params: string[]): string {
+  return bodyText.replace(/\{\{(\d+)\}\}/g, (_match, num: string) => params[Number(num) - 1] ?? '')
+}
+
+/**
+ * Find or create the conversation for a broadcast recipient's contact,
+ * mirroring findOrCreateConversation in the webhook handler — so a
+ * broadcast send lands in the same conversation an inbound reply would.
+ */
+async function findOrCreateConversationForContact(
+  admin: SupabaseClient,
+  accountId: string,
+  userId: string,
+  contactId: string,
+): Promise<string | null> {
+  const { data: existing, error: findError } = await admin
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .maybeSingle()
+
+  if (!findError && existing) return existing.id
+
+  const { data: created, error: createError } = await admin
+    .from('conversations')
+    .insert({ account_id: accountId, user_id: userId, contact_id: contactId })
+    .select('id')
+    .single()
+
+  if (createError || !created) {
+    console.error('[broadcasts/cron] failed to find/create conversation:', createError)
+    return null
+  }
+  return created.id
+}
+
 export async function GET(request: Request) {
   const expected = process.env.AUTOMATION_CRON_SECRET
   if (!expected) {
@@ -154,7 +193,7 @@ export async function GET(request: Request) {
 
     const { data: config } = await admin
       .from('whatsapp_config')
-      .select('phone_number_id, access_token')
+      .select('phone_number_id, access_token, user_id')
       .eq('account_id', row.account_id)
       .single()
 
@@ -263,6 +302,47 @@ export async function GET(request: Request) {
           .eq('id', recipient.id)
         messagesSent++
         batchSentDelta++
+
+        // Mirror the send into `messages` so the agent sees it in the
+        // inbox conversation — broadcasts previously only touched
+        // broadcast_recipients, leaving the customer's conversation
+        // with no record the message was ever sent.
+        const conversationId = await findOrCreateConversationForContact(
+          admin,
+          row.account_id,
+          config.user_id,
+          contact.id,
+        )
+        if (conversationId) {
+          const contentText = templateRow?.body_text
+            ? renderTemplateText(templateRow.body_text, params)
+            : `[template:${row.template_name}]`
+
+          const { error: msgErr } = await admin.from('messages').insert({
+            conversation_id: conversationId,
+            sender_type: 'agent',
+            sender_id: null,
+            content_type: 'template',
+            content_text: contentText,
+            template_name: row.template_name,
+            message_id: sentMessageId,
+            status: 'sent',
+            created_at: new Date().toISOString(),
+          })
+          if (msgErr) {
+            console.error('[broadcasts/cron] failed to save sent message to inbox:', msgErr)
+          } else {
+            await admin
+              .from('conversations')
+              .update({
+                last_message_text: contentText,
+                last_message_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', conversationId)
+          }
+        }
+
         continue
       }
 
