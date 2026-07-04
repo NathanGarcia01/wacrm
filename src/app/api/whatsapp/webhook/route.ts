@@ -429,6 +429,78 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
 }
 
 /**
+ * When a customer taps a Quick Reply button on a template message,
+ * correlate the tap back to the broadcast_recipients row that sent that
+ * template so reports can show "X clicked button A, Y clicked button B".
+ *
+ * Correlation strategy:
+ *  1. Exact match — a button tap's `context.id` is the Meta message id of
+ *     the template message that carried the button. If it was sent via a
+ *     broadcast, `broadcast_recipients.whatsapp_message_id` equals it.
+ *  2. Fallback — same heuristic as flagBroadcastReplyIfAny: the contact's
+ *     most recent still-open broadcast_recipients row. Covers the rare
+ *     case where Meta omits `context` on the tap.
+ *
+ * Best-effort: failures are logged and swallowed so a tracking miss never
+ * breaks the main inbound-message flow.
+ */
+async function trackBroadcastButtonClick(
+  accountId: string,
+  contactId: string,
+  contextMessageId: string | undefined,
+  buttonLabel: string
+) {
+  try {
+    let recipientId: string | null = null
+
+    if (contextMessageId) {
+      const { data, error } = await supabaseAdmin()
+        .from('broadcast_recipients')
+        .select('id, broadcasts!inner(account_id)')
+        .eq('whatsapp_message_id', contextMessageId)
+        .eq('broadcasts.account_id', accountId)
+        .maybeSingle()
+      if (error) {
+        console.error('[webhook] button-click lookup by context failed:', error.message)
+      } else if (data) {
+        recipientId = data.id
+      }
+    }
+
+    if (!recipientId) {
+      const { data: recs, error } = await supabaseAdmin()
+        .from('broadcast_recipients')
+        .select('id, broadcasts!inner(account_id)')
+        .eq('contact_id', contactId)
+        .eq('broadcasts.account_id', accountId)
+        .in('status', ['sent', 'delivered', 'read', 'replied'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (error) {
+        console.error('[webhook] button-click fallback lookup failed:', error.message)
+      } else if (recs && recs.length > 0) {
+        recipientId = recs[0].id
+      }
+    }
+
+    if (!recipientId) return
+
+    const { error: updErr } = await supabaseAdmin()
+      .from('broadcast_recipients')
+      .update({
+        button_clicked: buttonLabel,
+        button_clicked_at: new Date().toISOString(),
+      })
+      .eq('id', recipientId)
+    if (updErr) {
+      console.error('[webhook] failed to record button click:', updErr.message)
+    }
+  } catch (err) {
+    console.error('trackBroadcastButtonClick failed:', err)
+  }
+}
+
+/**
  * Resolve a Meta-side message_id into the matching internal UUID, scoped
  * to one conversation. Returns null when we never received the parent
  * (e.g. a swipe-reply to a message older than this CRM install).
@@ -663,6 +735,17 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // Quick Reply tap on a broadcast template — record which button for
+  // per-broadcast click reporting (migration 029).
+  if (message.type === 'button' && message.button?.text) {
+    await trackBroadcastButtonClick(
+      accountId,
+      contactRecord.id,
+      message.context?.id,
+      message.button.text
+    )
+  }
 
   // ============================================================
   // Flow runner dispatch.
