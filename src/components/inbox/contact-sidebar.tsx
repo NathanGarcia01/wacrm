@@ -6,7 +6,16 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, DealStatus, ContactNote, Tag, CustomField, NpsSurvey } from "@/types";
+import type {
+  Contact,
+  Deal,
+  DealStatus,
+  ContactNote,
+  Tag,
+  CustomField,
+  NpsSurvey,
+  PipelineStage,
+} from "@/types";
 import { formatCurrency } from "@/lib/currency";
 import {
   Phone,
@@ -29,6 +38,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { TagPickerPopover } from "./tag-picker-popover";
 import { DealMiniSheet } from "./deal-mini-sheet";
+import { DealForm } from "@/components/pipelines/deal-form";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -42,7 +52,10 @@ function dealStatusBadge(
     case "won":
       return {
         label: t("dealStatusWon"),
-        classes: "bg-primary/10 text-primary",
+        // Explicit green — not bg-primary/text-primary, since the
+        // account's accent theme can be violet/blue/amber/red
+        // (globals.css) and "won" must always read as green.
+        classes: "bg-green-500/10 text-green-400",
       };
     case "lost":
       return {
@@ -82,6 +95,10 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   const [removingTagId, setRemovingTagId] = useState<string | null>(null);
   const [dealSheetOpen, setDealSheetOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  // Stages for the deal being edited's own pipeline — DealForm (the
+  // same Sheet the pipeline board's edit action uses) needs the full
+  // stage list up front rather than resolving it internally.
+  const [editDealStages, setEditDealStages] = useState<PipelineStage[]>([]);
   const [npsSurvey, setNpsSurvey] = useState<NpsSurvey | null>(null);
   const [npsLoading, setNpsLoading] = useState(false);
   const [sendingNps, setSendingNps] = useState(false);
@@ -224,6 +241,31 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     setEditingDeal(deal);
     setDealSheetOpen(true);
   }, []);
+
+  // Load the edited deal's own pipeline stages for DealForm. Only
+  // relevant to the edit path (editingDeal set) — creating a new deal
+  // still goes through DealMiniSheet, which resolves its own default
+  // pipeline/stages internally.
+  useEffect(() => {
+    if (!dealSheetOpen || !editingDeal) {
+      setEditDealStages([]);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("pipeline_stages")
+      .select("*")
+      .eq("pipeline_id", editingDeal.pipeline_id)
+      .order("position", { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setEditDealStages((data ?? []) as PipelineStage[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dealSheetOpen, editingDeal]);
 
   const handleAddNote = useCallback(async () => {
     if (!contact || !newNote.trim()) return;
@@ -453,9 +495,6 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
               ) : (
                 deals.map((deal) => {
                   const statusBadge = dealStatusBadge(deal.status, t);
-                  const productsList = (deal.products ?? [])
-                    .map((p) => (p.quantity > 1 ? `${p.name} x${p.quantity}` : p.name))
-                    .join(", ");
                   return (
                     <div
                       key={deal.id}
@@ -500,10 +539,19 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                           {statusBadge.label}
                         </span>
                       </div>
-                      {productsList && (
-                        <p className="mt-1 truncate text-[11px] text-muted-foreground" title={productsList}>
-                          {t("dealProducts", { list: productsList })}
-                        </p>
+                      {deal.products && deal.products.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {deal.products.map((product) => (
+                            <p
+                              key={product.id}
+                              className="truncate text-[11px] text-muted-foreground"
+                              title={`${product.name} — ${formatCurrency(product.value * product.quantity, deal.currency)}`}
+                            >
+                              {product.name} —{" "}
+                              {formatCurrency(product.value * product.quantity, deal.currency)}
+                            </p>
+                          ))}
+                        </div>
                       )}
                     </div>
                   );
@@ -672,13 +720,29 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         </div>
       </ScrollArea>
 
-      <DealMiniSheet
-        open={dealSheetOpen}
-        onOpenChange={setDealSheetOpen}
-        deal={editingDeal}
-        contactId={contact.id}
-        onSaved={fetchContactData}
-      />
+      {editingDeal ? (
+        // Editing an existing deal opens the same Sheet the pipeline
+        // board's edit action uses (full editor: contact, currency,
+        // notes, close date, products, won/lost) — not the narrower
+        // DealMiniSheet below, which stays reserved for quick-creating
+        // a new deal mid-conversation.
+        <DealForm
+          open={dealSheetOpen}
+          onOpenChange={setDealSheetOpen}
+          deal={editingDeal}
+          pipelineId={editingDeal.pipeline_id}
+          stages={editDealStages}
+          onSaved={fetchContactData}
+        />
+      ) : (
+        <DealMiniSheet
+          open={dealSheetOpen}
+          onOpenChange={setDealSheetOpen}
+          deal={null}
+          contactId={contact.id}
+          onSaved={fetchContactData}
+        />
+      )}
     </div>
   );
 }
