@@ -13,6 +13,7 @@ import type {
   DealProduct,
   DealStatus,
   PipelineStage,
+  ProductCatalogItem,
   Profile,
 } from "@/types";
 import {
@@ -105,18 +106,40 @@ export function DealForm({
   const [products, setProducts] = useState<DealProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [addingProduct, setAddingProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: "", value: "", quantity: "1" });
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    value: "",
+    quantity: "1",
+    commissionRate: "",
+  });
   const [savingNewProduct, setSavingNewProduct] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [editProductDraft, setEditProductDraft] = useState({ name: "", value: "", quantity: "1" });
+  const [editProductDraft, setEditProductDraft] = useState({
+    name: "",
+    value: "",
+    quantity: "1",
+    commissionRate: "",
+  });
   const [savingProductId, setSavingProductId] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+
+  // Pre-registered products (Settings → Produtos) an agent can pick from
+  // instead of typing name/value/commission from scratch — see #7.
+  const [catalog, setCatalog] = useState<ProductCatalogItem[]>([]);
 
   const [lostReasonOpen, setLostReasonOpen] = useState(false);
   const [lostReason, setLostReason] = useState("");
   const [savingLostReason, setSavingLostReason] = useState(false);
 
   const productsTotal = products.reduce((sum, p) => sum + p.value * p.quantity, 0);
+  const commissionTotal = products.reduce((sum, p) => sum + (p.commission_value ?? 0), 0);
+
+  function computeCommission(value: string, quantity: string, commissionRate: string): number {
+    const v = parseFloat(value) || 0;
+    const q = parseInt(quantity, 10) || 1;
+    const rate = parseFloat(commissionRate) || 0;
+    return (v * q * rate) / 100;
+  }
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -154,13 +177,19 @@ export function DealForm({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, cat] = await Promise.all([
         supabase.from("contacts").select("*").order("name"),
         supabase.from("profiles").select("*").order("full_name"),
+        supabase
+          .from("product_catalog")
+          .select("*")
+          .eq("is_active", true)
+          .order("name"),
       ]);
       if (cancelled) return;
       setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
+      setCatalog((cat.data ?? []) as ProductCatalogItem[]);
     })();
     return () => {
       cancelled = true;
@@ -223,14 +252,19 @@ export function DealForm({
   async function handleAddProduct() {
     if (!deal || !accountId || !newProduct.name.trim()) return;
     setSavingNewProduct(true);
+    const parsedValue = parseFloat(newProduct.value) || 0;
+    const parsedQuantity = parseInt(newProduct.quantity, 10) || 1;
+    const parsedRate = parseFloat(newProduct.commissionRate) || 0;
     const { data, error } = await supabase
       .from("deal_products")
       .insert({
         deal_id: deal.id,
         account_id: accountId,
         name: newProduct.name.trim(),
-        value: parseFloat(newProduct.value) || 0,
-        quantity: parseInt(newProduct.quantity, 10) || 1,
+        value: parsedValue,
+        quantity: parsedQuantity,
+        commission_rate: parsedRate,
+        commission_value: computeCommission(newProduct.value, newProduct.quantity, newProduct.commissionRate),
       })
       .select()
       .single();
@@ -240,7 +274,7 @@ export function DealForm({
       return;
     }
     setProducts((prev) => [...prev, data as DealProduct]);
-    setNewProduct({ name: "", value: "", quantity: "1" });
+    setNewProduct({ name: "", value: "", quantity: "1", commissionRate: "" });
     setAddingProduct(false);
   }
 
@@ -250,6 +284,7 @@ export function DealForm({
       name: product.name,
       value: String(product.value),
       quantity: String(product.quantity),
+      commissionRate: product.commission_rate ? String(product.commission_rate) : "",
     });
   }
 
@@ -258,12 +293,20 @@ export function DealForm({
     setSavingProductId(productId);
     const parsedValue = parseFloat(editProductDraft.value) || 0;
     const parsedQuantity = parseInt(editProductDraft.quantity, 10) || 1;
+    const parsedRate = parseFloat(editProductDraft.commissionRate) || 0;
+    const commissionValue = computeCommission(
+      editProductDraft.value,
+      editProductDraft.quantity,
+      editProductDraft.commissionRate,
+    );
     const { error } = await supabase
       .from("deal_products")
       .update({
         name: editProductDraft.name.trim(),
         value: parsedValue,
         quantity: parsedQuantity,
+        commission_rate: parsedRate,
+        commission_value: commissionValue,
       })
       .eq("id", productId);
     setSavingProductId(null);
@@ -274,11 +317,31 @@ export function DealForm({
     setProducts((prev) =>
       prev.map((p) =>
         p.id === productId
-          ? { ...p, name: editProductDraft.name.trim(), value: parsedValue, quantity: parsedQuantity }
+          ? {
+              ...p,
+              name: editProductDraft.name.trim(),
+              value: parsedValue,
+              quantity: parsedQuantity,
+              commission_rate: parsedRate,
+              commission_value: commissionValue,
+            }
           : p,
       ),
     );
     setEditingProductId(null);
+  }
+
+  /** #7 — picking a catalog item pre-fills name/value/commission; the
+   *  agent can still adjust any of them before saving. */
+  function applyCatalogItem(catalogId: string) {
+    const item = catalog.find((c) => c.id === catalogId);
+    if (!item) return;
+    setNewProduct((prev) => ({
+      ...prev,
+      name: item.name,
+      value: String(item.default_value),
+      commissionRate: item.default_commission_rate ? String(item.default_commission_rate) : "",
+    }));
   }
 
   async function handleDeleteProduct(productId: string) {
@@ -566,36 +629,164 @@ export function DealForm({
                   <p className="text-xs text-muted-foreground">{t("noProducts")}</p>
                 ) : (
                   <div className="overflow-hidden rounded-lg border border-border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-border hover:bg-transparent">
-                          <TableHead className="text-muted-foreground">{t("productNameLabel")}</TableHead>
-                          <TableHead className="text-muted-foreground">{t("productValueLabel")}</TableHead>
-                          <TableHead className="text-muted-foreground">{t("productQuantityLabel")}</TableHead>
-                          <TableHead className="text-muted-foreground">{t("productTotalLabel")}</TableHead>
-                          <TableHead className="w-16 text-muted-foreground" />
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {products.map((product) =>
-                          editingProductId === product.id ? (
-                            <TableRow key={product.id} className="border-border">
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-border hover:bg-transparent">
+                            <TableHead className="text-muted-foreground">{t("productNameLabel")}</TableHead>
+                            <TableHead className="text-muted-foreground">{t("productValueLabel")}</TableHead>
+                            <TableHead className="text-muted-foreground">{t("productQuantityLabel")}</TableHead>
+                            <TableHead className="text-muted-foreground">{t("productCommissionRateLabel")}</TableHead>
+                            <TableHead className="text-muted-foreground">{t("productTotalLabel")}</TableHead>
+                            <TableHead className="text-muted-foreground">{t("productCommissionLabel")}</TableHead>
+                            <TableHead className="w-16 text-muted-foreground" />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {products.map((product) =>
+                            editingProductId === product.id ? (
+                              <TableRow key={product.id} className="border-border">
+                                <TableCell>
+                                  <Input
+                                    value={editProductDraft.name}
+                                    onChange={(e) =>
+                                      setEditProductDraft((prev) => ({ ...prev, name: e.target.value }))
+                                    }
+                                    className="h-7 border-border bg-muted text-xs text-foreground"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    value={editProductDraft.value}
+                                    onChange={(e) =>
+                                      setEditProductDraft((prev) => ({ ...prev, value: e.target.value }))
+                                    }
+                                    className="h-7 w-20 border-border bg-muted text-xs text-foreground"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={editProductDraft.quantity}
+                                    onChange={(e) =>
+                                      setEditProductDraft((prev) => ({ ...prev, quantity: e.target.value }))
+                                    }
+                                    className="h-7 w-16 border-border bg-muted text-xs text-foreground"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={editProductDraft.commissionRate}
+                                    onChange={(e) =>
+                                      setEditProductDraft((prev) => ({ ...prev, commissionRate: e.target.value }))
+                                    }
+                                    placeholder="0"
+                                    className="h-7 w-16 border-border bg-muted text-xs text-foreground"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-xs text-foreground">
+                                  {(
+                                    (parseFloat(editProductDraft.value) || 0) *
+                                    (parseInt(editProductDraft.quantity, 10) || 1)
+                                  ).toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-xs font-medium text-green-500">
+                                  {computeCommission(
+                                    editProductDraft.value,
+                                    editProductDraft.quantity,
+                                    editProductDraft.commissionRate,
+                                  ).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveProduct(product.id)}
+                                      disabled={savingProductId === product.id || !editProductDraft.name.trim()}
+                                      aria-label={t("saveProduct")}
+                                      className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
+                                    >
+                                      {savingProductId === product.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <Check className="h-3.5 w-3.5" />
+                                      )}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingProductId(null)}
+                                      aria-label={t("cancel")}
+                                      className="rounded p-1 text-muted-foreground hover:bg-muted"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              <TableRow key={product.id} className="group border-border">
+                                <TableCell className="text-xs text-foreground">{product.name}</TableCell>
+                                <TableCell className="text-xs text-foreground">{product.value.toLocaleString()}</TableCell>
+                                <TableCell className="text-xs text-foreground">{product.quantity}</TableCell>
+                                <TableCell className="text-xs text-foreground">
+                                  {product.commission_rate ? `${product.commission_rate}%` : "—"}
+                                </TableCell>
+                                <TableCell className="text-xs font-medium text-foreground">
+                                  {(product.value * product.quantity).toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-xs font-medium text-green-500">
+                                  {(product.commission_value ?? 0).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditProduct(product)}
+                                      aria-label={t("editProduct")}
+                                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteProduct(product.id)}
+                                      disabled={deletingProductId === product.id}
+                                      aria-label={t("deleteProduct")}
+                                      className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-400 disabled:opacity-50"
+                                    >
+                                      {deletingProductId === product.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ),
+                          )}
+
+                          {addingProduct && (
+                            <TableRow className="border-border">
                               <TableCell>
                                 <Input
-                                  value={editProductDraft.name}
-                                  onChange={(e) =>
-                                    setEditProductDraft((prev) => ({ ...prev, name: e.target.value }))
-                                  }
+                                  autoFocus
+                                  value={newProduct.name}
+                                  onChange={(e) => setNewProduct((prev) => ({ ...prev, name: e.target.value }))}
+                                  placeholder={t("productNamePlaceholder")}
                                   className="h-7 border-border bg-muted text-xs text-foreground"
                                 />
                               </TableCell>
                               <TableCell>
                                 <Input
                                   type="number"
-                                  value={editProductDraft.value}
-                                  onChange={(e) =>
-                                    setEditProductDraft((prev) => ({ ...prev, value: e.target.value }))
-                                  }
+                                  value={newProduct.value}
+                                  onChange={(e) => setNewProduct((prev) => ({ ...prev, value: e.target.value }))}
+                                  placeholder="0"
                                   className="h-7 w-20 border-border bg-muted text-xs text-foreground"
                                 />
                               </TableCell>
@@ -603,29 +794,45 @@ export function DealForm({
                                 <Input
                                   type="number"
                                   min={1}
-                                  value={editProductDraft.quantity}
+                                  value={newProduct.quantity}
+                                  onChange={(e) => setNewProduct((prev) => ({ ...prev, quantity: e.target.value }))}
+                                  className="h-7 w-16 border-border bg-muted text-xs text-foreground"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  value={newProduct.commissionRate}
                                   onChange={(e) =>
-                                    setEditProductDraft((prev) => ({ ...prev, quantity: e.target.value }))
+                                    setNewProduct((prev) => ({ ...prev, commissionRate: e.target.value }))
                                   }
+                                  placeholder="0"
                                   className="h-7 w-16 border-border bg-muted text-xs text-foreground"
                                 />
                               </TableCell>
                               <TableCell className="text-xs text-foreground">
                                 {(
-                                  (parseFloat(editProductDraft.value) || 0) *
-                                  (parseInt(editProductDraft.quantity, 10) || 1)
+                                  (parseFloat(newProduct.value) || 0) * (parseInt(newProduct.quantity, 10) || 1)
+                                ).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-xs font-medium text-green-500">
+                                {computeCommission(
+                                  newProduct.value,
+                                  newProduct.quantity,
+                                  newProduct.commissionRate,
                                 ).toLocaleString()}
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => handleSaveProduct(product.id)}
-                                    disabled={savingProductId === product.id || !editProductDraft.name.trim()}
+                                    onClick={handleAddProduct}
+                                    disabled={savingNewProduct || !newProduct.name.trim()}
                                     aria-label={t("saveProduct")}
                                     className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
                                   >
-                                    {savingProductId === product.id ? (
+                                    {savingNewProduct ? (
                                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                     ) : (
                                       <Check className="h-3.5 w-3.5" />
@@ -633,7 +840,10 @@ export function DealForm({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setEditingProductId(null)}
+                                    onClick={() => {
+                                      setAddingProduct(false);
+                                      setNewProduct({ name: "", value: "", quantity: "1", commissionRate: "" });
+                                    }}
                                     aria-label={t("cancel")}
                                     className="rounded p-1 text-muted-foreground hover:bg-muted"
                                   >
@@ -642,115 +852,44 @@ export function DealForm({
                                 </div>
                               </TableCell>
                             </TableRow>
-                          ) : (
-                            <TableRow key={product.id} className="group border-border">
-                              <TableCell className="text-xs text-foreground">{product.name}</TableCell>
-                              <TableCell className="text-xs text-foreground">{product.value.toLocaleString()}</TableCell>
-                              <TableCell className="text-xs text-foreground">{product.quantity}</TableCell>
-                              <TableCell className="text-xs font-medium text-foreground">
-                                {(product.value * product.quantity).toLocaleString()}
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                                  <button
-                                    type="button"
-                                    onClick={() => startEditProduct(product)}
-                                    aria-label={t("editProduct")}
-                                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteProduct(product.id)}
-                                    disabled={deletingProductId === product.id}
-                                    aria-label={t("deleteProduct")}
-                                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-400 disabled:opacity-50"
-                                  >
-                                    {deletingProductId === product.id ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ),
-                        )}
-
-                        {addingProduct && (
-                          <TableRow className="border-border">
-                            <TableCell>
-                              <Input
-                                autoFocus
-                                value={newProduct.name}
-                                onChange={(e) => setNewProduct((prev) => ({ ...prev, name: e.target.value }))}
-                                placeholder={t("productNamePlaceholder")}
-                                className="h-7 border-border bg-muted text-xs text-foreground"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                value={newProduct.value}
-                                onChange={(e) => setNewProduct((prev) => ({ ...prev, value: e.target.value }))}
-                                placeholder="0"
-                                className="h-7 w-20 border-border bg-muted text-xs text-foreground"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min={1}
-                                value={newProduct.quantity}
-                                onChange={(e) => setNewProduct((prev) => ({ ...prev, quantity: e.target.value }))}
-                                className="h-7 w-16 border-border bg-muted text-xs text-foreground"
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs text-foreground">
-                              {(
-                                (parseFloat(newProduct.value) || 0) * (parseInt(newProduct.quantity, 10) || 1)
-                              ).toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={handleAddProduct}
-                                  disabled={savingNewProduct || !newProduct.name.trim()}
-                                  aria-label={t("saveProduct")}
-                                  className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
-                                >
-                                  {savingNewProduct ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Check className="h-3.5 w-3.5" />
-                                  )}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAddingProduct(false);
-                                    setNewProduct({ name: "", value: "", quantity: "1" });
-                                  }}
-                                  aria-label={t("cancel")}
-                                  className="rounded p-1 text-muted-foreground hover:bg-muted"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                     {products.length > 0 && (
-                      <div className="flex items-center justify-between border-t border-border bg-muted/50 px-2 py-1.5 text-xs font-medium text-foreground">
-                        <span className="text-muted-foreground">{t("productsTotalLabel")}</span>
-                        <span>{productsTotal.toLocaleString()}</span>
+                      <div className="space-y-1 border-t border-border bg-muted/50 px-2 py-1.5 text-xs font-medium text-foreground">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">{t("productsTotalLabel")}</span>
+                          <span>{productsTotal.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">{t("commissionTotalLabel")}</span>
+                          <span className="text-green-500">{commissionTotal.toLocaleString()}</span>
+                        </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {addingProduct && catalog.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Label className="shrink-0 text-xs text-muted-foreground">
+                      {t("chooseFromCatalog")}
+                    </Label>
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) applyCatalogItem(e.target.value);
+                      }}
+                      className="h-8 flex-1 rounded-lg border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary"
+                    >
+                      <option value="">{t("chooseFromCatalogPlaceholder")}</option>
+                      {catalog.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
               </div>

@@ -331,7 +331,27 @@ export interface DealProduct {
   value: number;
   quantity: number;
   notes?: string;
+  /** Percent, e.g. 3.5 for 3.5%. Migration 030. */
+  commission_rate?: number;
+  /** Maintained by the app (value * quantity * commission_rate / 100),
+   *  not a DB-generated column — see migration 030. */
+  commission_value?: number;
   created_at: string;
+}
+
+/** Pre-registered product an agent can pick from when adding a deal
+ *  product, instead of typing name/value/commission from scratch.
+ *  Migration 030; CRUD is admin-gated (Settings → Produtos). */
+export interface ProductCatalogItem {
+  id: string;
+  account_id: string;
+  name: string;
+  default_value: number;
+  default_commission_rate?: number;
+  description?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export type NpsTriggerType = 'manual_close' | 'inactivity';

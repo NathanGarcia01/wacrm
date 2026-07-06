@@ -150,6 +150,7 @@
       "dealUnassigned": "Unassigned",
       "dealProducts": "Products: {list}",
       "dealCloseDate": "Closes {date}",
+      "dealCommissionTotal": "Total product commission",
       "notes": "Notes",
       "addNotePlaceholder": "Add a note...",
       "namePlaceholder": "Add name",
@@ -409,7 +410,8 @@
       "lostThisMonthTooltip": "Deals marked as Lost since the first day of the current month."
     },
     "dealCard": {
-      "noContact": "No contact"
+      "noContact": "No contact",
+      "commissionTotal": "Total product commission"
     },
     "settings": {
       "managePipeline": "Manage Pipeline",
@@ -482,8 +484,13 @@
       "productNameLabel": "Product",
       "productValueLabel": "Unit value",
       "productQuantityLabel": "Qty.",
+      "productCommissionRateLabel": "Commission (%)",
       "productTotalLabel": "Total",
+      "productCommissionLabel": "Commission",
       "productsTotalLabel": "Deal total",
+      "commissionTotalLabel": "Total commission",
+      "chooseFromCatalog": "Choose from catalog",
+      "chooseFromCatalogPlaceholder": "Select a catalog product…",
       "productNamePlaceholder": "Product name",
       "saveProduct": "Save product",
       "editProduct": "Edit product",

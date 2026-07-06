@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { localDayKey } from '@/lib/dashboard/date-utils'
 import type {
+  CommissionAgentRow,
   DealReportRow,
   DealsPerDayPoint,
   PeriodRange,
@@ -10,6 +11,10 @@ import type {
 } from './types'
 
 type DB = SupabaseClient
+
+interface DealProductCommissionRow {
+  commission_value: number | null
+}
 
 interface DealRow {
   id: string
@@ -22,8 +27,16 @@ interface DealRow {
   lost_at: string | null
   stage_id: string | null
   contact: { name: string | null; phone: string | null } | { name: string | null; phone: string | null }[] | null
-  assignee: { full_name: string | null; email: string | null } | { full_name: string | null; email: string | null }[] | null
+  assignee:
+    | { id: string; full_name: string | null; email: string | null }
+    | { id: string; full_name: string | null; email: string | null }[]
+    | null
   stage: { name: string; color: string } | { name: string; color: string }[] | null
+  products?: DealProductCommissionRow[]
+}
+
+function dealCommission(d: DealRow): number {
+  return (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
 }
 
 function one<T>(v: T | T[] | null): T | null {
@@ -37,18 +50,18 @@ export async function loadPipelineReport(db: DB, period: PeriodRange): Promise<P
   // within the range — a deal opened last month but won this week
   // still needs to count toward this week's "won" metrics, so we
   // can't filter purely on created_at.
-  const [createdRes, wonRes, lostRes, openStagesRes] = await Promise.all([
+  const [createdRes, wonRes, lostRes, openStagesRes, openCommissionRes] = await Promise.all([
     db
       .from('deals')
       .select(
-        'id, title, value, currency, status, created_at, won_at, lost_at, stage_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(full_name, email), stage:pipeline_stages(name, color)',
+        'id, title, value, currency, status, created_at, won_at, lost_at, stage_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(id, full_name, email), stage:pipeline_stages(name, color)',
       )
       .gte('created_at', startISO)
       .lt('created_at', endISO),
     db
       .from('deals')
       .select(
-        'id, title, value, currency, status, created_at, won_at, lost_at, stage_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(full_name, email), stage:pipeline_stages(name, color)',
+        'id, title, value, currency, status, created_at, won_at, lost_at, stage_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(id, full_name, email), stage:pipeline_stages(name, color), products:deal_products(commission_value)',
       )
       .eq('status', 'won')
       .gte('won_at', startISO)
@@ -56,7 +69,7 @@ export async function loadPipelineReport(db: DB, period: PeriodRange): Promise<P
     db
       .from('deals')
       .select(
-        'id, title, value, currency, status, created_at, won_at, lost_at, stage_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(full_name, email), stage:pipeline_stages(name, color)',
+        'id, title, value, currency, status, created_at, won_at, lost_at, stage_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(id, full_name, email), stage:pipeline_stages(name, color)',
       )
       .eq('status', 'lost')
       .gte('lost_at', startISO)
@@ -68,17 +81,27 @@ export async function loadPipelineReport(db: DB, period: PeriodRange): Promise<P
       .from('deals')
       .select('stage_id, pipeline_stages!inner(name, color, position)')
       .eq('status', 'open'),
+    // Projected commission — same "current pipeline" scope as the
+    // funnel above, not period-filtered.
+    db
+      .from('deals')
+      .select('id, products:deal_products(commission_value)')
+      .eq('status', 'open'),
   ])
   if (createdRes.error) throw createdRes.error
   if (wonRes.error) throw wonRes.error
   if (lostRes.error) throw lostRes.error
   if (openStagesRes.error) throw openStagesRes.error
+  if (openCommissionRes.error) throw openCommissionRes.error
 
   const created = (createdRes.data ?? []) as unknown as DealRow[]
   const won = (wonRes.data ?? []) as unknown as DealRow[]
   const lost = (lostRes.data ?? []) as unknown as DealRow[]
+  const openForCommission = (openCommissionRes.data ?? []) as unknown as DealRow[]
 
   const valueWon = won.reduce((sum, d) => sum + (d.value ?? 0), 0)
+  const commissionWon = won.reduce((sum, d) => sum + dealCommission(d), 0)
+  const commissionProjected = openForCommission.reduce((sum, d) => sum + dealCommission(d), 0)
   const conversionDenominator = won.length + lost.length
   const closeDaysList = won
     .filter((d) => d.won_at)
@@ -95,7 +118,31 @@ export async function loadPipelineReport(db: DB, period: PeriodRange): Promise<P
       closeDaysList.length === 0
         ? null
         : closeDaysList.reduce((a, b) => a + b, 0) / closeDaysList.length,
+    commissionWon,
+    commissionProjected,
   }
+
+  // Commission by agent — won deals only, ranked by commission descending.
+  // Deals with no assignee are excluded (nothing to rank).
+  const agentMap = new Map<string, CommissionAgentRow>()
+  for (const d of won) {
+    const assignee = one(d.assignee)
+    if (!assignee) continue
+    const commission = dealCommission(d)
+    const existing = agentMap.get(assignee.id)
+    if (existing) {
+      existing.commissionWon += commission
+      existing.dealsWon += 1
+    } else {
+      agentMap.set(assignee.id, {
+        profileId: assignee.id,
+        name: assignee.full_name || assignee.email || 'Unknown',
+        commissionWon: commission,
+        dealsWon: 1,
+      })
+    }
+  }
+  const commissionByAgent = [...agentMap.values()].sort((a, b) => b.commissionWon - a.commissionWon)
 
   // Funnel: one row per open deal, grouped by stage. Stages with zero
   // open deals still need to render (an empty bar tells its own
@@ -165,5 +212,5 @@ export async function loadPipelineReport(db: DB, period: PeriodRange): Promise<P
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  return { cards, funnel, dealsPerDay, deals }
+  return { cards, funnel, dealsPerDay, deals, commissionByAgent }
 }

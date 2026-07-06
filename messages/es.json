@@ -150,6 +150,7 @@
       "dealUnassigned": "Sin responsable",
       "dealProducts": "Productos: {list}",
       "dealCloseDate": "Cierra el {date}",
+      "dealCommissionTotal": "Total de comisión de los productos",
       "notes": "Notas",
       "addNotePlaceholder": "Agregar una nota...",
       "namePlaceholder": "Agregar nombre",
@@ -409,7 +410,8 @@
       "lostThisMonthTooltip": "Negocios marcados como Perdido desde el primer día del mes actual."
     },
     "dealCard": {
-      "noContact": "Sin contacto"
+      "noContact": "Sin contacto",
+      "commissionTotal": "Total de comisión de los productos"
     },
     "settings": {
       "managePipeline": "Gestionar Pipeline",
@@ -482,8 +484,13 @@
       "productNameLabel": "Producto",
       "productValueLabel": "Valor unitario",
       "productQuantityLabel": "Cant.",
+      "productCommissionRateLabel": "Comisión (%)",
       "productTotalLabel": "Total",
+      "productCommissionLabel": "Comisión",
       "productsTotalLabel": "Total del negocio",
+      "commissionTotalLabel": "Total de comisión",
+      "chooseFromCatalog": "Elegir del catálogo",
+      "chooseFromCatalogPlaceholder": "Selecciona un producto del catálogo…",
       "productNamePlaceholder": "Nombre del producto",
       "saveProduct": "Guardar producto",
       "editProduct": "Editar producto",

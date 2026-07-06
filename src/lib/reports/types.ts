@@ -71,6 +71,21 @@ export interface PipelineReportCards {
   avgTicket: number | null
   /** Average won_at - created_at, in days. Null when there are no won deals. */
   avgCloseDays: number | null
+  /** Sum of deal_products.commission_value across deals won in the period. */
+  commissionWon: number
+  /** Sum of deal_products.commission_value across all currently open
+   *  deals — not period-scoped, mirrors the funnel's "pipeline right
+   *  now" semantics. */
+  commissionProjected: number
+}
+
+/** Commission earned per agent from deals won in the period, ranked
+ *  by commissionWon descending. */
+export interface CommissionAgentRow {
+  profileId: string
+  name: string
+  commissionWon: number
+  dealsWon: number
 }
 
 export interface PipelineFunnelStage {
@@ -105,6 +120,7 @@ export interface PipelineReportBundle {
   funnel: PipelineFunnelStage[]
   dealsPerDay: DealsPerDayPoint[]
   deals: DealReportRow[]
+  commissionByAgent: CommissionAgentRow[]
 }
 
 // ------------------------------------------------------------

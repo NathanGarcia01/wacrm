@@ -30,6 +30,10 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
   const t = useTranslations("pipelines.dealCard");
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
   const assigneeLabel = deal.assignee?.full_name || null;
+  const commissionTotal = (deal.products ?? []).reduce(
+    (sum, p) => sum + (p.commission_value ?? 0),
+    0,
+  );
 
   return (
     <button
@@ -81,8 +85,15 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
       </div>
 
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-sm font-bold text-primary">
-          {formatCurrency(deal.value, deal.currency)}
+        <span className="flex items-center gap-1.5">
+          <span className="text-sm font-bold text-primary">
+            {formatCurrency(deal.value, deal.currency)}
+          </span>
+          {commissionTotal > 0 && (
+            <span className="text-[11px] font-semibold text-green-500" title={t("commissionTotal")}>
+              +{formatCurrency(commissionTotal, deal.currency)}
+            </span>
+          )}
         </span>
         {deal.expected_close_date && (
           <span className="flex items-center gap-1 text-[11px] text-muted-foreground">

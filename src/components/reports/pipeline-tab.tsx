@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
-import { CalendarClock, CheckCircle2, DollarSign, Percent, Ticket, XCircle } from "lucide-react"
+import { CalendarClock, CheckCircle2, Coins, DollarSign, Percent, Ticket, XCircle } from "lucide-react"
 import { loadPipelineReport } from "@/lib/reports/pipeline-queries"
 import type { PeriodRange, PipelineReportBundle } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
@@ -12,6 +12,7 @@ import { SkeletonCard } from "@/components/dashboard/skeleton"
 import { PipelineFunnelChart } from "@/components/reports/pipeline-funnel-chart"
 import { DealsPerDayChart } from "@/components/reports/deals-per-day-chart"
 import { DealsTable } from "@/components/reports/deals-table"
+import { CommissionAgentRankingTable } from "@/components/reports/commission-agent-ranking-table"
 
 function fmtPct(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(0)}%`
@@ -84,6 +85,17 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
               value={fmtDays(bundle.cards.avgCloseDays)}
               icon={CalendarClock}
             />
+            <MetricCard
+              title="Comissão do período"
+              value={formatCurrency(bundle.cards.commissionWon, defaultCurrency)}
+              icon={Coins}
+            />
+            <MetricCard
+              title="Comissão prevista"
+              value={formatCurrency(bundle.cards.commissionProjected, defaultCurrency)}
+              icon={Coins}
+              subtitle="Deals em aberto"
+            />
           </>
         )}
       </div>
@@ -92,6 +104,12 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
         <PipelineFunnelChart stages={bundle?.funnel ?? []} />
         <DealsPerDayChart data={bundle?.dealsPerDay ?? []} />
       </div>
+
+      <CommissionAgentRankingTable
+        rows={bundle?.commissionByAgent ?? []}
+        loading={loading}
+        currency={defaultCurrency}
+      />
 
       <DealsTable deals={bundle?.deals ?? []} loading={loading} />
     </div>

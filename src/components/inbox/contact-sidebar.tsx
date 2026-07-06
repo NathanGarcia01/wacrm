@@ -113,7 +113,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
       supabase
         .from("deals")
         .select(
-          "*, stage:pipeline_stages(*), assignee:profiles!deals_assigned_to_fkey(full_name), products:deal_products(id, name, value, quantity)",
+          "*, stage:pipeline_stages(*), assignee:profiles!deals_assigned_to_fkey(full_name), products:deal_products(id, name, value, quantity, commission_value)",
         )
         .eq("contact_id", contact.id)
         .order("created_at", { ascending: false }),
@@ -495,6 +495,10 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
               ) : (
                 deals.map((deal) => {
                   const statusBadge = dealStatusBadge(deal.status, t);
+                  const dealCommissionTotal = (deal.products ?? []).reduce(
+                    (sum, p) => sum + (p.commission_value ?? 0),
+                    0,
+                  );
                   return (
                     <div
                       key={deal.id}
@@ -514,7 +518,17 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                         </button>
                       </div>
                       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{formatCurrency(deal.value, deal.currency)}</span>
+                        <span className="flex items-center gap-1.5">
+                          <span>{formatCurrency(deal.value, deal.currency)}</span>
+                          {dealCommissionTotal > 0 && (
+                            <span
+                              className="font-medium text-green-500"
+                              title={t("dealCommissionTotal")}
+                            >
+                              +{formatCurrency(dealCommissionTotal, deal.currency)}
+                            </span>
+                          )}
+                        </span>
                         {deal.stage && (
                           <span
                             className="rounded-full px-1.5 py-0.5 text-[10px]"
