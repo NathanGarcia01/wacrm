@@ -24,7 +24,9 @@
   "sidebar": {
     "profile": "Perfil",
     "settingsMenu": "Configurações",
-    "signOut": "Sair"
+    "signOut": "Sair",
+    "collapseSidebar": "Recolher",
+    "expandSidebar": "Expandir"
   },
   "dashboard": {
     "title": "Painel",
@@ -206,6 +208,8 @@
       "showContact": "Mostrar contato",
       "refreshConversation": "Atualizar conversa",
       "refresh": "Atualizar",
+      "markAsRead": "Marcar como lida",
+      "markAsUnread": "Marcar como não lida",
       "status": "Status",
       "noCustomerMessages": "Nenhuma mensagem do cliente",
       "sessionExpired": "Expirada",

@@ -700,7 +700,10 @@ async function processMessage(
     return
   }
 
-  // Update conversation
+  // Update conversation. A closed conversation reopens on a fresh
+  // customer reply — the agent marked it done under the old context,
+  // and a new inbound message means the customer is back with something
+  // that needs attention again.
   const { error: convError } = await supabaseAdmin()
     .from('conversations')
     .update({
@@ -708,6 +711,7 @@ async function processMessage(
       last_message_at: new Date().toISOString(),
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
+      ...(conversation.status === 'closed' ? { status: 'open' } : {}),
     })
     .eq('id', conversation.id)
 

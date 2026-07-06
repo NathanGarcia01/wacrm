@@ -24,7 +24,9 @@
   "sidebar": {
     "profile": "Profile",
     "settingsMenu": "Settings",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "collapseSidebar": "Collapse",
+    "expandSidebar": "Expand"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -206,6 +208,8 @@
       "showContact": "Show contact",
       "refreshConversation": "Refresh conversation",
       "refresh": "Refresh",
+      "markAsRead": "Mark as read",
+      "markAsUnread": "Mark as unread",
       "status": "Status",
       "noCustomerMessages": "No customer messages",
       "sessionExpired": "Expired",

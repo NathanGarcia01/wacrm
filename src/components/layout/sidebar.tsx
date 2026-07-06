@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
   BarChart3,
+  ChevronLeft,
+  ChevronRight,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -76,6 +78,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface NavItem {
   href: string;
@@ -103,6 +111,91 @@ const bottomNavItems: NavItem[] = [
   { href: "/settings", labelKey: "settings", icon: Settings },
 ];
 
+// Remembers the agent's icon-only sidebar choice across reloads —
+// device-scoped, mirrors the inbox contact-panel toggle's storage key.
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "funilly.sidebar.collapsed";
+
+interface SidebarNavLinkProps {
+  item: NavItem;
+  isActive: boolean;
+  collapsed: boolean;
+  showUnreadDot: boolean;
+  totalUnread: number;
+  label: string;
+  betaLabel: string;
+}
+
+/**
+ * A single nav row. Collapsed mode hides the label (and beta chip /
+ * unread dot text) via `lg:hidden` — not a plain JS conditional —
+ * so the mobile drawer (which never collapses) keeps showing full
+ * labels regardless of the desktop collapsed preference. Wrapped in a
+ * Tooltip only when collapsed, since the visible label already serves
+ * that purpose when expanded.
+ */
+function SidebarNavLink({
+  item,
+  isActive,
+  collapsed,
+  showUnreadDot,
+  totalUnread,
+  label,
+  betaLabel,
+}: SidebarNavLinkProps) {
+  const linkClasses = cn(
+    // Taller on mobile so fingers can hit the row reliably (≥44px).
+    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+    collapsed && "lg:justify-center lg:px-0",
+    isActive
+      ? "bg-primary/10 text-primary"
+      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
+
+  const content = (
+    <>
+      <item.icon className="h-4 w-4 shrink-0" />
+      <span className={cn("flex-1", collapsed && "lg:hidden")}>{label}</span>
+      {item.beta && (
+        <span
+          aria-label="Beta feature"
+          className={cn(
+            "rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300",
+            collapsed && "lg:hidden",
+          )}
+        >
+          {betaLabel}
+        </span>
+      )}
+      {showUnreadDot && (
+        <span
+          aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
+          className={cn("relative flex h-2 w-2", collapsed && "lg:hidden")}
+        >
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+        </span>
+      )}
+    </>
+  );
+
+  if (!collapsed) {
+    return (
+      <Link href={item.href} className={linkClasses}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<Link href={item.href} className={linkClasses} />}>
+        {content}
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 interface SidebarProps {
   /** Controlled on mobile by the Header's hamburger button. Ignored on lg+. */
   open?: boolean;
@@ -127,6 +220,32 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     !profileLoading &&
     !!account?.name &&
     account.name !== profile?.full_name;
+
+  // Desktop-only icon-rail mode. Defaults to expanded (`false`) so the
+  // server render matches; the effect below reconciles to the stored
+  // value right after mount, same hydration-safe pattern as the inbox
+  // page's contact-panel toggle.
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+      if (stored !== null) setCollapsed(stored === "true");
+    } catch {
+      // localStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, []);
+
+  const handleToggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // Best-effort persistence only.
+      }
+      return next;
+    });
+  }, []);
 
   // Close the drawer when route changes — users opened it to navigate,
   // so once they pick a destination the drawer should get out of the way.
@@ -176,113 +295,122 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           "transition-transform duration-200 ease-out will-change-transform",
           open ? "translate-x-0" : "-translate-x-full",
           // Desktop: static, always visible — reset all the mobile framing.
-          "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
+          // Width switches between the expanded/icon-rail values based on
+          // the persisted `collapsed` preference; mobile ignores it (the
+          // drawer is an overlay, not a shared-space rail).
+          "lg:static lg:z-0 lg:translate-x-0 lg:transition-[width] lg:duration-200",
+          collapsed ? "lg:w-16" : "lg:w-60",
         )}
         aria-label="Primary"
       >
-        {/* Logo row. On mobile we put a close button here; on desktop the
-            close button is hidden since the sidebar is always-visible. */}
-        <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
-            </div>
-            <span className="text-sm font-semibold text-foreground">
-              Funilly
-            </span>
-          </Link>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close menu"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        <TooltipProvider delay={200}>
+          {/* Logo row. On mobile we put a close button here; on desktop the
+              close button is hidden since the sidebar is always-visible. */}
+          <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <MessageSquare className="h-4 w-4" />
+              </div>
+              <span
+                className={cn(
+                  "text-sm font-semibold text-foreground",
+                  collapsed && "lg:hidden",
+                )}
+              >
+                Funilly
+              </span>
+            </Link>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close menu"
+              className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
-        {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          {/* Main navigation */}
+          <nav className="flex-1 overflow-y-auto px-3 py-4">
+            <ul className="flex flex-col gap-1">
+              {navItems.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-              const showUnreadDot =
-                item.href === "/inbox" && totalUnread > 0 && !isActive;
+                const showUnreadDot =
+                  item.href === "/inbox" && totalUnread > 0 && !isActive;
 
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{tNav(item.labelKey)}</span>
-                    {item.beta && (
-                      <span
-                        aria-label="Beta feature"
-                        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300"
-                      >
-                        {tNav("beta")}
-                      </span>
-                    )}
-                    {showUnreadDot && (
-                      <span
-                        aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
-                        className="relative flex h-2 w-2"
-                      >
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                return (
+                  <li key={item.href}>
+                    <SidebarNavLink
+                      item={item}
+                      isActive={isActive}
+                      collapsed={collapsed}
+                      showUnreadDot={showUnreadDot}
+                      totalUnread={totalUnread}
+                      label={tNav(item.labelKey)}
+                      betaLabel={tNav("beta")}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
 
-          <div className="my-4 border-t border-border" />
+            <div className="my-4 border-t border-border" />
 
-          <ul className="flex flex-col gap-1">
-            {bottomNavItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
-                      isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {tNav(item.labelKey)}
-                  </Link>
-                </li>
-              );
+            <ul className="flex flex-col gap-1">
+              {bottomNavItems.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <li key={item.href}>
+                    <SidebarNavLink
+                      item={item}
+                      isActive={isActive}
+                      collapsed={collapsed}
+                      showUnreadDot={false}
+                      totalUnread={0}
+                      label={tNav(item.labelKey)}
+                      betaLabel={tNav("beta")}
+                    />
+                  </li>
+                );
             })}
           </ul>
         </nav>
+
+        {/* Collapse toggle — desktop only, at the end of the nav rail.
+            Persisted to localStorage so the choice survives reloads. */}
+        <button
+          type="button"
+          onClick={handleToggleCollapsed}
+          aria-label={collapsed ? tSidebar("expandSidebar") : tSidebar("collapseSidebar")}
+          title={collapsed ? tSidebar("expandSidebar") : tSidebar("collapseSidebar")}
+          className={cn(
+            "hidden shrink-0 items-center gap-2 border-t border-border px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:flex",
+            collapsed && "justify-center",
+          )}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <>
+              <ChevronLeft className="h-4 w-4" />
+              {tSidebar("collapseSidebar")}
+            </>
+          )}
+        </button>
 
         {/* User section */}
         <div className="shrink-0 border-t border-border p-3">
           {/* Account name display — surfaced only when the account
               name differs from the user's own name (see
-              `showAccountStrip`). For a default solo account the two
-              match, so we hide it to avoid duplicating the user name
-              below; for renamed or shared accounts it tells the user
-              which account they're acting in. */}
-          {showAccountStrip && account?.name ? (
+              `showAccountStrip`) and the rail is expanded (no room for
+              a name+role strip in icon-only mode). For a default solo
+              account the two match, so we hide it to avoid duplicating
+              the user name below; for renamed or shared accounts it
+              tells the user which account they're acting in. */}
+          {showAccountStrip && account?.name && !collapsed ? (
             <div className="mb-2 flex items-center gap-2 px-3 text-xs text-muted-foreground">
               <UsersRound className="size-3.5 shrink-0" />
               {/* `title=` exposes the full name on hover when it
@@ -312,7 +440,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </div>
           ) : null}
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/60 focus:bg-muted/60 focus:outline-none data-popup-open:bg-muted/60">
+            <DropdownMenuTrigger
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-muted/60 focus:bg-muted/60 focus:outline-none data-popup-open:bg-muted/60",
+                collapsed && "lg:justify-center lg:px-0",
+              )}
+            >
               <Avatar className="size-8 shrink-0">
                 {profile?.avatar_url ? (
                   <AvatarImage
@@ -326,7 +459,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     "U"}
                 </AvatarFallback>
               </Avatar>
-              <div className="min-w-0 flex-1">
+              <div className={cn("min-w-0 flex-1", collapsed && "lg:hidden")}>
                 <p className="truncate text-sm font-medium text-foreground">
                   {profile?.full_name ?? "User"}
                 </p>
@@ -376,6 +509,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        </TooltipProvider>
       </aside>
     </>
   );

@@ -24,7 +24,9 @@
   "sidebar": {
     "profile": "Perfil",
     "settingsMenu": "Configuración",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "collapseSidebar": "Contraer",
+    "expandSidebar": "Expandir"
   },
   "dashboard": {
     "title": "Panel",
@@ -206,6 +208,8 @@
       "showContact": "Mostrar contacto",
       "refreshConversation": "Actualizar conversación",
       "refresh": "Actualizar",
+      "markAsRead": "Marcar como leída",
+      "markAsUnread": "Marcar como no leída",
       "status": "Estado",
       "noCustomerMessages": "Sin mensajes del cliente",
       "sessionExpired": "Expirada",

@@ -27,6 +27,8 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Mail,
+  MailOpen,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +77,10 @@ interface MessageThreadProps {
     conversationId: string,
     assignedAgentId: string | null,
   ) => void;
+  /** Fired by the "mark as read/unread" toggle in the thread header —
+   *  the page owns the conversation list's copy of unread_count, so
+   *  the thread just asks it to sync after the DB write lands. */
+  onUnreadChange: (conversationId: string, unreadCount: number) => void;
   /**
    * On mobile, the thread is shown full-screen with the conversation list
    * hidden. This callback lets the page deselect the active conversation
@@ -160,6 +166,7 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onUnreadChange,
   onBack,
   resyncToken = 0,
   onRefresh,
@@ -264,6 +271,8 @@ export function MessageThread({
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
+  // See the auto-reset effect below for why this exists.
+  const suppressAutoReadRef = useRef(false);
 
   // Fetch messages whenever the selected conversation changes. Kept
   // separate from the unread-reset effect so that incoming messages
@@ -422,8 +431,18 @@ export function MessageThread({
   //
   // Guarding on hasUnread prevents the eq-update loop: once unread_count
   // is 0 the condition is false, so no further UPDATE is issued.
+  //
+  // suppressAutoReadRef is the escape hatch for the manual "mark as
+  // unread" button below: flipping unread_count 0→1 on the still-open
+  // conversation makes hasUnread go true → false→true, which would
+  // otherwise re-trigger this same effect and instantly stomp the
+  // manual action back to 0.
   useEffect(() => {
     if (!conversationId || !hasUnread) return;
+    if (suppressAutoReadRef.current) {
+      suppressAutoReadRef.current = false;
+      return;
+    }
     const supabase = createClient();
     supabase
       .from("conversations")
@@ -564,6 +583,25 @@ export function MessageThread({
     },
     [conversation, onNewMessage, onUpdateMessage],
   );
+
+  const handleToggleUnread = useCallback(async () => {
+    if (!conversation) return;
+
+    // unread_count doubles as the read/unread boolean everywhere else
+    // in the app (list badge, "Unread" filter, sidebar total-unread
+    // count) — flip it between 0 and 1 rather than introducing a
+    // second is-unread flag that could drift out of sync with it.
+    const nextUnreadCount = conversation.unread_count > 0 ? 0 : 1;
+    if (nextUnreadCount > 0) suppressAutoReadRef.current = true;
+
+    const supabase = createClient();
+    await supabase
+      .from("conversations")
+      .update({ unread_count: nextUnreadCount })
+      .eq("id", conversation.id);
+
+    onUnreadChange(conversation.id, nextUnreadCount);
+  }, [conversation, onUnreadChange]);
 
   const handleStatusChange = useCallback(
     async (status: ConversationStatus) => {
@@ -921,6 +959,25 @@ export function MessageThread({
               />
             </button>
           )}
+
+          {/* Mark as read/unread toggle */}
+          <button
+            type="button"
+            onClick={handleToggleUnread}
+            aria-label={
+              conversation.unread_count > 0 ? t("markAsRead") : t("markAsUnread")
+            }
+            title={
+              conversation.unread_count > 0 ? t("markAsRead") : t("markAsUnread")
+            }
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {conversation.unread_count > 0 ? (
+              <MailOpen className="h-3.5 w-3.5" />
+            ) : (
+              <Mail className="h-3.5 w-3.5" />
+            )}
+          </button>
 
           {/* Status dropdown */}
           <DropdownMenu>

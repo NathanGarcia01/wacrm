@@ -68,7 +68,9 @@ export function ConversationList({
 }: ConversationListProps) {
   const t = useTranslations("inbox.list");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<InboxFilter>("all");
+  // Default to "open" — closed conversations are done-and-archived, so
+  // they shouldn't compete for attention unless explicitly requested.
+  const [filter, setFilter] = useState<InboxFilter>("open");
   const [advancedFilters, setAdvancedFilters] = useState<ConversationFiltersState>(
     EMPTY_CONVERSATION_FILTERS,
   );
@@ -320,16 +322,19 @@ function ConversationItem({
       })
     : "";
 
+  const isUnread = conversation.unread_count > 0;
+
   return (
     <button
       onClick={handleClick}
       className={cn(
         "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
+        isUnread && !isActive && "bg-primary/[0.04]",
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
       {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
         {contact?.avatar_url ? (
           <img
             src={contact.avatar_url}
@@ -339,18 +344,34 @@ function ConversationItem({
         ) : (
           initials
         )}
+        {isUnread && (
+          <span
+            aria-hidden
+            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-primary"
+          />
+        )}
       </div>
 
       {/* Content */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-foreground">
+          <span
+            className={cn(
+              "truncate text-sm text-foreground",
+              isUnread ? "font-semibold" : "font-medium"
+            )}
+          >
             {displayName}
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
+          <p
+            className={cn(
+              "truncate text-xs",
+              isUnread ? "font-medium text-foreground" : "text-muted-foreground"
+            )}
+          >
             {conversation.last_message_text || t("noMessagesYet")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
