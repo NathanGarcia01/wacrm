@@ -14,7 +14,10 @@ import {
   type ColumnMapping,
   type SystemFieldMapping,
 } from '@/lib/contacts/parse-csv-generic';
-import { buildMappedContactRows } from '@/lib/contacts/build-mapped-contact-rows';
+import {
+  buildMappedContactRows,
+  type MappedContactRow,
+} from '@/lib/contacts/build-mapped-contact-rows';
 import {
   assignImportedContactTags,
   resolveImportTagIds,
@@ -55,7 +58,7 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_TAG_COLOR = '#3b82f6';
-const PREVIEW_LIMIT = 5;
+const PREVIEW_LIMIT = 3;
 
 const MAPPING_OPTIONS: { value: string; label: string }[] = [
   { value: 'system:name', label: 'Nome' },
@@ -182,6 +185,7 @@ export function ImportModal({
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{
     imported: number;
+    updated: number;
     skipped: number;
     failed: number;
     tagsAssigned: number;
@@ -287,6 +291,7 @@ export function ImportModal({
         throw new Error('Seu perfil não está vinculado a uma conta.');
 
       let imported = 0;
+      let updated = 0;
       let skipped = 0;
       let failed = 0;
 
@@ -294,30 +299,37 @@ export function ImportModal({
       const { unique, duplicates: inFileDupes } = dedupeByPhone(mappedRows);
       skipped += inFileDupes;
 
-      // 2) Skip numbers already in this account. One read of the
-      //    generated `phone_normalized` column (migration 022) → Set.
+      // 2) Split into brand-new phones (insert) vs. phones that already
+      //    have a contact in this account (update in place) — one read
+      //    of the generated `phone_normalized` column (migration 022)
+      //    → Map<phone, contact id>.
       const { data: existingRows } = await supabase
         .from('contacts')
-        .select('phone_normalized')
+        .select('id, phone_normalized')
         .eq('account_id', accountId);
-      const existing = new Set(
-        (existingRows ?? [])
-          .map(
-            (r) => (r as { phone_normalized: string | null }).phone_normalized
-          )
-          .filter((p): p is string => !!p)
-      );
+      const existingIdByPhone = new Map<string, string>();
+      for (const r of (existingRows ?? []) as {
+        id: string;
+        phone_normalized: string | null;
+      }[]) {
+        if (r.phone_normalized) existingIdByPhone.set(r.phone_normalized, r.id);
+      }
 
-      const toInsert = unique.filter((row) => {
-        if (existing.has(normalizeKey(row.phone))) {
-          skipped++;
-          return false;
+      const toInsert: MappedContactRow[] = [];
+      const toUpdate: { contactId: string; row: MappedContactRow }[] = [];
+      for (const row of unique) {
+        const existingId = existingIdByPhone.get(normalizeKey(row.phone));
+        if (existingId) {
+          toUpdate.push({ contactId: existingId, row });
+        } else {
+          toInsert.push(row);
         }
-        return true;
-      });
+      }
 
       // 3) Resolve tag names → ids (admin+ may auto-create missing tags).
-      const allTagNames = toInsert.flatMap((row) => row.tagNames);
+      //    Drawn from `unique`, not just toInsert — updated (existing)
+      //    contacts get their tags/custom fields applied too.
+      const allTagNames = unique.flatMap((row) => row.tagNames);
       let tagIdByKey = new Map<string, string>();
       let skippedTagNames: string[] = [];
       if (allTagNames.length > 0) {
@@ -434,8 +446,40 @@ export function ImportModal({
         }
       }
 
-      // 5) Wire tags + custom field values onto the contacts we just
-      //    created. Failure here must not mask a successful import.
+      // 5) Update contacts that already exist in this account (matched
+      //    by phone). Only touch fields the row actually provides —
+      //    a blank cell must not blank out data the contact already
+      //    has — and still wire up tags/custom values below like a
+      //    fresh import would.
+      for (const { contactId, row } of toUpdate) {
+        const patch: Record<string, unknown> = {};
+        if (row.name) patch.name = row.name;
+        if (row.email) patch.email = row.email;
+        if (row.company) patch.company = row.company;
+
+        if (Object.keys(patch).length > 0) {
+          patch.updated_at = new Date().toISOString();
+          const { error } = await supabase
+            .from('contacts')
+            .update(patch)
+            .eq('id', contactId);
+          if (error) {
+            failed++;
+            continue;
+          }
+        }
+
+        updated++;
+        if (row.tagNames.length > 0) {
+          tagAssignments.push({ contactId, tagNames: row.tagNames });
+        }
+        if (row.customValues.size > 0) {
+          customValueAssignments.push({ contactId, values: row.customValues });
+        }
+      }
+
+      // 6) Wire tags + custom field values onto both newly-created and
+      //    updated contacts. Failure here must not mask a successful import.
       let tagsAssigned = 0;
       try {
         tagsAssigned = await assignImportedContactTags(
@@ -458,10 +502,16 @@ export function ImportModal({
         toast.warning('Contatos importados, mas alguns campos personalizados falharam.');
       }
 
-      setResult({ imported, skipped, failed, tagsAssigned, customValuesAssigned });
+      setResult({ imported, updated, skipped, failed, tagsAssigned, customValuesAssigned });
       if (imported > 0) {
         toast.success(
           `${imported} contato${imported !== 1 ? 's' : ''} importado${imported !== 1 ? 's' : ''}`
+        );
+        onImported();
+      }
+      if (updated > 0) {
+        toast.success(
+          `${updated} contato${updated !== 1 ? 's' : ''} atualizado${updated !== 1 ? 's' : ''}`
         );
         onImported();
       }
@@ -537,7 +587,8 @@ export function ImportModal({
               Envie um CSV com qualquer conjunto de colunas. Depois do upload,
               você mapeia cada coluna para um campo do sistema (nome,
               telefone, email, empresa, tags) ou cria um campo personalizado
-              — nenhuma coluna é descartada.
+              — nenhuma coluna é descartada. Contatos com telefone já
+              cadastrado são atualizados em vez de duplicados.
             </DialogDescription>
           </DialogHeader>
 
@@ -764,6 +815,12 @@ export function ImportModal({
                   <div className="text-primary flex items-center gap-1.5 text-sm">
                     <CheckCircle className="size-4 shrink-0" />
                     {result.imported} importado{result.imported !== 1 ? 's' : ''}
+                  </div>
+                )}
+                {result.updated > 0 && (
+                  <div className="flex items-center gap-1.5 text-sm text-teal-400">
+                    <CheckCircle className="size-4 shrink-0" />
+                    {result.updated} atualizado{result.updated !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.tagsAssigned > 0 && (
