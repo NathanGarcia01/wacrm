@@ -103,7 +103,16 @@
       "closed": "Closed",
       "noConversationsFound": "No conversations found",
       "unknownContact": "Unknown",
-      "noMessagesYet": "No messages yet"
+      "noMessagesYet": "No messages yet",
+      "selectConversation": "Select conversation with {name}",
+      "cancelSelection": "Cancel selection",
+      "selectedCount": "{count, plural, one {# conversation selected} other {# conversations selected}}",
+      "markSelectedRead": "Mark as read",
+      "markSelectedUnread": "Mark as unread",
+      "closeSelected": "Close conversations",
+      "assignSelected": "Assign to agent",
+      "unassignSelected": "Remove assignment",
+      "noMembersAvailable": "No members available"
     },
     "filters": {
       "filters": "Filters",
@@ -139,6 +148,7 @@
       "dealAssignedTo": "Owner: {name}",
       "dealUnassigned": "Unassigned",
       "dealProducts": "Products: {list}",
+      "dealCloseDate": "Closes {date}",
       "notes": "Notes",
       "addNotePlaceholder": "Add a note...",
       "namePlaceholder": "Add name",

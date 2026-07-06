@@ -120,9 +120,19 @@ async function findOrCreateConversationForContact(
 
   if (!findError && existing) return existing.id
 
+  // Broadcast-originated conversations start closed — a one-way
+  // template send shouldn't surface in the inbox as if it needs
+  // attention. The webhook already reopens (status: 'open') the first
+  // time this contact replies, so the conversation only appears once
+  // there's actually something for an agent to read.
   const { data: created, error: createError } = await admin
     .from('conversations')
-    .insert({ account_id: accountId, user_id: userId, contact_id: contactId })
+    .insert({
+      account_id: accountId,
+      user_id: userId,
+      contact_id: contactId,
+      status: 'closed',
+    })
     .select('id')
     .single()
 

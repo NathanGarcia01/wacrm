@@ -539,6 +539,16 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                           {statusBadge.label}
                         </span>
                       </div>
+                      {deal.expected_close_date && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {t("dealCloseDate", {
+                            date: format(
+                              new Date(`${deal.expected_close_date}T00:00:00`),
+                              "dd/MM/yyyy",
+                            ),
+                          })}
+                        </p>
+                      )}
                       {deal.products && deal.products.length > 0 && (
                         <div className="mt-1 space-y-0.5">
                           {deal.products.map((product) => (
@@ -552,6 +562,14 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                             </p>
                           ))}
                         </div>
+                      )}
+                      {deal.notes && (
+                        <p
+                          className="mt-1 truncate text-[11px] text-muted-foreground italic"
+                          title={deal.notes}
+                        >
+                          {deal.notes}
+                        </p>
                       )}
                     </div>
                   );

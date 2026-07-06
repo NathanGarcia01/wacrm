@@ -103,7 +103,16 @@
       "closed": "Fechada",
       "noConversationsFound": "Nenhuma conversa encontrada",
       "unknownContact": "Desconhecido",
-      "noMessagesYet": "Nenhuma mensagem ainda"
+      "noMessagesYet": "Nenhuma mensagem ainda",
+      "selectConversation": "Selecionar conversa com {name}",
+      "cancelSelection": "Cancelar seleção",
+      "selectedCount": "{count, plural, one {# conversa selecionada} other {# conversas selecionadas}}",
+      "markSelectedRead": "Marcar como lidas",
+      "markSelectedUnread": "Marcar como não lidas",
+      "closeSelected": "Fechar conversas",
+      "assignSelected": "Atribuir para agente",
+      "unassignSelected": "Remover atribuição",
+      "noMembersAvailable": "Nenhum membro disponível"
     },
     "filters": {
       "filters": "Filtros",
@@ -139,6 +148,7 @@
       "dealAssignedTo": "Responsável: {name}",
       "dealUnassigned": "Sem responsável",
       "dealProducts": "Produtos: {list}",
+      "dealCloseDate": "Fecha em {date}",
       "notes": "Notas",
       "addNotePlaceholder": "Adicionar uma nota...",
       "namePlaceholder": "Adicionar nome",

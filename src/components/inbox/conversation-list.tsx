@@ -4,8 +4,16 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Contact, Conversation, ConversationStatus } from "@/types";
-import { Search, ChevronDown } from "lucide-react";
+import type { Contact, Conversation, ConversationStatus, Profile } from "@/types";
+import {
+  Search,
+  ChevronDown,
+  X,
+  Mail,
+  MailOpen,
+  Archive,
+  UserPlus,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,7 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ConversationFiltersPopover,
@@ -75,6 +83,28 @@ export function ConversationList({
     EMPTY_CONVERSATION_FILTERS,
   );
   const [loading, setLoading] = useState(true);
+
+  // Multi-select — active whenever at least one conversation is
+  // checked. Bulk actions write straight to Supabase; the parent
+  // page's existing realtime subscription (inbox/page.tsx) picks up
+  // the resulting UPDATE events and patches `conversations`, so this
+  // component doesn't need its own copy of the list to stay in sync.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [bulkActing, setBulkActing] = useState(false);
+  const selectionActive = selectedIds.size > 0;
+
+  // Account members for the bulk "assign" action. RLS scopes this to
+  // the caller's own account, same as the assign dropdown in
+  // message-thread.tsx — no explicit account_id filter needed.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("profiles")
+      .select("*")
+      .order("full_name")
+      .then(({ data }) => setProfiles((data ?? []) as Profile[]));
+  }, []);
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -213,6 +243,55 @@ export function ConversationList({
     [onSelect]
   );
 
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleCancelSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const runBulkUpdate = useCallback(
+    async (patch: Record<string, unknown>) => {
+      if (selectedIds.size === 0) return;
+      setBulkActing(true);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update(patch)
+        .in("id", Array.from(selectedIds));
+      setBulkActing(false);
+      if (error) {
+        console.error("Bulk conversation update failed:", error);
+        return;
+      }
+      setSelectedIds(new Set());
+    },
+    [selectedIds]
+  );
+
+  const handleMarkSelectedRead = useCallback(
+    () => runBulkUpdate({ unread_count: 0 }),
+    [runBulkUpdate]
+  );
+  const handleMarkSelectedUnread = useCallback(
+    () => runBulkUpdate({ unread_count: 1 }),
+    [runBulkUpdate]
+  );
+  const handleCloseSelected = useCallback(
+    () => runBulkUpdate({ status: "closed" satisfies ConversationStatus }),
+    [runBulkUpdate]
+  );
+  const handleAssignSelected = useCallback(
+    (agentId: string | null) => runBulkUpdate({ assigned_agent_id: agentId }),
+    [runBulkUpdate]
+  );
+
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
   const activeFilterLabel = activeFilter ? t(activeFilter.labelKey) : t("all");
 
@@ -221,48 +300,131 @@ export function ConversationList({
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
     <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
-      {/* Search + Filter */}
-      <div className="space-y-2 border-b border-border p-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={handleSearchChange}
-            placeholder={t("searchPlaceholder")}
-            className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
-          />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
-                {activeFilterLabel}
-                <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="start"
-              className="border-border bg-popover"
+      {/* Search + Filter, or the bulk-action bar while conversations are selected. */}
+      {selectionActive ? (
+        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCancelSelection}
+              aria-label={t("cancelSelection")}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              {FILTER_OPTIONS.map((opt) => (
+              <X className="h-4 w-4" />
+            </button>
+            <span className="truncate text-xs font-medium text-foreground">
+              {t("selectedCount", { count: selectedIds.size })}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={handleMarkSelectedRead}
+              disabled={bulkActing}
+              aria-label={t("markSelectedRead")}
+              title={t("markSelectedRead")}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <MailOpen className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleMarkSelectedUnread}
+              disabled={bulkActing}
+              aria-label={t("markSelectedUnread")}
+              title={t("markSelectedUnread")}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <Mail className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCloseSelected}
+              disabled={bulkActing}
+              aria-label={t("closeSelected")}
+              title={t("closeSelected")}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+            >
+              <Archive className="h-3.5 w-3.5" />
+            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={bulkActing}
+                aria-label={t("assignSelected")}
+                title={t("assignSelected")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border-border bg-popover">
+                {profiles.length === 0 ? (
+                  <DropdownMenuItem disabled className="text-sm text-muted-foreground">
+                    {t("noMembersAvailable")}
+                  </DropdownMenuItem>
+                ) : (
+                  profiles.map((p) => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      onClick={() => handleAssignSelected(p.user_id)}
+                      className="text-sm text-popover-foreground"
+                    >
+                      {p.full_name || p.email}
+                    </DropdownMenuItem>
+                  ))
+                )}
                 <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => setFilter(opt.value)}
-                  className={cn(
-                    "text-sm",
-                    filter === opt.value
-                      ? "text-primary"
-                      : "text-popover-foreground"
-                  )}
+                  onClick={() => handleAssignSelected(null)}
+                  className="text-sm text-muted-foreground"
                 >
-                  {t(opt.labelKey)}
+                  {t("unassignSelected")}
                 </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <ConversationFiltersPopover filters={advancedFilters} onChange={setAdvancedFilters} />
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="space-y-2 border-b border-border p-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={handleSearchChange}
+              placeholder={t("searchPlaceholder")}
+              className="border-border bg-muted pl-9 text-sm text-foreground placeholder-muted-foreground focus:border-primary/50"
+            />
+          </div>
+
+          <div className="flex items-center gap-1">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
+                  {activeFilterLabel}
+                  <ChevronDown className="h-3 w-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="border-border bg-popover"
+              >
+                {FILTER_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => setFilter(opt.value)}
+                    className={cn(
+                      "text-sm",
+                      filter === opt.value
+                        ? "text-primary"
+                        : "text-popover-foreground"
+                    )}
+                  >
+                    {t(opt.labelKey)}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <ConversationFiltersPopover filters={advancedFilters} onChange={setAdvancedFilters} />
+          </div>
+        </div>
+      )}
 
       {/* Conversation Items.
           `min-h-0` is load-bearing: a flex child defaults to
@@ -287,6 +449,9 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                selectionActive={selectionActive}
+                selected={selectedIds.has(conv.id)}
+                onToggleSelect={handleToggleSelect}
               />
             ))}
           </div>
@@ -300,12 +465,18 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  selectionActive: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
 function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  selectionActive,
+  selected,
+  onToggleSelect,
 }: ConversationItemProps) {
   const t = useTranslations("inbox.list");
   const contact = conversation.contact;
@@ -316,6 +487,10 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
+  const handleToggle = useCallback(() => {
+    onToggleSelect(conversation.id);
+  }, [onToggleSelect, conversation.id]);
+
   const timeAgo = conversation.last_message_at
     ? formatDistanceToNow(new Date(conversation.last_message_at), {
         addSuffix: false,
@@ -325,14 +500,35 @@ function ConversationItem({
   const isUnread = conversation.unread_count > 0;
 
   return (
-    <button
-      onClick={handleClick}
+    <div
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/50",
+        "group relative flex w-full items-stretch transition-colors hover:bg-muted/50",
         isUnread && !isActive && "bg-primary/[0.04]",
         isActive && "border-l-2 border-primary bg-muted/70"
       )}
     >
+      {/* Selection checkbox — hidden until hover, unless the row (or
+          any other row) is already selected, in which case it stays
+          visible so the checked state is always legible. Kept as a
+          sibling of the row button (not nested inside it) since a
+          <button> can't contain another interactive control. */}
+      <div
+        className={cn(
+          "flex items-center pl-3 transition-opacity",
+          selectionActive || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        )}
+      >
+        <Checkbox
+          checked={selected}
+          onCheckedChange={handleToggle}
+          aria-label={t("selectConversation", { name: displayName })}
+        />
+      </div>
+
+      <button
+        onClick={handleClick}
+        className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left"
+      >
       {/* Avatar */}
       <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
         {contact?.avatar_url ? (
@@ -390,6 +586,7 @@ function ConversationItem({
           </div>
         </div>
       </div>
-    </button>
+      </button>
+    </div>
   );
 }
