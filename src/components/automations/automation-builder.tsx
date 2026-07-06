@@ -1139,6 +1139,7 @@ function StepEditor({
             <Input
               value={(cfg.pipeline_id as string) ?? ""}
               onChange={(e) => set({ pipeline_id: e.target.value })}
+              placeholder={t("pipelineIdPlaceholder")}
               className="bg-muted text-foreground"
             />
           </FieldBlock>
@@ -1146,6 +1147,7 @@ function StepEditor({
             <Input
               value={(cfg.stage_id as string) ?? ""}
               onChange={(e) => set({ stage_id: e.target.value })}
+              placeholder={t("stageIdPlaceholder")}
               className="bg-muted text-foreground"
             />
           </FieldBlock>

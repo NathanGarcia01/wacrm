@@ -320,6 +320,7 @@ export interface Deal {
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
+  products?: DealProduct[];
 }
 
 export interface DealProduct {
@@ -521,8 +522,12 @@ export interface UpdateContactFieldStepConfig {
 }
 
 export interface CreateDealStepConfig {
-  pipeline_id: string;
-  stage_id: string;
+  /** Optional — when blank, the engine resolves the account's default
+   *  pipeline (oldest by created_at) at execution time. */
+  pipeline_id?: string;
+  /** Optional — when blank, resolves the pipeline's first stage
+   *  (lowest position) at execution time. */
+  stage_id?: string;
   title: string;
   value?: number;
 }

@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag, CustomField, NpsSurvey } from "@/types";
+import type { Contact, Deal, DealStatus, ContactNote, Tag, CustomField, NpsSurvey } from "@/types";
+import { formatCurrency } from "@/lib/currency";
 import {
   Phone,
   Mail,
@@ -30,6 +31,31 @@ import { TagPickerPopover } from "./tag-picker-popover";
 import { DealMiniSheet } from "./deal-mini-sheet";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Status badge styling for a deal — mirrors the Aberto/Ganho/Perdido
+ *  convention used in the pipeline board and deal-form.tsx. */
+function dealStatusBadge(
+  status: DealStatus | undefined,
+  t: (key: string) => string,
+): { label: string; classes: string } {
+  switch (status) {
+    case "won":
+      return {
+        label: t("dealStatusWon"),
+        classes: "bg-primary/10 text-primary",
+      };
+    case "lost":
+      return {
+        label: t("dealStatusLost"),
+        classes: "bg-red-500/10 text-red-400",
+      };
+    default:
+      return {
+        label: t("dealStatusOpen"),
+        classes: "bg-blue-500/10 text-blue-400",
+      };
+  }
+}
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -69,7 +95,9 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes] = await Promise.all([
       supabase
         .from("deals")
-        .select("*, stage:pipeline_stages(*)")
+        .select(
+          "*, stage:pipeline_stages(*), assignee:profiles!deals_assigned_to_fkey(full_name), products:deal_products(id, name, value, quantity)",
+        )
         .eq("contact_id", contact.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -423,43 +451,63 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
               {deals.length === 0 ? (
                 <p className="px-1 text-xs text-muted-foreground">{t("noDeals")}</p>
               ) : (
-                deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="group rounded-lg bg-muted px-3 py-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-foreground">
-                        {deal.title}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleEditDeal(deal)}
-                        aria-label={t("editDeal", { title: deal.title })}
-                        className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-black/10 hover:text-foreground group-hover:opacity-100 dark:hover:bg-white/10"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
+                deals.map((deal) => {
+                  const statusBadge = dealStatusBadge(deal.status, t);
+                  const productsList = (deal.products ?? [])
+                    .map((p) => (p.quantity > 1 ? `${p.name} x${p.quantity}` : p.name))
+                    .join(", ");
+                  return (
+                    <div
+                      key={deal.id}
+                      className="group rounded-lg bg-muted px-3 py-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-foreground">
+                          {deal.title}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleEditDeal(deal)}
+                          aria-label={t("editDeal", { title: deal.title })}
+                          className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-black/10 hover:text-foreground group-hover:opacity-100 dark:hover:bg-white/10"
                         >
-                          {deal.stage.name}
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{formatCurrency(deal.value, deal.currency)}</span>
+                        {deal.stage && (
+                          <span
+                            className="rounded-full px-1.5 py-0.5 text-[10px]"
+                            style={{
+                              backgroundColor: `${deal.stage.color}20`,
+                              color: deal.stage.color,
+                            }}
+                          >
+                            {deal.stage.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span>
+                          {deal.assignee?.full_name
+                            ? t("dealAssignedTo", { name: deal.assignee.full_name })
+                            : t("dealUnassigned")}
                         </span>
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${statusBadge.classes}`}
+                        >
+                          {statusBadge.label}
+                        </span>
+                      </div>
+                      {productsList && (
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground" title={productsList}>
+                          {t("dealProducts", { list: productsList })}
+                        </p>
                       )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

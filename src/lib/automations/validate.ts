@@ -86,12 +86,9 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       }
       break
     case 'create_deal':
-      if (!nonEmpty(c.pipeline_id)) {
-        issues.push({ path: `${path}.pipeline_id`, message: 'pipeline is required' })
-      }
-      if (!nonEmpty(c.stage_id)) {
-        issues.push({ path: `${path}.stage_id`, message: 'stage is required' })
-      }
+      // pipeline_id/stage_id are optional — the engine resolves the
+      // account's default pipeline + first stage at execution time
+      // when left blank (see src/lib/automations/engine.ts).
       if (!nonEmpty(c.title)) {
         issues.push({ path: `${path}.title`, message: 'title is required' })
       }

@@ -498,7 +498,51 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
     case 'create_deal': {
       const cfg = step.step_config as CreateDealStepConfig
-      if (!cfg.pipeline_id || !cfg.stage_id) throw new Error('create_deal needs pipeline + stage')
+      if (!args.contactId) throw new Error('create_deal needs a contact')
+
+      // Duplicate guard — a contact that already has an open deal
+      // shouldn't get a second one every time this step fires (e.g. a
+      // re-triggered new_contact_created on a race, or an automation
+      // that also matches later events for the same contact).
+      const { data: existingOpenDeal } = await db
+        .from('deals')
+        .select('id')
+        .eq('contact_id', args.contactId)
+        .eq('status', 'open')
+        .maybeSingle()
+      if (existingOpenDeal) return 'skipped: contact already has an open deal'
+
+      // pipeline_id/stage_id are optional in the step config — when
+      // absent, resolve the account's default pipeline (oldest by
+      // created_at — pipelines have no explicit ordering column) and
+      // its first stage (lowest position). Same convention as the
+      // manual deal-create path in src/components/inbox/deal-mini-sheet.tsx.
+      let pipelineId = cfg.pipeline_id
+      if (!pipelineId) {
+        const { data: defaultPipeline } = await db
+          .from('pipelines')
+          .select('id')
+          .eq('account_id', args.automation.account_id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        pipelineId = defaultPipeline?.id
+      }
+      if (!pipelineId) throw new Error('create_deal: account has no pipeline')
+
+      let stageId = cfg.stage_id
+      if (!stageId) {
+        const { data: firstStage } = await db
+          .from('pipeline_stages')
+          .select('id')
+          .eq('pipeline_id', pipelineId)
+          .order('position', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        stageId = firstStage?.id
+      }
+      if (!stageId) throw new Error('create_deal: pipeline has no stages')
+
       // Match the account's configured default currency rather than
       // the static `deals.currency` DB default — keeps automation-
       // created deals consistent with the one-currency-per-account
@@ -513,8 +557,8 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         // Tenancy + audit, same split as automation_logs above.
         account_id: args.automation.account_id,
         user_id: args.automation.user_id,
-        pipeline_id: cfg.pipeline_id,
-        stage_id: cfg.stage_id,
+        pipeline_id: pipelineId,
+        stage_id: stageId,
         contact_id: args.contactId,
         title: interpolate(cfg.title, args),
         value: cfg.value ?? 0,

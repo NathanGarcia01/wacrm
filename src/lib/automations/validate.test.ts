@@ -109,15 +109,21 @@ describe("validateStepsForActivation", () => {
     ]);
   });
 
-  it("flags create_deal when required fields are missing", () => {
+  it("flags create_deal when title is missing", () => {
     const issues = validateStepsForActivation([
       { step_type: "create_deal", step_config: {} },
     ]);
-    expect(issues.map((i) => i.path).sort()).toEqual([
-      "steps[0].pipeline_id",
-      "steps[0].stage_id",
-      "steps[0].title",
+    expect(issues.map((i) => i.path).sort()).toEqual(["steps[0].title"]);
+  });
+
+  it("allows create_deal with blank pipeline_id/stage_id (resolved dynamically)", () => {
+    const issues = validateStepsForActivation([
+      {
+        step_type: "create_deal",
+        step_config: { pipeline_id: "", stage_id: "", title: "Novo negócio" },
+      },
     ]);
+    expect(issues).toEqual([]);
   });
 
   it("flags update_contact_field when field or value is missing", () => {
