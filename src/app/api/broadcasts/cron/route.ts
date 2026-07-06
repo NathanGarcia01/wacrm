@@ -15,6 +15,7 @@ import {
   fetchCustomValueIndex,
   type VariableMapping,
 } from '@/lib/broadcast-variables'
+import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
 
 // Lazy service-role client — mirrors the inline pattern used by
 // src/app/api/whatsapp/webhook/route.ts and src/lib/automations/admin-client.ts.
@@ -312,6 +313,16 @@ export async function GET(request: Request) {
           .eq('id', recipient.id)
         messagesSent++
         batchSentDelta++
+
+        // Broadcast recipients get the "Disparo" tag (best-effort;
+        // no-op if the account has no matching tag) so reports can
+        // segment outbound-originated contacts from organic replies.
+        await ensureContactTagByName(admin, row.account_id, contact.id, [
+          'Disparando',
+          'DISPARO',
+          'Disparo',
+          'Ativo',
+        ])
 
         // Mirror the send into `messages` so the agent sees it in the
         // inbox conversation — broadcasts previously only touched

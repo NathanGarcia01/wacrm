@@ -5,6 +5,7 @@ import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { extensionForMimeType } from '@/lib/whatsapp/mime'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
+import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -719,6 +720,14 @@ async function processMessage(
     console.error('Error updating conversation:', convError)
   }
 
+  // Every inbound customer message is a spontaneous reply — tag the
+  // contact "Receptivo" (best-effort; no-op if the account has no such
+  // tag). Runs for every message, not just the first, since
+  // ensureContactTagByName upserts idempotently.
+  await ensureContactTagByName(supabaseAdmin(), accountId, contactRecord.id, [
+    'Receptivo',
+  ])
+
   // NPS survey response check — must run before flow/automation
   // dispatch below. A message answering a pending survey (rating or
   // follow-up comment) is consumed here and must NOT also trigger
@@ -1043,13 +1052,14 @@ async function findOrCreateContact(
   )
 
   if (existingContact) {
-    // Update name if it changed
-    if (name && name !== existingContact.name) {
-      await supabaseAdmin()
-        .from('contacts')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existingContact.id)
-    }
+    // Deliberately does NOT sync `name` from the WhatsApp profile name
+    // here. This used to overwrite the contact's name on every inbound
+    // message where the two differed — which meant any agent
+    // correction (or CSV-imported real name) got silently clobbered by
+    // the customer's own WhatsApp display name the next time they
+    // texted (bug #4). The contact record is the source of truth once
+    // it exists; only the initial insert below seeds name from the
+    // WhatsApp profile.
     return { contact: existingContact, wasCreated: false }
   }
 

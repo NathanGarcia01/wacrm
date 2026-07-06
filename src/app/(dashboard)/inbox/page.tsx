@@ -284,22 +284,21 @@ export default function InboxPage() {
 
       if (event.eventType === "UPDATE") {
         if (knownConvIdsRef.current.has(conv.id)) {
-          // If this UPDATE is for the conv the user is currently viewing,
-          // suppress the incoming unread_count — the user is reading it
-          // RIGHT NOW, so any positive value would just flicker the badge
-          // back on for the ~100ms it takes for the reset effect's server
-          // UPDATE to round-trip. Non-active convs take the value as-is.
-          const isActive = activeConversation?.id === conv.id;
+          // Trust the DB value as-is — do NOT force unread_count to 0
+          // just because this is the conversation the user has open.
+          // That used to be here to avoid a ~100ms flicker (a genuinely
+          // new message bumps unread_count, then the thread's own
+          // auto-read effect resets it right back to 0), but it also
+          // silently undid the "mark as unread while viewing" action:
+          // that manual toggle sets unread_count to 1 on the active
+          // conversation, and this override was stomping it straight
+          // back to 0 the moment the write's own realtime echo arrived.
+          // MessageThread's auto-read effect (guarded by
+          // suppressAutoReadRef) is the one place responsible for
+          // deciding whether an unread bump on the active conversation
+          // should self-clear.
           setConversations((prev) =>
-            prev.map((c) =>
-              c.id === conv.id
-                ? {
-                    ...c,
-                    ...conv,
-                    unread_count: isActive ? 0 : conv.unread_count,
-                  }
-                : c,
-            ),
+            prev.map((c) => (c.id === conv.id ? { ...c, ...conv } : c)),
           );
         } else {
           // UPDATE arrived before the INSERT (or after a missed INSERT)
