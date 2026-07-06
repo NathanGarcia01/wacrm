@@ -119,15 +119,15 @@ interface SidebarNavLinkProps {
   item: NavItem;
   isActive: boolean;
   collapsed: boolean;
-  showUnreadDot: boolean;
-  totalUnread: number;
+  /** Badge count to show on this row — 0 (or omitted) hides it. */
+  unreadCount: number;
   label: string;
   betaLabel: string;
 }
 
 /**
  * A single nav row. Collapsed mode hides the label (and beta chip /
- * unread dot text) via `lg:hidden` — not a plain JS conditional —
+ * unread badge text) via `lg:hidden` — not a plain JS conditional —
  * so the mobile drawer (which never collapses) keeps showing full
  * labels regardless of the desktop collapsed preference. Wrapped in a
  * Tooltip only when collapsed, since the visible label already serves
@@ -137,8 +137,7 @@ function SidebarNavLink({
   item,
   isActive,
   collapsed,
-  showUnreadDot,
-  totalUnread,
+  unreadCount,
   label,
   betaLabel,
 }: SidebarNavLinkProps) {
@@ -151,9 +150,26 @@ function SidebarNavLink({
       : "text-muted-foreground hover:bg-muted hover:text-foreground",
   );
 
+  const badge = unreadCount > 0 && (
+    <span
+      aria-label={`${unreadCount} unread conversation${unreadCount === 1 ? "" : "s"}`}
+      className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-green-500 px-1 text-[10px] font-bold leading-none text-white"
+    >
+      {unreadCount > 99 ? "99+" : unreadCount}
+    </span>
+  );
+
   const content = (
     <>
-      <item.icon className="h-4 w-4 shrink-0" />
+      <span className="relative shrink-0">
+        <item.icon className="h-4 w-4" />
+        {/* Collapsed mode has no room for the inline badge below (icon-only
+            row), so overlay it on the icon's corner instead — same info,
+            WhatsApp-style notification dot placement. */}
+        {collapsed && badge && (
+          <span className="absolute -right-1.5 -top-1.5 hidden lg:block">{badge}</span>
+        )}
+      </span>
       <span className={cn("flex-1", collapsed && "lg:hidden")}>{label}</span>
       {item.beta && (
         <span
@@ -166,15 +182,9 @@ function SidebarNavLink({
           {betaLabel}
         </span>
       )}
-      {showUnreadDot && (
-        <span
-          aria-label={`${totalUnread} unread conversation${totalUnread === 1 ? "" : "s"}`}
-          className={cn("relative flex h-2 w-2", collapsed && "lg:hidden")}
-        >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-        </span>
-      )}
+      {/* Inline badge — expanded rail, and the mobile drawer (which never
+          collapses, hence no `lg:hidden` gate here). */}
+      <span className={cn(collapsed && "lg:hidden")}>{badge}</span>
     </>
   );
 
@@ -338,8 +348,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   pathname === item.href ||
                   (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-                const showUnreadDot =
-                  item.href === "/inbox" && totalUnread > 0 && !isActive;
+                const unreadCount =
+                  item.href === "/inbox" && !isActive ? totalUnread : 0;
 
                 return (
                   <li key={item.href}>
@@ -347,8 +357,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       item={item}
                       isActive={isActive}
                       collapsed={collapsed}
-                      showUnreadDot={showUnreadDot}
-                      totalUnread={totalUnread}
+                      unreadCount={unreadCount}
                       label={tNav(item.labelKey)}
                       betaLabel={tNav("beta")}
                     />
@@ -368,8 +377,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       item={item}
                       isActive={isActive}
                       collapsed={collapsed}
-                      showUnreadDot={false}
-                      totalUnread={0}
+                      unreadCount={0}
                       label={tNav(item.labelKey)}
                       betaLabel={tNav("beta")}
                     />

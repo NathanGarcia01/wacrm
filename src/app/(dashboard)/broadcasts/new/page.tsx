@@ -38,6 +38,8 @@ export default function NewBroadcastPage() {
     };
     csvContacts?: { phone: string; name?: string }[];
     excludeTagIds?: string[];
+    excludeRecentlyMessaged?: boolean;
+    excludeRecentDays?: number;
   }>({ type: 'all' });
   const [variables, setVariables] = useState<
     Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
@@ -57,6 +59,8 @@ export default function NewBroadcastPage() {
           customField: audience.customField,
           csvContacts: audience.csvContacts,
           excludeTagIds: audience.excludeTagIds,
+          excludeRecentlyMessaged: audience.excludeRecentlyMessaged,
+          excludeRecentDays: audience.excludeRecentDays,
         },
         variables,
         cadence,

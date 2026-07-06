@@ -24,6 +24,38 @@ export interface AudienceConfig {
   csvContacts?: { phone: string; name?: string }[];
   /** Contacts carrying any of these tags are subtracted from the result. */
   excludeTagIds?: string[];
+  /** Anti-duplicate guard — subtract contacts who already have a
+   *  broadcast_recipients row with status='sent' in the last
+   *  `excludeRecentDays` days. */
+  excludeRecentlyMessaged?: boolean;
+  excludeRecentDays?: number;
+}
+
+/**
+ * Contact ids that already received a broadcast template in the last
+ * `days` days — the anti-duplicate exclusion for #8. RLS on
+ * broadcast_recipients already scopes SELECT to the caller's account
+ * (migration 017), so no explicit account_id filter is needed here,
+ * matching every other query in this hook.
+ */
+export async function fetchRecentlyMessagedContactIds(
+  supabase: ReturnType<typeof createClient>,
+  days: number,
+): Promise<Set<string>> {
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('broadcast_recipients')
+    .select('contact_id')
+    .eq('status', 'sent')
+    .gte('sent_at', cutoff);
+  if (error) {
+    throw new Error(`Failed to check recently-messaged contacts: ${error.message}`);
+  }
+  return new Set(
+    (data ?? [])
+      .map((r) => r.contact_id as string | null)
+      .filter((id): id is string => Boolean(id)),
+  );
 }
 
 interface BroadcastPayload {
@@ -98,6 +130,16 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         .in('tag_id', audience.excludeTagIds);
       const excludedIds = new Set((excludeRows ?? []).map((r) => r.contact_id));
       contacts = contacts.filter((c) => !excludedIds.has(c.id));
+    }
+
+    // Anti-duplicate guard — drop anyone who already received a
+    // broadcast template recently, regardless of audience type.
+    if (audience.excludeRecentlyMessaged && (audience.excludeRecentDays ?? 0) > 0) {
+      const recentIds = await fetchRecentlyMessagedContactIds(
+        supabase,
+        audience.excludeRecentDays!,
+      );
+      contacts = contacts.filter((c) => !recentIds.has(c.id));
     }
 
     return contacts;
@@ -270,6 +312,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             tagIds: payload.audience.tagIds,
             customField: payload.audience.customField,
             excludeTagIds: payload.audience.excludeTagIds,
+            excludeRecentlyMessaged: payload.audience.excludeRecentlyMessaged,
+            excludeRecentDays: payload.audience.excludeRecentDays,
           },
           status: startsNow ? 'sending' : 'scheduled',
           scheduled_at: payload.scheduledAt?.toISOString() ?? null,

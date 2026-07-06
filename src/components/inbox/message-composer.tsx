@@ -19,7 +19,9 @@ import {
   Square,
   X,
   Loader2,
+  Smile,
 } from "lucide-react";
+import EmojiPicker, { Theme as EmojiTheme, type EmojiClickData } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import {
@@ -28,7 +30,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCan } from "@/hooks/use-can";
+import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -162,6 +166,31 @@ export function MessageComposer({
   const readOnly = !canSend;
   // Media (like free-form text) is only allowed inside the 24h window.
   const inputsDisabled = readOnly || sessionExpired;
+
+  const { mode } = useTheme();
+
+  // Inserts the picked emoji at the textarea's last known caret
+  // position — selectionStart/selectionEnd persist on the element even
+  // after focus moves to the popover, so no extra position-tracking
+  // ref is needed.
+  const handleEmojiClick = useCallback(
+    (emojiData: EmojiClickData) => {
+      const emoji = emojiData.emoji;
+      const el = textareaRef.current;
+      const pos = el?.selectionStart ?? text.length;
+      setText(text.slice(0, pos) + emoji + text.slice(pos));
+      requestAnimationFrame(() => {
+        const target = textareaRef.current;
+        if (!target) return;
+        const newPos = pos + emoji.length;
+        target.focus();
+        target.setSelectionRange(newPos, newPos);
+        target.style.height = "auto";
+        target.style.height = `${Math.min(target.scrollHeight, 96)}px`;
+      });
+    },
+    [text],
+  );
 
   const clearTimer = useCallback(() => {
     if (timerRef.current !== null) {
@@ -524,6 +553,28 @@ export function MessageComposer({
           >
             <LayoutTemplate className="h-4 w-4" />
           </GatedButton>
+
+          <Popover>
+            <PopoverTrigger
+              disabled={inputsDisabled}
+              title={inputsDisabled ? undefined : t("emoji")}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Smile className="h-4 w-4" />
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="start"
+              className="w-auto border-none bg-transparent p-0 shadow-none ring-0"
+            >
+              <EmojiPicker
+                onEmojiClick={handleEmojiClick}
+                theme={mode === "dark" ? EmojiTheme.DARK : EmojiTheme.LIGHT}
+                autoFocusSearch={false}
+                lazyLoadEmojis
+              />
+            </PopoverContent>
+          </Popover>
 
           <textarea
             ref={textareaRef}
