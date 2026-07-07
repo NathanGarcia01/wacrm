@@ -18,6 +18,7 @@ import {
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
+import { extensionForMimeType } from "@/lib/whatsapp/mime";
 
 interface MessageBubbleProps {
   message: Message;
@@ -45,6 +46,53 @@ function StatusIcon({ status }: { status: Message["status"] }) {
   }
 }
 
+/**
+ * Fetch + blob download rather than a plain `<a download>` — the
+ * `download` attribute is silently ignored by browsers when the href
+ * is cross-origin (the Supabase Storage CDN vs. this app's own
+ * origin), which would otherwise just open the file in a new tab
+ * instead of saving it.
+ */
+async function downloadMediaBlob(url: string, filename: string) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(blobUrl);
+}
+
+/** Hover-reveal download affordance for images/videos — positioned by
+ *  the caller's `relative group` wrapper. */
+function MediaDownloadButton({ url, filename }: { url: string; filename: string }) {
+  const handleDownload = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await downloadMediaBlob(url, filename);
+      } catch {
+        // Best-effort — a failed download shouldn't throw in the UI;
+        // the user can still open the media directly (image click / video controls).
+      }
+    },
+    [url, filename],
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={handleDownload}
+      aria-label="Download"
+      title="Download"
+      className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded p-1"
+    >
+      <Download className="h-4 w-4 text-white" />
+    </button>
+  );
+}
+
 function MediaUnavailable({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
@@ -54,7 +102,7 @@ function MediaUnavailable({ label }: { label: string }) {
   );
 }
 
-function MediaImage({ url, alt }: { url: string; alt: string }) {
+function MediaImage({ url, alt, filename }: { url: string; alt: string; filename: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -108,12 +156,15 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   }
 
   return (
-    <img
-      src={src ?? ""}
-      alt={alt}
-      className="max-h-64 max-w-60 rounded-lg object-cover"
-      onError={() => setError(true)}
-    />
+    <div className="group relative inline-block">
+      <img
+        src={src ?? ""}
+        alt={alt}
+        className="max-h-64 max-w-60 rounded-lg object-cover"
+        onError={() => setError(true)}
+      />
+      <MediaDownloadButton url={url} filename={filename} />
+    </div>
   );
 }
 
@@ -130,7 +181,14 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div>
           {message.media_url ? (
-            <MediaImage url={message.media_url} alt="Shared image" />
+            <MediaImage
+              url={message.media_url}
+              alt="Shared image"
+              filename={
+                message.media_filename ||
+                `imagem.${extensionForMimeType(message.media_mime_type)}`
+              }
+            />
           ) : (
             <MediaUnavailable label="Image" />
           )}
@@ -146,11 +204,20 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div>
           {message.media_url ? (
-            <video
-              src={message.media_url}
-              controls
-              className="max-h-64 max-w-60 rounded-lg"
-            />
+            <div className="group relative inline-block">
+              <video
+                src={message.media_url}
+                controls
+                className="max-h-64 max-w-60 rounded-lg"
+              />
+              <MediaDownloadButton
+                url={message.media_url}
+                filename={
+                  message.media_filename ||
+                  `video.${extensionForMimeType(message.media_mime_type)}`
+                }
+              />
+            </div>
           ) : (
             <MediaUnavailable label="Video" />
           )}
