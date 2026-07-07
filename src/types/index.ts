@@ -354,6 +354,18 @@ export interface ProductCatalogItem {
   updated_at: string;
 }
 
+/** Canned reply an agent can insert into the composer by typing "/" —
+ *  Settings → Respostas Rápidas manages the catalog. Migration 031. */
+export interface QuickReply {
+  id: string;
+  account_id: string;
+  title: string;
+  content: string;
+  shortcut?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export type NpsTriggerType = 'manual_close' | 'inactivity';
 export type NpsSurveyStatus = 'sent' | 'responded' | 'expired';
 

@@ -16,6 +16,7 @@ import { TemplateManager } from '@/components/settings/template-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductCatalogSettings } from '@/components/settings/product-catalog-settings';
+import { QuickRepliesSettings } from '@/components/settings/quick-replies-settings';
 import { NpsSettings } from '@/components/settings/nps-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
@@ -64,6 +65,7 @@ export default function SettingsPage() {
     fields: <FieldsAndTagsPanel />,
     deals: <DealsSettings />,
     products: <ProductCatalogSettings />,
+    quickReplies: <QuickRepliesSettings />,
     nps: <NpsSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,

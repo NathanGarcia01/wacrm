@@ -5,6 +5,7 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useMemo,
   KeyboardEvent,
 } from "react";
 import { useTranslations } from "next-intl";
@@ -33,6 +34,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useCan } from "@/hooks/use-can";
 import { useTheme } from "@/hooks/use-theme";
+import { useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -40,7 +43,13 @@ import {
   deleteAccountMedia,
   MEDIA_MAX_BYTES_BY_KIND,
 } from "@/lib/storage/upload-media";
+import type { QuickReply } from "@/types";
 import { ReplyQuote } from "./reply-quote";
+
+// Matches the "/" token the cursor is currently inside — either at the
+// very start of the text or right after whitespace — so quick-reply
+// matching doesn't trigger on a "/" in the middle of a word (URLs, etc).
+const QUICK_REPLY_TOKEN = /(?:^|\s)(\/[^\s]*)$/;
 
 /** Media content types an agent can send from the composer. */
 export type ComposerMediaKind = "image" | "video" | "document" | "audio";
@@ -129,6 +138,37 @@ export function MessageComposer({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Quick replies (Settings → Respostas Rápidas) — typing "/" opens a
+  // dropdown filtered by shortcut; selecting one swaps the "/token" for
+  // the reply's content. `quickReplyQuery` is null when the dropdown is
+  // closed, "" right after typing a bare "/", or the shortcut text typed
+  // so far otherwise.
+  const { accountId } = useAuth();
+  const supabase = useMemo(() => createClient(), []);
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [quickReplyQuery, setQuickReplyQuery] = useState<string | null>(null);
+  const [quickReplyIndex, setQuickReplyIndex] = useState(0);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("quick_replies").select("*").order("title");
+      if (!cancelled) setQuickReplies((data as QuickReply[] | null) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, supabase]);
+
+  const filteredQuickReplies = useMemo(() => {
+    if (quickReplyQuery === null) return [];
+    const q = quickReplyQuery.toLowerCase();
+    return quickReplies
+      .filter((r) => (r.shortcut ?? "").toLowerCase().replace(/^\//, "").startsWith(q))
+      .slice(0, 8);
+  }, [quickReplies, quickReplyQuery]);
 
   // Media attachment state. `draft` holds an uploaded-but-not-yet-sent
   // attachment; `busy` covers the upload/transcode window.
@@ -228,6 +268,7 @@ export function MessageComposer({
     try {
       onSend(trimmed, replyTo?.id);
       setText("");
+      setQuickReplyQuery(null);
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
@@ -236,20 +277,79 @@ export function MessageComposer({
     }
   }, [text, sending, sessionExpired, onSend, replyTo?.id]);
 
+  // Swaps the "/token" the cursor is inside for the picked reply's
+  // content and re-derives it from `text` at call time (not a captured
+  // match) so it stays correct even if the user kept typing after the
+  // dropdown opened.
+  const applyQuickReply = useCallback(
+    (reply: QuickReply) => {
+      const el = textareaRef.current;
+      const pos = el?.selectionStart ?? text.length;
+      const match = text.slice(0, pos).match(QUICK_REPLY_TOKEN);
+      if (!match) return;
+      const tokenStart = pos - match[1].length;
+      const nextText = text.slice(0, tokenStart) + reply.content + text.slice(pos);
+      setText(nextText);
+      setQuickReplyQuery(null);
+      requestAnimationFrame(() => {
+        const target = textareaRef.current;
+        if (!target) return;
+        const newPos = tokenStart + reply.content.length;
+        target.focus();
+        target.setSelectionRange(newPos, newPos);
+        target.style.height = "auto";
+        target.style.height = `${Math.min(target.scrollHeight, 96)}px`;
+      });
+    },
+    [text],
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (quickReplyQuery !== null && filteredQuickReplies.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setQuickReplyIndex((i) => (i + 1) % filteredQuickReplies.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setQuickReplyIndex((i) => (i - 1 + filteredQuickReplies.length) % filteredQuickReplies.length);
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          applyQuickReply(filteredQuickReplies[quickReplyIndex] ?? filteredQuickReplies[0]);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setQuickReplyQuery(null);
+          return;
+        }
+      }
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend]
+    [handleSend, quickReplyQuery, filteredQuickReplies, quickReplyIndex, applyQuickReply]
   );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setText(e.target.value);
+      const value = e.target.value;
+      setText(value);
       adjustHeight();
+
+      const pos = e.target.selectionStart ?? value.length;
+      const match = value.slice(0, pos).match(QUICK_REPLY_TOKEN);
+      if (match) {
+        setQuickReplyQuery(match[1].slice(1));
+        setQuickReplyIndex(0);
+      } else {
+        setQuickReplyQuery(null);
+      }
     },
     [adjustHeight]
   );
@@ -576,29 +676,64 @@ export function MessageComposer({
             </PopoverContent>
           </Popover>
 
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              readOnly
-                ? t("readOnlyPlaceholder")
-                : sessionExpired
-                  ? t("sessionExpiredPlaceholder")
-                  : t("typeMessagePlaceholder")
-            }
-            disabled={sessionExpired || readOnly}
-            rows={1}
-            // Textarea keeps its own inline title — the GatedButton
-            // wrapping pattern doesn't apply to non-button inputs.
-            // The placeholder text also surfaces the read-only state.
-            title={readOnly ? t("readOnlyCantSend") : undefined}
-            className={cn(
-              "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
-              (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+          <div className="relative flex-1">
+            {quickReplyQuery !== null && filteredQuickReplies.length > 0 && (
+              <div className="absolute bottom-full left-0 z-20 mb-1 w-72 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
+                {filteredQuickReplies.map((reply, i) => (
+                  <button
+                    key={reply.id}
+                    type="button"
+                    onMouseDown={(e) => {
+                      // mousedown (not click) so it fires before the
+                      // textarea's blur would otherwise dismiss the menu.
+                      e.preventDefault();
+                      applyQuickReply(reply);
+                    }}
+                    onMouseEnter={() => setQuickReplyIndex(i)}
+                    className={cn(
+                      "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm",
+                      i === quickReplyIndex
+                        ? "bg-muted text-foreground"
+                        : "text-popover-foreground hover:bg-muted"
+                    )}
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span className="font-medium">{reply.title}</span>
+                      {reply.shortcut && (
+                        <span className="text-xs text-muted-foreground">{reply.shortcut}</span>
+                      )}
+                    </span>
+                    <span className="w-full truncate text-xs text-muted-foreground">
+                      {reply.content}
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
-          />
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                readOnly
+                  ? t("readOnlyPlaceholder")
+                  : sessionExpired
+                    ? t("sessionExpiredPlaceholder")
+                    : t("typeMessagePlaceholder")
+              }
+              disabled={sessionExpired || readOnly}
+              rows={1}
+              // Textarea keeps its own inline title — the GatedButton
+              // wrapping pattern doesn't apply to non-button inputs.
+              // The placeholder text also surfaces the read-only state.
+              title={readOnly ? t("readOnlyCantSend") : undefined}
+              className={cn(
+                "w-full resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
+                (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
+              )}
+            />
+          </div>
 
           <GatedButton
             size="sm"

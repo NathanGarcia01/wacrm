@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 import type {
   Contact,
   Conversation,
@@ -249,6 +250,17 @@ export function DealForm({
     };
   }, [open, deal, supabase]);
 
+  // #1 — the deal's value is driven by its line items once any exist:
+  // the user no longer types it manually. Recomputes on every products
+  // change (add/edit/delete/initial load). A deal with no products
+  // keeps whatever value was typed in directly.
+  useEffect(() => {
+    if (products.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setValue(String(productsTotal));
+    }
+  }, [productsTotal, products.length]);
+
   async function handleAddProduct() {
     if (!deal || !accountId || !newProduct.name.trim()) return;
     setSavingNewProduct(true);
@@ -480,7 +492,7 @@ export function DealForm({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
+        className="bg-popover border-border text-popover-foreground sm:max-w-2xl w-full p-0"
       >
         <div className="flex h-full flex-col">
           <SheetHeader className="border-b border-border/50 p-4">
@@ -536,9 +548,17 @@ export function DealForm({
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     placeholder="0"
-                    className="border-border bg-muted pl-7 text-foreground"
+                    readOnly={products.length > 0}
+                    disabled={products.length > 0}
+                    className={cn(
+                      "border-border bg-muted pl-7 text-foreground",
+                      products.length > 0 && "cursor-not-allowed opacity-70",
+                    )}
                   />
                 </div>
+                {products.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{t("valueFromProductsHint")}</p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">{t("currencyLabel")}</Label>

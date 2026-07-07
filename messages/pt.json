@@ -459,6 +459,7 @@
       "selectContact": "Selecione um contato",
       "linkToConversation": "Vincular à Conversa",
       "valueLabel": "Valor",
+      "valueFromProductsHint": "Calculado automaticamente a partir dos produtos abaixo",
       "currencyLabel": "Moeda",
       "expectedCloseDateLabel": "Data Prevista de Fechamento",
       "stageLabel": "Etapa",

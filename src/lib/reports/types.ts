@@ -124,6 +124,54 @@ export interface PipelineReportBundle {
 }
 
 // ------------------------------------------------------------
+// Commissions tab
+// ------------------------------------------------------------
+
+export type CommissionStatusFilter = "all" | "open" | "won" | "lost"
+
+export interface CommissionReportCards {
+  /** Commission from deals won in the period. */
+  commissionWon: number
+  /** Commission sitting in currently open deals — mirrors the Pipeline
+   *  tab's "Comissão prevista": a snapshot of the live pipeline, not
+   *  period-scoped (an open deal has no close date to scope by). */
+  commissionOpen: number
+  /** Commission that would have been earned on deals lost in the period. */
+  commissionLost: number
+}
+
+/** One row per deal_products line item, joined up to its deal/contact/agent. */
+export interface CommissionRow {
+  dealId: string
+  dealTitle: string
+  contactName: string | null
+  productName: string
+  value: number
+  quantity: number
+  commissionRate: number | null
+  commissionValue: number
+  agentName: string | null
+  status: string
+  /** won_at / lost_at / created_at, whichever applies to the deal's status. */
+  date: string
+  currency: string
+}
+
+export interface CommissionByMonthPoint {
+  /** YYYY-MM */
+  month: string
+  commission: number
+}
+
+export interface CommissionReportBundle {
+  cards: CommissionReportCards
+  rows: CommissionRow[]
+  byMonth: CommissionByMonthPoint[]
+  agentRanking: CommissionAgentRow[]
+  stages: { id: string; name: string }[]
+}
+
+// ------------------------------------------------------------
 // Broadcasts tab
 // ------------------------------------------------------------
 
