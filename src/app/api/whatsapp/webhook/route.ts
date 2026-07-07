@@ -430,74 +430,6 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
 }
 
 /**
- * Every customer who replies — organically or responding to a
- * broadcast — should have a live card on the pipeline. Creates one in
- * the account's default pipeline (oldest by created_at — pipelines
- * have no explicit ordering column, same convention used throughout
- * the app: deal-mini-sheet.tsx, the create_deal automation step) and
- * its first stage (lowest position), but only when the contact doesn't
- * already have an open deal — never duplicates.
- *
- * Best-effort: failures here must not break the main inbound-message
- * flow, so errors are swallowed with a log.
- */
-async function ensureOpenDealForContact(
-  accountId: string,
-  configOwnerUserId: string,
-  contactId: string,
-  contactName: string,
-) {
-  try {
-    const { data: existingOpenDeal, error: existingErr } = await supabaseAdmin()
-      .from('deals')
-      .select('id')
-      .eq('contact_id', contactId)
-      .eq('status', 'open')
-      .limit(1)
-      .maybeSingle()
-    if (existingErr) {
-      console.error('[webhook] open-deal lookup failed:', existingErr.message)
-      return
-    }
-    if (existingOpenDeal) return // already has one — never duplicate
-
-    const { data: defaultPipeline, error: pipelineErr } = await supabaseAdmin()
-      .from('pipelines')
-      .select('id')
-      .eq('account_id', accountId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (pipelineErr || !defaultPipeline) return // no pipeline to file it under
-
-    const { data: firstStage, error: stageErr } = await supabaseAdmin()
-      .from('pipeline_stages')
-      .select('id')
-      .eq('pipeline_id', defaultPipeline.id)
-      .order('position', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (stageErr || !firstStage) return // pipeline has no stages yet
-
-    const { error: insertErr } = await supabaseAdmin().from('deals').insert({
-      user_id: configOwnerUserId,
-      account_id: accountId,
-      pipeline_id: defaultPipeline.id,
-      stage_id: firstStage.id,
-      contact_id: contactId,
-      title: contactName,
-      value: 0,
-      status: 'open',
-    })
-    if (insertErr) {
-      console.error('[webhook] failed to auto-create deal:', insertErr.message)
-    }
-  } catch (err) {
-    console.error('ensureOpenDealForContact failed:', err)
-  }
-}
-
-/**
  * When a customer taps a Quick Reply button on a template message,
  * correlate the tap back to the broadcast_recipients row that sent that
  * template so reports can show "X clicked button A, Y clicked button B".
@@ -811,16 +743,6 @@ async function processMessage(
     const originTag = broadcastRecipient ? 'Ativo' : 'Receptivo'
     await ensureContactTagByName(supabaseAdmin(), accountId, contactRecord.id, [originTag])
   }
-
-  // Every reply gets a pipeline card if the contact doesn't already
-  // have an open deal — covers both brand-new contacts and existing
-  // ones (e.g. responding to a broadcast) who never had one.
-  await ensureOpenDealForContact(
-    accountId,
-    configOwnerUserId,
-    contactRecord.id,
-    contactRecord.name || contactRecord.phone,
-  )
 
   // NPS survey response check — must run before flow/automation
   // dispatch below. A message answering a pending survey (rating or
