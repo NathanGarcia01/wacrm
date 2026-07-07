@@ -720,13 +720,29 @@ async function processMessage(
     console.error('Error updating conversation:', convError)
   }
 
-  // Every inbound customer message is a spontaneous reply — tag the
-  // contact "Receptivo" (best-effort; no-op if the account has no such
-  // tag). Runs for every message, not just the first, since
-  // ensureContactTagByName upserts idempotently.
-  await ensureContactTagByName(supabaseAdmin(), accountId, contactRecord.id, [
-    'Receptivo',
-  ])
+  // Origin tagging — classified once, on the contact's first-ever
+  // inbound message. Deliberately gated on `isFirstInboundMessage`
+  // (not `contactOutcome.wasCreated`): it needs to also cover a
+  // contact whose row already existed — e.g. CSV-imported or added as
+  // a broadcast audience member — replying for the very first time.
+  // A contact who already messaged before keeps whatever origin tag
+  // they got the first time; re-checking on every reply would
+  // misclassify someone who reached out organically and was later
+  // also targeted by a broadcast, or vice versa.
+  //
+  //   - Already in broadcast_recipients → "Ativo" (responding to a
+  //     broadcast we sent them).
+  //   - Otherwise → "Receptivo" (reached out on their own).
+  if (isFirstInboundMessage) {
+    const { data: broadcastRecipient } = await supabaseAdmin()
+      .from('broadcast_recipients')
+      .select('id')
+      .eq('contact_id', contactRecord.id)
+      .limit(1)
+      .maybeSingle()
+    const originTag = broadcastRecipient ? 'Ativo' : 'Receptivo'
+    await ensureContactTagByName(supabaseAdmin(), accountId, contactRecord.id, [originTag])
+  }
 
   // NPS survey response check — must run before flow/automation
   // dispatch below. A message answering a pending survey (rating or

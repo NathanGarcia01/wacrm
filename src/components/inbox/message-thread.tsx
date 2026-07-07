@@ -180,6 +180,18 @@ export function MessageThread({
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Whether the user is scrolled near the bottom of the thread — the
+  // auto-scroll effect below only snaps to the bottom when this is
+  // true, so a background resync refetch (WS reconnect, tab regaining
+  // focus) can't yank the view out from under someone who's scrolled
+  // up reading history. Starts true so a freshly opened conversation
+  // still lands at the bottom.
+  const isNearBottomRef = useRef(true);
+  // Tracks the previous conversationId so the messages-fetch effect
+  // below can tell "genuinely switching conversations" (show the
+  // loading spinner) apart from "same conversation, background resync"
+  // (fetch quietly) — see the effect for why this matters.
+  const prevConversationIdRef = useRef<string | undefined>(undefined);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
@@ -284,8 +296,20 @@ export function MessageThread({
     const supabase = createClient();
     let cancelled = false;
 
+    // A `resyncToken` bump against the SAME conversationId is a
+    // background safety-net refetch (WS reconnect, tab regaining
+    // focus) — not the user picking a different conversation. Flipping
+    // `loading` for that blanks the whole message list out from under
+    // someone actively reading or replying, which was bug #1's
+    // "a conversa atualiza sozinha" symptom. Only show the spinner on
+    // a genuine switch, and reset the auto-scroll pin so a fresh
+    // conversation still opens at the bottom.
+    const isNewConversation = prevConversationIdRef.current !== conversationId;
+    prevConversationIdRef.current = conversationId;
+    if (isNewConversation) isNearBottomRef.current = true;
+
     (async () => {
-      setLoading(true);
+      if (isNewConversation) setLoading(true);
 
       const { data, error } = await supabase
         .from("messages")
@@ -301,7 +325,7 @@ export function MessageThread({
         onMessagesLoadedRef.current(data ?? []);
       }
 
-      if (!cancelled) setLoading(false);
+      if (!cancelled && isNewConversation) setLoading(false);
     })();
 
     return () => {
@@ -453,9 +477,29 @@ export function MessageThread({
       });
   }, [conversationId, hasUnread]);
 
-  // Auto-scroll to bottom on new messages
+  // Track whether the user is scrolled near the bottom. Attached once
+  // — the scroll container itself is never remounted between
+  // conversation switches, only its content changes.
   useEffect(() => {
-    if (scrollRef.current) {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      isNearBottomRef.current = distanceFromBottom < 150;
+    };
+    el.addEventListener("scroll", onScroll);
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Auto-scroll to bottom on new messages — but only when the user is
+  // already pinned near the bottom (or just opened this conversation).
+  // Unconditionally forcing scrollTop here used to snap the view down
+  // on every `messages` array update, including a background resync
+  // refetch that re-set the exact same data while the user had
+  // scrolled up to read history — bug #1's other "atualiza sozinha"
+  // symptom.
+  useEffect(() => {
+    if (scrollRef.current && isNearBottomRef.current) {
       const el = scrollRef.current;
       el.scrollTop = el.scrollHeight;
     }
