@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { MessageCircleHeart, Percent, Send, Star } from "lucide-react"
 import { loadNpsReport } from "@/lib/reports/nps-queries"
@@ -21,6 +22,7 @@ function fmtPct(v: number | null): string {
 }
 
 export function NpsTab({ period }: { period: PeriodRange }) {
+  const t = useTranslations("reports.npsTab")
   const [bundle, setBundle] = useState<NpsReportBundle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +39,7 @@ export function NpsTab({ period }: { period: PeriodRange }) {
       })
       .catch((err) => {
         console.error("[reports] nps load failed:", err)
-        if (!cancelled) setError("Não foi possível carregar os dados de satisfação.")
+        if (!cancelled) setError(t("loadFailed"))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -45,7 +47,7 @@ export function NpsTab({ period }: { period: PeriodRange }) {
     return () => {
       cancelled = true
     }
-  }, [period])
+  }, [period, t])
 
   return (
     <div className="space-y-5">
@@ -60,15 +62,15 @@ export function NpsTab({ period }: { period: PeriodRange }) {
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
-            <MetricCard title="Média geral" value={fmtRating(bundle.cards.avgRating)} icon={Star} />
-            <MetricCard title="Pesquisas enviadas" value={bundle.cards.totalSent.toLocaleString()} icon={Send} />
+            <MetricCard title={t("avgRating")} value={fmtRating(bundle.cards.avgRating)} icon={Star} />
+            <MetricCard title={t("surveysSent")} value={bundle.cards.totalSent.toLocaleString()} icon={Send} />
             <MetricCard
-              title="Pesquisas respondidas"
+              title={t("surveysResponded")}
               value={bundle.cards.totalResponded.toLocaleString()}
               icon={MessageCircleHeart}
             />
             <MetricCard
-              title="Taxa de resposta"
+              title={t("responseRate")}
               value={fmtPct(bundle.cards.responseRatePct)}
               icon={Percent}
             />

@@ -1480,5 +1480,190 @@
       "step4Item5": "Suscríbete al campo de webhook \"messages\"",
       "docsLink": "Documentación de la API de WhatsApp de Meta"
     }
+  },
+  "reports": {
+    "dealStatus": {
+      "open": "Abierto",
+      "won": "Ganado",
+      "lost": "Perdido"
+    },
+    "periodFilter": {
+      "label": "Período",
+      "today": "Hoy",
+      "week": "Esta semana",
+      "month": "Este mes",
+      "custom": "Personalizado",
+      "from": "Desde",
+      "to": "Hasta",
+      "apply": "Aplicar"
+    },
+    "broadcastsTab": {
+      "loadFailed": "No se pudieron cargar los datos de difusiones.",
+      "totalBroadcasts": "Difusiones",
+      "uniqueRecipients": "Destinatarios únicos",
+      "delivered": "Entregadas",
+      "failed": "Fallidas",
+      "deliveryRate": "Tasa de entrega",
+      "replyRate": "Tasa de respuesta tras el envío"
+    },
+    "broadcastsTable": {
+      "title": "Difusiones del período",
+      "colName": "Nombre",
+      "colCreatedAt": "Creada el",
+      "colTotalRecipients": "Destinatarios",
+      "colDelivered": "Entregadas",
+      "colFailed": "Fallidas",
+      "colReplyRate": "Tasa de respuesta",
+      "empty": "No hay difusiones en el período seleccionado."
+    },
+    "commissionAgentRankingTable": {
+      "title": "Comisión por agente",
+      "colAgent": "Agente",
+      "colDealsWon": "Negocios ganados",
+      "colCommission": "Comisión",
+      "empty": "No hay comisión en el período."
+    },
+    "commissionByMonthChart": {
+      "title": "Comisión por mes",
+      "seriesCommission": "Comisión"
+    },
+    "commissionsTab": {
+      "loadFailed": "No se pudieron cargar las comisiones.",
+      "dealStatusLabel": "Estado del negocio",
+      "statusAll": "Todos los estados",
+      "stageLabel": "Etapa del embudo",
+      "allStages": "Todas las etapas",
+      "commissionWon": "Total comisión ganada",
+      "commissionOpen": "Total comisión abierta",
+      "commissionLost": "Total comisión perdida"
+    },
+    "commissionsTable": {
+      "title": "Comisiones",
+      "colDeal": "Negocio",
+      "colContact": "Contacto",
+      "colProduct": "Producto",
+      "colValue": "Valor",
+      "colCommission": "Comisión",
+      "colAgent": "Agente",
+      "colStatus": "Estado",
+      "colDate": "Fecha",
+      "empty": "No se encontró comisión para los filtros seleccionados."
+    },
+    "dealsPerDayChart": {
+      "title": "Negocios ganados por día",
+      "seriesWon": "Ganados"
+    },
+    "dealsTable": {
+      "title": "Negocios del período",
+      "colTitle": "Título",
+      "colContact": "Contacto",
+      "colValue": "Valor",
+      "colStage": "Etapa",
+      "colAssignee": "Responsable",
+      "colCreatedAt": "Creado el",
+      "colClosedAt": "Cerrado el",
+      "colStatus": "Estado",
+      "empty": "No hay negocios en el período seleccionado."
+    },
+    "messagesPerDayChart": {
+      "title": "Mensajes por día",
+      "seriesSent": "Enviados",
+      "seriesReceived": "Recibidos"
+    },
+    "npsAgentRankingTable": {
+      "title": "Ranking de agentes por calificación",
+      "colAgent": "Agente",
+      "colAverage": "Promedio",
+      "colReviews": "Calificaciones",
+      "empty": "No hay calificaciones asignadas a un agente en el período."
+    },
+    "npsReviewsTable": {
+      "title": "Últimas calificaciones",
+      "colContact": "Contacto",
+      "colRating": "Nota",
+      "colComment": "Comentario",
+      "colAgent": "Agente",
+      "colSentAt": "Enviada el",
+      "empty": "No se envió ninguna encuesta en el período seleccionado.",
+      "awaitingRating": "Esperando calificación"
+    },
+    "npsTab": {
+      "loadFailed": "No se pudieron cargar los datos de satisfacción.",
+      "avgRating": "Promedio general",
+      "surveysSent": "Encuestas enviadas",
+      "surveysResponded": "Encuestas respondidas",
+      "responseRate": "Tasa de respuesta"
+    },
+    "npsDistributionChart": {
+      "title": "Distribución de calificaciones",
+      "empty": "No se recibieron calificaciones en el período.",
+      "tooltipReviews": "Calificaciones"
+    },
+    "npsTrendChart": {
+      "title": "Evolución del promedio",
+      "empty": "No se recibieron calificaciones en el período.",
+      "tooltipAverage": "Promedio"
+    },
+    "pipelineFunnelChart": {
+      "title": "Embudo por etapa",
+      "empty": "No hay negocios abiertos en el embudo.",
+      "tooltipOpenDeals": "Negocios abiertos"
+    },
+    "pipelineTab": {
+      "loadFailed": "No se pudieron cargar los datos de pipeline.",
+      "dealsCreated": "Negocios creados",
+      "dealsWon": "Negocios ganados",
+      "dealsLost": "Negocios perdidos",
+      "conversionRate": "Tasa de conversión",
+      "valueWon": "Valor ganado",
+      "avgTicket": "Ticket promedio",
+      "avgCloseTime": "Tiempo promedio de cierre",
+      "periodCommission": "Comisión del período",
+      "projectedCommission": "Comisión proyectada",
+      "openDealsSubtitle": "Negocios abiertos"
+    },
+    "qualityTab": {
+      "loadFailed": "Error al consultar a Meta.",
+      "numberQuality": "Calidad del número",
+      "messageLimit": "Límite de mensajes",
+      "numberLabel": "Número:",
+      "checkedAtLabel": "Verificado a las",
+      "conversationsPerDayHint": "Conversaciones que tu cuenta puede iniciar por día, permitidas por Meta ({tier}).",
+      "unknown": "desconocido",
+      "tipsTitle": "Consejos para proteger tu cuenta",
+      "tips": [
+        "Calienta números nuevos aumentando gradualmente el volumen de envíos durante las primeras semanas.",
+        "Prioriza responder conversaciones iniciadas por el contacto — no cuentan para los límites de envío.",
+        "Evita enviar la misma plantilla repetidamente a la misma audiencia en poco tiempo.",
+        "Monitorea tu tasa de bloqueos/denuncias y pausa los envíos si aumenta.",
+        "Respeta el horario comercial local del destinatario al programar difusiones."
+      ],
+      "tier50": "50 conversaciones/día",
+      "tier250": "250 conversaciones/día",
+      "tier1k": "1.000 conversaciones/día",
+      "tier10k": "10.000 conversaciones/día",
+      "tier100k": "100.000 conversaciones/día",
+      "tierUnlimited": "Ilimitado",
+      "qualityGreenLabel": "Alta",
+      "qualityGreenDescription": "Tu número tiene buena reputación con Meta. Sigue respetando los límites de envío.",
+      "qualityYellowLabel": "Media",
+      "qualityYellowDescription": "La calidad bajó un poco. Evita envíos masivos y prioriza mensajes deseados por los contactos.",
+      "qualityRedLabel": "Baja",
+      "qualityRedDescription": "Riesgo de baneo. Pausa las difusiones masivas y concéntrate en conversaciones iniciadas por los contactos.",
+      "qualityUnknownLabel": "Desconocida",
+      "qualityUnknownDescription": "No se pudo verificar la calidad del número con Meta."
+    },
+    "userRankingTable": {
+      "title": "Ranking por usuario",
+      "colUser": "Usuario",
+      "colMessagesSent": "Mensajes enviados",
+      "colConversationsHandled": "Conversaciones atendidas",
+      "colDealsWon": "Negocios ganados",
+      "colValueWon": "Valor vendido",
+      "colAvgResponseTime": "Tiempo promedio de respuesta",
+      "avgResponseTimeHeaderTooltip": "Sender_id aún no es confiable por agente — se calculará individualmente cuando ese dato esté disponible.",
+      "avgResponseTimeCellTooltip": "Se calculará individualmente cuando los datos estén disponibles.",
+      "empty": "No se encontró ningún miembro."
+    }
   }
 }

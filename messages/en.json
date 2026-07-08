@@ -1480,5 +1480,190 @@
       "step4Item5": "Subscribe to \"messages\" webhook field",
       "docsLink": "Meta WhatsApp API Documentation"
     }
+  },
+  "reports": {
+    "dealStatus": {
+      "open": "Open",
+      "won": "Won",
+      "lost": "Lost"
+    },
+    "periodFilter": {
+      "label": "Period",
+      "today": "Today",
+      "week": "This week",
+      "month": "This month",
+      "custom": "Custom",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply"
+    },
+    "broadcastsTab": {
+      "loadFailed": "Could not load broadcast data.",
+      "totalBroadcasts": "Broadcasts",
+      "uniqueRecipients": "Unique recipients",
+      "delivered": "Delivered",
+      "failed": "Failed",
+      "deliveryRate": "Delivery rate",
+      "replyRate": "Post-send reply rate"
+    },
+    "broadcastsTable": {
+      "title": "Broadcasts this period",
+      "colName": "Name",
+      "colCreatedAt": "Created on",
+      "colTotalRecipients": "Recipients",
+      "colDelivered": "Delivered",
+      "colFailed": "Failed",
+      "colReplyRate": "Reply rate",
+      "empty": "No broadcasts in the selected period."
+    },
+    "commissionAgentRankingTable": {
+      "title": "Commission by agent",
+      "colAgent": "Agent",
+      "colDealsWon": "Deals won",
+      "colCommission": "Commission",
+      "empty": "No commission in this period."
+    },
+    "commissionByMonthChart": {
+      "title": "Commission by month",
+      "seriesCommission": "Commission"
+    },
+    "commissionsTab": {
+      "loadFailed": "Could not load commissions.",
+      "dealStatusLabel": "Deal status",
+      "statusAll": "All statuses",
+      "stageLabel": "Pipeline stage",
+      "allStages": "All stages",
+      "commissionWon": "Total won commission",
+      "commissionOpen": "Total open commission",
+      "commissionLost": "Total lost commission"
+    },
+    "commissionsTable": {
+      "title": "Commissions",
+      "colDeal": "Deal",
+      "colContact": "Contact",
+      "colProduct": "Product",
+      "colValue": "Value",
+      "colCommission": "Commission",
+      "colAgent": "Agent",
+      "colStatus": "Status",
+      "colDate": "Date",
+      "empty": "No commission found for the selected filters."
+    },
+    "dealsPerDayChart": {
+      "title": "Deals won per day",
+      "seriesWon": "Won"
+    },
+    "dealsTable": {
+      "title": "Deals this period",
+      "colTitle": "Title",
+      "colContact": "Contact",
+      "colValue": "Value",
+      "colStage": "Stage",
+      "colAssignee": "Assignee",
+      "colCreatedAt": "Created on",
+      "colClosedAt": "Closed on",
+      "colStatus": "Status",
+      "empty": "No deals in the selected period."
+    },
+    "messagesPerDayChart": {
+      "title": "Messages per day",
+      "seriesSent": "Sent",
+      "seriesReceived": "Received"
+    },
+    "npsAgentRankingTable": {
+      "title": "Agent ranking by rating",
+      "colAgent": "Agent",
+      "colAverage": "Average",
+      "colReviews": "Reviews",
+      "empty": "No review assigned to an agent in this period."
+    },
+    "npsReviewsTable": {
+      "title": "Latest reviews",
+      "colContact": "Contact",
+      "colRating": "Rating",
+      "colComment": "Comment",
+      "colAgent": "Agent",
+      "colSentAt": "Sent on",
+      "empty": "No survey sent in the selected period.",
+      "awaitingRating": "Awaiting rating"
+    },
+    "npsTab": {
+      "loadFailed": "Could not load satisfaction data.",
+      "avgRating": "Overall average",
+      "surveysSent": "Surveys sent",
+      "surveysResponded": "Surveys answered",
+      "responseRate": "Response rate"
+    },
+    "npsDistributionChart": {
+      "title": "Rating distribution",
+      "empty": "No reviews received in this period.",
+      "tooltipReviews": "Reviews"
+    },
+    "npsTrendChart": {
+      "title": "Average trend",
+      "empty": "No reviews received in this period.",
+      "tooltipAverage": "Average"
+    },
+    "pipelineFunnelChart": {
+      "title": "Funnel by stage",
+      "empty": "No open deals in the funnel.",
+      "tooltipOpenDeals": "Open deals"
+    },
+    "pipelineTab": {
+      "loadFailed": "Could not load pipeline data.",
+      "dealsCreated": "Deals created",
+      "dealsWon": "Deals won",
+      "dealsLost": "Deals lost",
+      "conversionRate": "Conversion rate",
+      "valueWon": "Value won",
+      "avgTicket": "Average ticket",
+      "avgCloseTime": "Average close time",
+      "periodCommission": "Period commission",
+      "projectedCommission": "Projected commission",
+      "openDealsSubtitle": "Open deals"
+    },
+    "qualityTab": {
+      "loadFailed": "Failed to query Meta.",
+      "numberQuality": "Number quality",
+      "messageLimit": "Message limit",
+      "numberLabel": "Number:",
+      "checkedAtLabel": "Checked at",
+      "conversationsPerDayHint": "Conversations your account can start per day, allowed by Meta ({tier}).",
+      "unknown": "unknown",
+      "tipsTitle": "Tips to protect your account",
+      "tips": [
+        "Warm up new numbers by gradually increasing send volume over the first few weeks.",
+        "Prioritize replying to conversations the contact started — they don't count against send limits.",
+        "Avoid sending the same template repeatedly to the same audience in a short time.",
+        "Monitor your block/report rate and pause sends if it rises.",
+        "Respect the recipient's local business hours when scheduling broadcasts."
+      ],
+      "tier50": "50 conversations/day",
+      "tier250": "250 conversations/day",
+      "tier1k": "1,000 conversations/day",
+      "tier10k": "10,000 conversations/day",
+      "tier100k": "100,000 conversations/day",
+      "tierUnlimited": "Unlimited",
+      "qualityGreenLabel": "High",
+      "qualityGreenDescription": "Your number is in good standing with Meta. Keep respecting the send limits.",
+      "qualityYellowLabel": "Medium",
+      "qualityYellowDescription": "Quality has dropped a bit. Avoid mass sends and prioritize messages contacts actually want.",
+      "qualityRedLabel": "Low",
+      "qualityRedDescription": "Ban risk. Pause mass broadcasts and focus on conversations the contacts started.",
+      "qualityUnknownLabel": "Unknown",
+      "qualityUnknownDescription": "Could not verify the number's quality with Meta."
+    },
+    "userRankingTable": {
+      "title": "Ranking by user",
+      "colUser": "User",
+      "colMessagesSent": "Messages sent",
+      "colConversationsHandled": "Conversations handled",
+      "colDealsWon": "Deals won",
+      "colValueWon": "Value sold",
+      "colAvgResponseTime": "Average response time",
+      "avgResponseTimeHeaderTooltip": "Sender_id isn't reliable per-agent yet — it will be computed individually once that data is available.",
+      "avgResponseTimeCellTooltip": "Will be computed individually once the data is available.",
+      "empty": "No member found."
+    }
   }
 }

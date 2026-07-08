@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import {
   Table,
   TableBody,
@@ -20,30 +21,32 @@ export function CommissionAgentRankingTable({
   loading: boolean
   currency: string
 }) {
+  const t = useTranslations("reports.commissionAgentRankingTable")
+  const tCommon = useTranslations("common")
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Comissão por agente</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Agente</TableHead>
-            <TableHead>Deals ganhos</TableHead>
-            <TableHead>Comissão</TableHead>
+            <TableHead>{t("colAgent")}</TableHead>
+            <TableHead>{t("colDealsWon")}</TableHead>
+            <TableHead>{t("colCommission")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
             <TableRow>
               <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                Carregando…
+                {tCommon("loading")}…
               </TableCell>
             </TableRow>
           ) : rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma comissão no período.
+                {t("empty")}
               </TableCell>
             </TableRow>
           ) : (

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import { useLocale, useTranslations } from "next-intl"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import {
   Table,
@@ -12,20 +13,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { BroadcastReportRow } from "@/lib/reports/types"
+import { localeToIntl, type Locale } from "@/i18n/locales"
 
 type SortKey = "name" | "createdAt" | "totalRecipients" | "deliveredCount" | "failedCount" | "replyRatePct"
 
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "name", label: "Nome" },
-  { key: "createdAt", label: "Criada em" },
-  { key: "totalRecipients", label: "Destinatários" },
-  { key: "deliveredCount", label: "Entregues" },
-  { key: "failedCount", label: "Falhas" },
-  { key: "replyRatePct", label: "Taxa de resposta" },
+const COLUMNS: { key: SortKey; labelKey: "colName" | "colCreatedAt" | "colTotalRecipients" | "colDelivered" | "colFailed" | "colReplyRate" }[] = [
+  { key: "name", labelKey: "colName" },
+  { key: "createdAt", labelKey: "colCreatedAt" },
+  { key: "totalRecipients", labelKey: "colTotalRecipients" },
+  { key: "deliveredCount", labelKey: "colDelivered" },
+  { key: "failedCount", labelKey: "colFailed" },
+  { key: "replyRatePct", labelKey: "colReplyRate" },
 ]
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+function fmtDate(iso: string, locale: Locale): string {
+  return new Date(iso).toLocaleDateString(localeToIntl(locale), { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
 function fmtPct(v: number | null): string {
@@ -33,6 +35,9 @@ function fmtPct(v: number | null): string {
 }
 
 export function BroadcastsTable({ broadcasts, loading }: { broadcasts: BroadcastReportRow[]; loading: boolean }) {
+  const t = useTranslations("reports.broadcastsTable")
+  const tCommon = useTranslations("common")
+  const locale = useLocale() as Locale
   const [sortKey, setSortKey] = useState<SortKey>("createdAt")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
@@ -64,7 +69,7 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Transmissões do período</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
       </div>
       <Table>
         <TableHeader>
@@ -76,7 +81,7 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                   onClick={() => toggleSort(col.key)}
                   className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
-                  {col.label}
+                  {t(col.labelKey)}
                   <SortIcon active={sortKey === col.key} dir={sortDir} />
                 </button>
               </TableHead>
@@ -87,13 +92,13 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
           {loading ? (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                Carregando…
+                {tCommon("loading")}…
               </TableCell>
             </TableRow>
           ) : sorted.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma transmissão no período selecionado.
+                {t("empty")}
               </TableCell>
             </TableRow>
           ) : (
@@ -104,7 +109,7 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                     {b.name}
                   </Link>
                 </TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(b.createdAt)}</TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(b.createdAt, locale)}</TableCell>
                 <TableCell className="tabular-nums">{b.totalRecipients.toLocaleString()}</TableCell>
                 <TableCell className="tabular-nums">{b.deliveredCount.toLocaleString()}</TableCell>
                 <TableCell className="tabular-nums">{b.failedCount.toLocaleString()}</TableCell>

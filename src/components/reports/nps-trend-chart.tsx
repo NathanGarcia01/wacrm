@@ -1,5 +1,6 @@
 "use client"
 
+import { useLocale, useTranslations } from "next-intl"
 import {
   CartesianGrid,
   Line,
@@ -10,21 +11,24 @@ import {
   YAxis,
 } from "recharts"
 import type { NpsTrendPoint } from "@/lib/reports/types"
+import { localeToIntl, type Locale } from "@/i18n/locales"
 
-function fmtDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })
+function fmtDate(iso: string, locale: Locale): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(localeToIntl(locale), { day: "2-digit", month: "short" })
 }
 
 export function NpsTrendChart({ data }: { data: NpsTrendPoint[] }) {
-  const points = data.map((d) => ({ ...d, label: fmtDate(d.date) }))
+  const t = useTranslations("reports.npsTrendChart")
+  const locale = useLocale() as Locale
+  const points = data.map((d) => ({ ...d, label: fmtDate(d.date, locale) }))
   const hasAnySample = data.some((d) => d.avgRating != null)
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">Evolução da média</p>
+      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
       {!hasAnySample ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          Nenhuma avaliação recebida no período.
+          {t("empty")}
         </p>
       ) : (
         <div className="h-56 w-full">
@@ -58,12 +62,12 @@ export function NpsTrendChart({ data }: { data: NpsTrendPoint[] }) {
                 }}
                 labelStyle={{ color: "var(--muted-foreground)" }}
                 itemStyle={{ color: "var(--popover-foreground)" }}
-                formatter={(value) => [value == null ? "—" : Number(value).toFixed(1), "Média"]}
+                formatter={(value) => [value == null ? "—" : Number(value).toFixed(1), t("tooltipAverage")]}
               />
               <Line
                 type="monotone"
                 dataKey="avgRating"
-                name="Média"
+                name={t("tooltipAverage")}
                 stroke="#60A5FA"
                 strokeWidth={2}
                 dot={false}

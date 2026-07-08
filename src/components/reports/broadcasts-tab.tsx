@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { CheckCircle2, Percent, Radio, Reply, Users, XCircle } from "lucide-react"
 import { loadBroadcastsReport } from "@/lib/reports/broadcasts-queries"
@@ -14,6 +15,7 @@ function fmtPct(v: number | null): string {
 }
 
 export function BroadcastsTab({ period }: { period: PeriodRange }) {
+  const t = useTranslations("reports.broadcastsTab")
   const [bundle, setBundle] = useState<BroadcastsReportBundle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +31,7 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
       })
       .catch((err) => {
         console.error("[reports] broadcasts load failed:", err)
-        if (!cancelled) setError("Não foi possível carregar os dados de transmissões.")
+        if (!cancelled) setError(t("loadFailed"))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -37,7 +39,7 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
     return () => {
       cancelled = true
     }
-  }, [period])
+  }, [period, t])
 
   return (
     <div className="space-y-5">
@@ -52,12 +54,12 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
           Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
-            <MetricCard title="Transmissões" value={bundle.cards.totalBroadcasts.toLocaleString()} icon={Radio} />
-            <MetricCard title="Destinatários únicos" value={bundle.cards.uniqueRecipients.toLocaleString()} icon={Users} />
-            <MetricCard title="Entregues" value={bundle.cards.delivered.toLocaleString()} icon={CheckCircle2} />
-            <MetricCard title="Falhas" value={bundle.cards.failed.toLocaleString()} icon={XCircle} />
-            <MetricCard title="Taxa de entrega" value={fmtPct(bundle.cards.deliveryRatePct)} icon={Percent} />
-            <MetricCard title="Taxa de resposta pós-disparo" value={fmtPct(bundle.cards.replyRatePct)} icon={Reply} />
+            <MetricCard title={t("totalBroadcasts")} value={bundle.cards.totalBroadcasts.toLocaleString()} icon={Radio} />
+            <MetricCard title={t("uniqueRecipients")} value={bundle.cards.uniqueRecipients.toLocaleString()} icon={Users} />
+            <MetricCard title={t("delivered")} value={bundle.cards.delivered.toLocaleString()} icon={CheckCircle2} />
+            <MetricCard title={t("failed")} value={bundle.cards.failed.toLocaleString()} icon={XCircle} />
+            <MetricCard title={t("deliveryRate")} value={fmtPct(bundle.cards.deliveryRatePct)} icon={Percent} />
+            <MetricCard title={t("replyRate")} value={fmtPct(bundle.cards.replyRatePct)} icon={Reply} />
           </>
         )}
       </div>

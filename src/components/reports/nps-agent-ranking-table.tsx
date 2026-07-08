@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { Star } from "lucide-react"
 import {
   Table,
@@ -18,30 +19,32 @@ export function NpsAgentRankingTable({
   rows: NpsAgentRankingRow[]
   loading: boolean
 }) {
+  const t = useTranslations("reports.npsAgentRankingTable")
+  const tCommon = useTranslations("common")
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Ranking de agentes por avaliação</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Agente</TableHead>
-            <TableHead>Média</TableHead>
-            <TableHead>Avaliações</TableHead>
+            <TableHead>{t("colAgent")}</TableHead>
+            <TableHead>{t("colAverage")}</TableHead>
+            <TableHead>{t("colReviews")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
             <TableRow>
               <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                Carregando…
+                {tCommon("loading")}…
               </TableCell>
             </TableRow>
           ) : rows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                Nenhuma avaliação atribuída a um agente no período.
+                {t("empty")}
               </TableCell>
             </TableRow>
           ) : (

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
@@ -20,14 +21,11 @@ import { CommissionByMonthChart } from "@/components/reports/commission-by-month
 import { CommissionsTable } from "@/components/reports/commissions-table"
 import { CommissionAgentRankingTable } from "@/components/reports/commission-agent-ranking-table"
 
-const STATUS_OPTIONS: { value: CommissionStatusFilter; label: string }[] = [
-  { value: "all", label: "Todos os status" },
-  { value: "open", label: "Em aberto" },
-  { value: "won", label: "Ganho" },
-  { value: "lost", label: "Perdido" },
-]
+const STATUS_OPTIONS: CommissionStatusFilter[] = ["all", "open", "won", "lost"]
 
 export function CommissionsTab({ period }: { period: PeriodRange }) {
+  const t = useTranslations("reports.commissionsTab")
+  const tDealStatus = useTranslations("reports.dealStatus")
   const { defaultCurrency } = useAuth()
   const [statusFilter, setStatusFilter] = useState<CommissionStatusFilter>("all")
   const [stageId, setStageId] = useState<string | null>(null)
@@ -47,7 +45,7 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
       })
       .catch((err) => {
         console.error("[reports] commissions load failed:", err)
-        if (!cancelled) setError("Não foi possível carregar as comissões.")
+        if (!cancelled) setError(t("loadFailed"))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -55,7 +53,7 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
     return () => {
       cancelled = true
     }
-  }, [period, statusFilter, stageId])
+  }, [period, statusFilter, stageId, t])
 
   return (
     <div className="space-y-5">
@@ -67,15 +65,15 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Status do deal</label>
+          <label className="text-xs font-medium text-muted-foreground">{t("dealStatusLabel")}</label>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as CommissionStatusFilter)}>
             <SelectTrigger className="w-44 bg-card">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
+                <SelectItem key={o} value={o}>
+                  {o === "all" ? t("statusAll") : tDealStatus(o)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -83,7 +81,7 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-muted-foreground">Etapa do funil</label>
+          <label className="text-xs font-medium text-muted-foreground">{t("stageLabel")}</label>
           <Select
             value={stageId ?? "all"}
             onValueChange={(v) => setStageId(v === "all" ? null : v)}
@@ -92,7 +90,7 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as etapas</SelectItem>
+              <SelectItem value="all">{t("allStages")}</SelectItem>
               {(bundle?.stages ?? []).map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -109,17 +107,17 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
         ) : (
           <>
             <MetricCard
-              title="Total comissão ganhos"
+              title={t("commissionWon")}
               value={formatCurrency(bundle.cards.commissionWon, defaultCurrency)}
               icon={CheckCircle2}
             />
             <MetricCard
-              title="Total comissão em aberto"
+              title={t("commissionOpen")}
               value={formatCurrency(bundle.cards.commissionOpen, defaultCurrency)}
               icon={Clock}
             />
             <MetricCard
-              title="Total comissão perdidos"
+              title={t("commissionLost")}
               value={formatCurrency(bundle.cards.commissionLost, defaultCurrency)}
               icon={XCircle}
             />

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import {
   Table,
@@ -12,31 +13,30 @@ import {
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/currency"
 import type { DealReportRow } from "@/lib/reports/types"
+import { localeToIntl, type Locale } from "@/i18n/locales"
 
 type SortKey = "title" | "contactName" | "value" | "stageName" | "assigneeName" | "createdAt" | "closedAt"
 
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "title", label: "Título" },
-  { key: "contactName", label: "Contato" },
-  { key: "value", label: "Valor" },
-  { key: "stageName", label: "Etapa" },
-  { key: "assigneeName", label: "Responsável" },
-  { key: "createdAt", label: "Criado em" },
-  { key: "closedAt", label: "Fechado em" },
+const COLUMNS: { key: SortKey; labelKey: "colTitle" | "colContact" | "colValue" | "colStage" | "colAssignee" | "colCreatedAt" | "colClosedAt" }[] = [
+  { key: "title", labelKey: "colTitle" },
+  { key: "contactName", labelKey: "colContact" },
+  { key: "value", labelKey: "colValue" },
+  { key: "stageName", labelKey: "colStage" },
+  { key: "assigneeName", labelKey: "colAssignee" },
+  { key: "createdAt", labelKey: "colCreatedAt" },
+  { key: "closedAt", labelKey: "colClosedAt" },
 ]
 
-const STATUS_LABEL: Record<string, string> = {
-  open: "Em aberto",
-  won: "Ganho",
-  lost: "Perdido",
-}
-
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null, locale: Locale): string {
   if (!iso) return "—"
-  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+  return new Date(iso).toLocaleDateString(localeToIntl(locale), { day: "2-digit", month: "2-digit", year: "numeric" })
 }
 
 export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading: boolean }) {
+  const t = useTranslations("reports.dealsTable")
+  const tCommon = useTranslations("common")
+  const tDealStatus = useTranslations("reports.dealStatus")
+  const locale = useLocale() as Locale
   const [sortKey, setSortKey] = useState<SortKey>("createdAt")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
 
@@ -68,7 +68,7 @@ export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Deals do período</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
       </div>
       <Table>
         <TableHeader>
@@ -80,13 +80,13 @@ export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading
                   onClick={() => toggleSort(col.key)}
                   className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
-                  {col.label}
+                  {t(col.labelKey)}
                   <SortIcon active={sortKey === col.key} dir={sortDir} />
                 </button>
               </TableHead>
             ))}
             <TableHead>
-              <span className="text-xs font-medium text-muted-foreground">Status</span>
+              <span className="text-xs font-medium text-muted-foreground">{t("colStatus")}</span>
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -94,13 +94,13 @@ export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading
           {loading ? (
             <TableRow>
               <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                Carregando…
+                {tCommon("loading")}…
               </TableCell>
             </TableRow>
           ) : sorted.length === 0 ? (
             <TableRow>
               <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                Nenhum deal no período selecionado.
+                {t("empty")}
               </TableCell>
             </TableRow>
           ) : (
@@ -124,9 +124,13 @@ export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading
                   )}
                 </TableCell>
                 <TableCell>{deal.assigneeName ?? "—"}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(deal.createdAt)}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(deal.closedAt)}</TableCell>
-                <TableCell>{STATUS_LABEL[deal.status] ?? deal.status}</TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(deal.createdAt, locale)}</TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(deal.closedAt, locale)}</TableCell>
+                <TableCell>
+                  {deal.status === "open" || deal.status === "won" || deal.status === "lost"
+                    ? tDealStatus(deal.status)
+                    : deal.status}
+                </TableCell>
               </TableRow>
             ))
           )}

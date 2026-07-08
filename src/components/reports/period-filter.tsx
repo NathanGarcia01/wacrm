@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useTranslations } from "next-intl"
 import {
   Select,
   SelectContent,
@@ -12,11 +13,11 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import type { PeriodKey, PeriodRange } from "@/lib/reports/types"
 
-const OPTIONS: { value: PeriodKey; label: string }[] = [
-  { value: "today", label: "Hoje" },
-  { value: "week", label: "Esta semana" },
-  { value: "month", label: "Este mês" },
-  { value: "custom", label: "Personalizado" },
+const OPTIONS: { value: PeriodKey; labelKey: "today" | "week" | "month" | "custom" }[] = [
+  { value: "today", labelKey: "today" },
+  { value: "week", labelKey: "week" },
+  { value: "month", labelKey: "month" },
+  { value: "custom", labelKey: "custom" },
 ]
 
 export function PeriodFilter({
@@ -26,6 +27,7 @@ export function PeriodFilter({
   period: PeriodRange
   onChange: (next: { period: PeriodKey; from?: string; to?: string }) => void
 }) {
+  const t = useTranslations("reports.periodFilter")
   // Local drafts so typing in the date inputs doesn't refetch on
   // every keystroke — only "Aplicar" (or switching into custom mode)
   // commits the range.
@@ -35,7 +37,7 @@ export function PeriodFilter({
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">Período</label>
+        <label className="text-xs font-medium text-muted-foreground">{t("label")}</label>
         <Select
           value={period.key}
           onValueChange={(v) => {
@@ -53,7 +55,7 @@ export function PeriodFilter({
           <SelectContent>
             {OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -63,7 +65,7 @@ export function PeriodFilter({
       {period.key === "custom" && (
         <>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">De</label>
+            <label className="text-xs font-medium text-muted-foreground">{t("from")}</label>
             <Input
               type="date"
               value={draftFrom}
@@ -73,7 +75,7 @@ export function PeriodFilter({
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Até</label>
+            <label className="text-xs font-medium text-muted-foreground">{t("to")}</label>
             <Input
               type="date"
               value={draftTo}
@@ -83,7 +85,7 @@ export function PeriodFilter({
             />
           </div>
           <Button size="sm" onClick={() => onChange({ period: "custom", from: draftFrom, to: draftTo })}>
-            Aplicar
+            {t("apply")}
           </Button>
         </>
       )}

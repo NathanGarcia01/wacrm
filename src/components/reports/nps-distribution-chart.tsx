@@ -1,5 +1,6 @@
 "use client"
 
+import { useTranslations } from "next-intl"
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import type { NpsRatingDistributionPoint } from "@/lib/reports/types"
 
@@ -15,15 +16,16 @@ const RATING_COLORS: Record<number, string> = {
 }
 
 export function NpsDistributionChart({ data }: { data: NpsRatingDistributionPoint[] }) {
+  const t = useTranslations("reports.npsDistributionChart")
   const total = data.reduce((sum, d) => sum + d.count, 0)
   const points = data.map((d) => ({ ...d, label: `${d.rating} ★` }))
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">Distribuição de notas</p>
+      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
       {total === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          Nenhuma avaliação recebida no período.
+          {t("empty")}
         </p>
       ) : (
         <div className="h-56 w-full">
@@ -56,7 +58,7 @@ export function NpsDistributionChart({ data }: { data: NpsRatingDistributionPoin
                 }}
                 labelStyle={{ color: "var(--muted-foreground)" }}
                 itemStyle={{ color: "var(--popover-foreground)" }}
-                formatter={(value) => [String(value ?? 0), "Avaliações"]}
+                formatter={(value) => [String(value ?? 0), t("tooltipReviews")]}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={48}>
                 {points.map((p) => (

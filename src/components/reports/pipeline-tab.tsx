@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
@@ -23,6 +24,7 @@ function fmtDays(v: number | null): string {
 }
 
 export function PipelineTab({ period }: { period: PeriodRange }) {
+  const t = useTranslations("reports.pipelineTab")
   const { defaultCurrency } = useAuth()
   const [bundle, setBundle] = useState<PipelineReportBundle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -39,7 +41,7 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
       })
       .catch((err) => {
         console.error("[reports] pipeline load failed:", err)
-        if (!cancelled) setError("Não foi possível carregar os dados de pipeline.")
+        if (!cancelled) setError(t("loadFailed"))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -47,7 +49,7 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
     return () => {
       cancelled = true
     }
-  }, [period])
+  }, [period, t])
 
   return (
     <div className="space-y-5">
@@ -62,17 +64,17 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
           Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
-            <MetricCard title="Deals criados" value={bundle.cards.dealsCreated.toLocaleString()} icon={Ticket} />
-            <MetricCard title="Deals ganhos" value={bundle.cards.dealsWon.toLocaleString()} icon={CheckCircle2} />
-            <MetricCard title="Deals perdidos" value={bundle.cards.dealsLost.toLocaleString()} icon={XCircle} />
-            <MetricCard title="Taxa de conversão" value={fmtPct(bundle.cards.conversionRatePct)} icon={Percent} />
+            <MetricCard title={t("dealsCreated")} value={bundle.cards.dealsCreated.toLocaleString()} icon={Ticket} />
+            <MetricCard title={t("dealsWon")} value={bundle.cards.dealsWon.toLocaleString()} icon={CheckCircle2} />
+            <MetricCard title={t("dealsLost")} value={bundle.cards.dealsLost.toLocaleString()} icon={XCircle} />
+            <MetricCard title={t("conversionRate")} value={fmtPct(bundle.cards.conversionRatePct)} icon={Percent} />
             <MetricCard
-              title="Valor ganho"
+              title={t("valueWon")}
               value={formatCurrency(bundle.cards.valueWon, defaultCurrency)}
               icon={DollarSign}
             />
             <MetricCard
-              title="Ticket médio"
+              title={t("avgTicket")}
               value={
                 bundle.cards.avgTicket == null
                   ? "—"
@@ -81,20 +83,20 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
               icon={DollarSign}
             />
             <MetricCard
-              title="Tempo médio de fechamento"
+              title={t("avgCloseTime")}
               value={fmtDays(bundle.cards.avgCloseDays)}
               icon={CalendarClock}
             />
             <MetricCard
-              title="Comissão do período"
+              title={t("periodCommission")}
               value={formatCurrency(bundle.cards.commissionWon, defaultCurrency)}
               icon={Coins}
             />
             <MetricCard
-              title="Comissão prevista"
+              title={t("projectedCommission")}
               value={formatCurrency(bundle.cards.commissionProjected, defaultCurrency)}
               icon={Coins}
-              subtitle="Deals em aberto"
+              subtitle={t("openDealsSubtitle")}
             />
           </>
         )}

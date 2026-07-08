@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useTranslations } from "next-intl"
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 import {
   Table,
@@ -15,11 +16,11 @@ import type { UserReportRow } from "@/lib/reports/types"
 
 type SortKey = "messagesSent" | "conversationsHandled" | "dealsWon" | "valueWon"
 
-const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "messagesSent", label: "Mensagens enviadas" },
-  { key: "conversationsHandled", label: "Conversas atendidas" },
-  { key: "dealsWon", label: "Deals ganhos" },
-  { key: "valueWon", label: "Valor vendido" },
+const COLUMNS: { key: SortKey; labelKey: "colMessagesSent" | "colConversationsHandled" | "colDealsWon" | "colValueWon" }[] = [
+  { key: "messagesSent", labelKey: "colMessagesSent" },
+  { key: "conversationsHandled", labelKey: "colConversationsHandled" },
+  { key: "dealsWon", labelKey: "colDealsWon" },
+  { key: "valueWon", labelKey: "colValueWon" },
 ]
 
 export function UserRankingTable({
@@ -31,6 +32,8 @@ export function UserRankingTable({
   loading: boolean
   currency: string
 }) {
+  const t = useTranslations("reports.userRankingTable")
+  const tCommon = useTranslations("common")
   // Default sort: valor vendido, decrescente — matches the task spec.
   const [sortKey, setSortKey] = useState<SortKey>("valueWon")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc")
@@ -56,12 +59,12 @@ export function UserRankingTable({
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Ranking por usuário</h2>
+        <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Usuário</TableHead>
+            <TableHead>{t("colUser")}</TableHead>
             {COLUMNS.map((col) => (
               <TableHead key={col.key}>
                 <button
@@ -69,7 +72,7 @@ export function UserRankingTable({
                   onClick={() => toggleSort(col.key)}
                   className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
-                  {col.label}
+                  {t(col.labelKey)}
                   <SortIcon active={sortKey === col.key} dir={sortDir} />
                 </button>
               </TableHead>
@@ -77,9 +80,9 @@ export function UserRankingTable({
             <TableHead>
               <span
                 className="text-xs font-medium text-muted-foreground"
-                title="Sender_id não é confiável por agente ainda — será calculado individualmente quando esse dado estiver disponível."
+                title={t("avgResponseTimeHeaderTooltip")}
               >
-                Tempo médio de resposta
+                {t("colAvgResponseTime")}
               </span>
             </TableHead>
           </TableRow>
@@ -88,13 +91,13 @@ export function UserRankingTable({
           {loading ? (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                Carregando…
+                {tCommon("loading")}…
               </TableCell>
             </TableRow>
           ) : sorted.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                Nenhum membro encontrado.
+                {t("empty")}
               </TableCell>
             </TableRow>
           ) : (
@@ -111,7 +114,7 @@ export function UserRankingTable({
                 </TableCell>
                 <TableCell
                   className="text-muted-foreground"
-                  title="Será calculado individualmente quando os dados estiverem disponíveis."
+                  title={t("avgResponseTimeCellTooltip")}
                 >
                   —
                 </TableCell>
