@@ -436,6 +436,9 @@ export interface Broadcast {
   current_batch: number;
   /** Recipients processed (sent or failed) within the current batch. */
   current_batch_sent: number;
+  /** What the user paid Meta per message, entered on the ROI card.
+   *  Migration 033. */
+  cost_per_message: number;
 }
 
 export interface BroadcastRecipient {

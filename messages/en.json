@@ -849,7 +849,20 @@
       "createdOn": "Created",
       "buttonTracking": "Button click tracking",
       "buttonTrackingWaiting": "Awaiting interactions...",
-      "buttonClickCount": "{count} clicks ({pct}%)"
+      "buttonClickCount": "{count} clicks ({pct}%)",
+      "roiTitle": "Broadcast ROI",
+      "roiCostPerMessage": "Cost per message (R$)",
+      "roiSave": "Save",
+      "roiSaving": "Saving…",
+      "roiSaveSuccess": "Cost per message saved",
+      "roiSaveFailed": "Failed to save: {message}",
+      "roiTotalCost": "Total cost",
+      "roiWonDeals": "Deals won",
+      "roiWonValue": "Total value won",
+      "roiCommission": "Commission generated",
+      "roiMultiplier": "You made {multiplier}x your investment",
+      "roiSetCost": "Set the cost per message to calculate ROI.",
+      "roiNoWonDeals": "No won deals linked to this broadcast yet."
     }
   },
   "auth": {

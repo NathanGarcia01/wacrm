@@ -79,6 +79,28 @@ export default function InboxPage() {
   // elsewhere.
   const autoSelectedForDeepLinkRef = useRef<string | null>(null);
 
+  // Clicking "Caixa de Entrada" in the sidebar while a thread is open
+  // navigates to bare `/inbox` (same route, no `?c=`) — App Router
+  // doesn't remount this page for that, it just updates the search
+  // params, so without this effect the previously active conversation
+  // would stay open. Only reacts to a non-null → null transition so it
+  // doesn't fight handleCloseConversation (which already clears the
+  // state itself before dropping the param) or the initial mount.
+  const prevDeepLinkConvIdRef = useRef(deepLinkConvId);
+  useEffect(() => {
+    if (
+      deepLinkConvId === null &&
+      prevDeepLinkConvIdRef.current !== null &&
+      activeConversation
+    ) {
+      setActiveConversation(null);
+      setActiveContact(null);
+      setMessages([]);
+      autoSelectedForDeepLinkRef.current = null;
+    }
+    prevDeepLinkConvIdRef.current = deepLinkConvId;
+  }, [deepLinkConvId, activeConversation]);
+
   // Tracks conversations whose hydrate fetch is currently in flight. The
   // conv-INSERT and the first-message-INSERT events both call into
   // hydrateConversation; the dedupe here keeps it at one refetch per

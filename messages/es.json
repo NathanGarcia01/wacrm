@@ -849,7 +849,20 @@
       "createdOn": "Creado el",
       "buttonTracking": "Seguimiento de clics en botones",
       "buttonTrackingWaiting": "Esperando interacciones...",
-      "buttonClickCount": "{count} clics ({pct}%)"
+      "buttonClickCount": "{count} clics ({pct}%)",
+      "roiTitle": "ROI del Disparo",
+      "roiCostPerMessage": "Costo por mensaje (R$)",
+      "roiSave": "Guardar",
+      "roiSaving": "Guardando…",
+      "roiSaveSuccess": "Costo por mensaje guardado",
+      "roiSaveFailed": "Error al guardar: {message}",
+      "roiTotalCost": "Costo total",
+      "roiWonDeals": "Negocios ganados",
+      "roiWonValue": "Valor total ganado",
+      "roiCommission": "Comisión generada",
+      "roiMultiplier": "Ganaste {multiplier}x lo invertido",
+      "roiSetCost": "Define el costo por mensaje para calcular el ROI.",
+      "roiNoWonDeals": "Aún no hay negocios ganados vinculados a este disparo."
     }
   },
   "auth": {
