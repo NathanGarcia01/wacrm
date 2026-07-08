@@ -24,6 +24,17 @@
 
 import type { BuilderNode } from "@/components/flows/shared";
 
+/**
+ * Translator shape for the "true" / "false" / "Next" slot labels —
+ * pass `useTranslations('flows.edges')` from the caller since this is
+ * a plain module (can't call the hook itself). Optional: callers that
+ * don't care about locale (tests, non-UI callers) get the English
+ * defaults below, matching this module's pre-i18n behaviour.
+ */
+type EdgesT = (key: "true" | "false" | "next") => string;
+const defaultEdgesT: EdgesT = (key) =>
+  ({ true: "true", false: "false", next: "Next" })[key];
+
 export interface CanvasEdge {
   /** Stable per-edge id — required by React-Flow. */
   id: string;
@@ -37,7 +48,10 @@ export interface CanvasEdge {
   label?: string;
 }
 
-export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
+export function deriveCanvasEdges(
+  nodes: BuilderNode[],
+  t: EdgesT = defaultEdgesT,
+): CanvasEdge[] {
   const knownKeys = new Set(nodes.map((n) => n.node_key));
   const edges: CanvasEdge[] = [];
 
@@ -70,7 +84,7 @@ export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
             source: node.node_key,
             target: trueNext,
             sourceHandle: "true",
-            label: "true",
+            label: t("true"),
           });
         }
         if (falseNext && knownKeys.has(falseNext)) {
@@ -79,7 +93,7 @@ export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
             source: node.node_key,
             target: falseNext,
             sourceHandle: "false",
-            label: "false",
+            label: t("false"),
           });
         }
         break;
@@ -171,7 +185,10 @@ export interface OutgoingSlot {
   label: string;
 }
 
-export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
+export function outgoingSlots(
+  node: BuilderNode,
+  t: EdgesT = defaultEdgesT,
+): OutgoingSlot[] {
   const cfg = node.config;
   switch (node.node_type) {
     case "start":
@@ -179,12 +196,12 @@ export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
     case "send_media":
     case "collect_input":
     case "set_tag":
-      return [{ id: "next", label: "Next" }];
+      return [{ id: "next", label: t("next") }];
 
     case "condition":
       return [
-        { id: "true", label: "true" },
-        { id: "false", label: "false" },
+        { id: "true", label: t("true") },
+        { id: "false", label: t("false") },
       ];
 
     case "send_buttons": {

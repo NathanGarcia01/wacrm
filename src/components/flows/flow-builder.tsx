@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   CircleAlert,
   Plus,
@@ -70,6 +71,8 @@ import {
 // ============================================================
 
 export function FlowBuilder() {
+  const t = useTranslations("flows.builder");
+  const tNodeTypes = useTranslations("flows.nodeTypes");
   const {
     state,
     setState,
@@ -162,16 +165,17 @@ export function FlowBuilder() {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">
-            Nós ({state.nodes.length})
+            {t("nodesCountLabel", { count: state.nodes.length })}
           </h2>
           <AddNodeButton onAdd={addNode} />
         </div>
 
         {state.nodes.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-card/50 p-8 text-center text-sm text-muted-foreground">
-            Adicione um nó de <strong>Início</strong>, depois um de <strong>Enviar botões</strong>
-            {" "}e depois um de <strong>Transferir para atendente</strong> — esse é o
-            formato de menu de boas-vindas do briefing.
+            {t("emptyStatePart1")} <strong>{tNodeTypes("start")}</strong>
+            {t("emptyStatePart2")} <strong>{tNodeTypes("send_buttons")}</strong>{" "}
+            {t("emptyStatePart3")} <strong>{tNodeTypes("handoff")}</strong>{" "}
+            {t("emptyStatePart4")}
           </div>
         ) : (
           state.nodes.map((node) => (
@@ -223,6 +227,7 @@ function KeywordsInput({
   keywords: string[];
   onChange: (keywords: string[]) => void;
 }) {
+  const t = useTranslations("flows.builder");
   const [draft, setDraft] = useState(keywords.join(", "));
 
   function commit() {
@@ -245,7 +250,7 @@ function KeywordsInput({
           commit();
         }
       }}
-      placeholder="suporte, ajuda, oi"
+      placeholder={t("keywordsPlaceholder")}
       className="bg-muted"
     />
   );
@@ -264,12 +269,13 @@ function TriggerPanel({
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
   triggerIssues: ValidationIssue[];
 }) {
+  const t = useTranslations("flows.builder");
   return (
     <section className="rounded-lg border border-border bg-card p-4">
-      <h2 className="mb-3 text-sm font-semibold text-foreground">Gatilho</h2>
+      <h2 className="mb-3 text-sm font-semibold text-foreground">{t("triggerHeading")}</h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-muted-foreground">Quando…</label>
+          <label className="mb-1 block text-xs text-muted-foreground">{t("triggerWhenLabel")}</label>
           <Select
             value={state.trigger_type}
             onValueChange={(v) =>
@@ -286,13 +292,13 @@ function TriggerPanel({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="keyword">
-                Uma mensagem contém uma palavra-chave
+                {t("triggerKeywordOption")}
               </SelectItem>
               <SelectItem value="first_inbound_message">
-                Primeira mensagem recebida do cliente
+                {t("triggerFirstInboundOption")}
               </SelectItem>
               <SelectItem value="manual">
-                Somente manual (sem gatilho automático)
+                {t("triggerManualOption")}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -300,7 +306,7 @@ function TriggerPanel({
         {state.trigger_type === "keyword" && (
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">
-              Palavras-chave (separadas por vírgula)
+              {t("keywordsLabel")}
             </label>
             <KeywordsInput
               keywords={
@@ -340,18 +346,19 @@ function EntryPicker({
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
 }) {
+  const t = useTranslations("flows.builder");
   if (state.nodes.length === 0) return null;
   return (
     <section className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
       <CornerDownRight className="h-4 w-4 shrink-0 text-primary" />
-      <span className="text-xs text-muted-foreground">Nó de entrada:</span>
+      <span className="text-xs text-muted-foreground">{t("entryNodeLabel")}</span>
       <NodeKeySelect
         value={state.entry_node_id}
         nodes={state.nodes}
         onChange={(key) =>
           setState((s) => ({ ...s, entry_node_id: key }))
         }
-        placeholder="Escolha o primeiro nó…"
+        placeholder={t("chooseFirstNodePlaceholder")}
         className="flex-1 max-w-xs"
       />
     </section>
@@ -389,9 +396,13 @@ function NodeCard({
   onRemove: () => void;
   onSetEntry: () => void;
 }) {
+  const t = useTranslations("flows.builder");
+  const tFlows = useTranslations("flows");
+  const tNodeTypes = useTranslations("flows.nodeTypes");
+  const tSummary = useTranslations("flows.summary");
   const meta = NODE_META[node.node_type];
   const hasError = issues.some((i) => i.severity === "error");
-  const preview = summarizeNode(node);
+  const preview = summarizeNode(node, tSummary);
   return (
     <div
       ref={cardRef}
@@ -415,7 +426,7 @@ function NodeCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">
-              {meta.label}
+              {tNodeTypes(node.node_type)}
             </span>
             <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
               {node.node_key}
@@ -425,7 +436,7 @@ function NodeCard({
                 variant="outline"
                 className="border-primary/40 bg-primary/10 text-[10px] text-primary"
               >
-                Entrada
+                {tFlows("entryBadge")}
               </Badge>
             )}
           </div>
@@ -456,7 +467,7 @@ function NodeCard({
             <div className="flex items-center gap-2">
               {!isEntry && (
                 <Button variant="ghost" size="sm" onClick={onSetEntry}>
-                  Definir como entrada
+                  {tFlows("setAsEntry")}
                 </Button>
               )}
             </div>
@@ -467,7 +478,7 @@ function NodeCard({
               className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Remover nó
+              {t("removeNodeButton")}
             </Button>
           </div>
           {issues.length > 0 && (
@@ -500,6 +511,7 @@ function NodeConfigWithAdvanced({
   onUpdate: (patch: Partial<BuilderNode>) => void;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const t = useTranslations("flows.builder");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const hasReplyIds =
     node.node_type === "send_buttons" || node.node_type === "send_list";
@@ -522,13 +534,13 @@ function NodeConfigWithAdvanced({
           ) : (
             <ChevronDown className="h-3 w-3" />
           )}
-          {showAdvanced ? "Ocultar" : "Mostrar"} avançado
+          {showAdvanced ? t("hide") : t("show")} {t("advancedSuffix")}
         </button>
         {showAdvanced && (
           <div className="mt-3 flex flex-col gap-3">
             <div>
               <label className="mb-1 block text-xs text-muted-foreground">
-                Chave do nó (identificador interno — mantenha estável para analytics)
+                {t("nodeKeyAdvancedLabel")}
               </label>
               <Input
                 value={node.node_key}
@@ -540,9 +552,7 @@ function NodeConfigWithAdvanced({
             </div>
             {hasReplyIds && (
               <p className="text-[10px] text-muted-foreground">
-                Os Reply IDs de cada opção são mostrados acima. Eles são
-                retornados pelo WhatsApp quando o cliente toca; normalmente
-                você não precisa alterá-los.
+                {t("replyIdsHint")}
               </p>
             )}
           </div>
@@ -558,6 +568,8 @@ function NodeConfigWithAdvanced({
 // ============================================================
 
 function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
+  const tFlows = useTranslations("flows");
+  const tNodeTypes = useTranslations("flows.nodeTypes");
   const types: NodeType[] = [
     "start",
     "send_buttons",
@@ -574,18 +586,18 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-        aria-label="Adicionar nó"
+        aria-label={tFlows("addNode")}
       >
         <Plus className="h-3.5 w-3.5" />
-        Adicionar nó
+        {tFlows("addNode")}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-border bg-popover">
-        {types.map((t) => {
-          const meta = NODE_META[t];
+        {types.map((type) => {
+          const meta = NODE_META[type];
           return (
-            <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
+            <DropdownMenuItem key={type} onClick={() => onAdd(type)}>
               <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
+              {tNodeTypes(type)}
             </DropdownMenuItem>
           );
         })}

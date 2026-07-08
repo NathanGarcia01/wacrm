@@ -16,6 +16,7 @@
  */
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   History,
@@ -38,6 +39,8 @@ import {
 
 export function EditorHeader() {
   const router = useRouter();
+  const t = useTranslations("flows.header");
+  const tCommon = useTranslations("common");
   const {
     flow,
     state,
@@ -60,7 +63,7 @@ export function EditorHeader() {
           className="inline-flex items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-3 w-3" />
-          Fluxos
+          {t("backToFlows")}
         </button>
       </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -71,18 +74,18 @@ export function EditorHeader() {
             onChange={(e) =>
               setState((s) => ({ ...s, name: e.target.value }))
             }
-            placeholder="Nome do fluxo"
+            placeholder={t("namePlaceholder")}
             className="max-w-md bg-card text-lg font-semibold"
           />
           <StatusBadge status={state.status} />
           {dirty && (
             <span
               className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-amber-300"
-              title="Alterações não salvas — clique em Salvar para persistir"
+              title={t("unsavedChangesTitle")}
               aria-live="polite"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              Editado
+              {t("edited")}
             </span>
           )}
         </div>
@@ -93,7 +96,7 @@ export function EditorHeader() {
             onClick={() => router.push(`/flows/${flow.id}/runs`)}
           >
             <History className="h-3.5 w-3.5" />
-            Execuções
+            {t("runs")}
           </Button>
           <Button
             variant="ghost"
@@ -102,7 +105,7 @@ export function EditorHeader() {
             className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Excluir
+            {tCommon("delete")}
           </Button>
           {state.status === "active" ? (
             <Button
@@ -116,7 +119,7 @@ export function EditorHeader() {
               ) : (
                 <PauseCircle className="h-3.5 w-3.5" />
               )}
-              Pausar
+              {t("pause")}
             </Button>
           ) : (
             <Button
@@ -124,18 +127,14 @@ export function EditorHeader() {
               size="sm"
               onClick={() => void setStatus("active")}
               disabled={activating || !canActivate}
-              title={
-                !canActivate
-                  ? "Corrija os problemas abaixo antes de ativar"
-                  : undefined
-              }
+              title={!canActivate ? t("activateDisabledTitle") : undefined}
             >
               {activating ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <PlayCircle className="h-3.5 w-3.5" />
               )}
-              Ativar
+              {t("activate")}
             </Button>
           )}
           <Button onClick={() => void save()} disabled={saving} size="sm">
@@ -144,7 +143,7 @@ export function EditorHeader() {
             ) : (
               <Save className="h-3.5 w-3.5" />
             )}
-            Salvar
+            {tCommon("save")}
           </Button>
         </div>
       </div>
@@ -153,7 +152,7 @@ export function EditorHeader() {
         onChange={(e) =>
           setState((s) => ({ ...s, description: e.target.value }))
         }
-        placeholder="Descrição opcional (interna — os clientes não veem isso)"
+        placeholder={t("descriptionPlaceholder")}
         className="bg-card text-sm"
       />
     </div>
@@ -161,15 +160,16 @@ export function EditorHeader() {
 }
 
 function StatusBadge({ status }: { status: BuilderState["status"] }) {
+  const t = useTranslations("flows.header");
   const cls = {
     draft: "border-border bg-muted text-muted-foreground",
     active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
     archived: "border-border bg-muted/50 text-muted-foreground",
   }[status];
   const label = {
-    draft: "Rascunho",
-    active: "Ativo",
-    archived: "Arquivado",
+    draft: t("statusDraft"),
+    active: t("statusActive"),
+    archived: t("statusArchived"),
   }[status];
   return (
     <Badge variant="outline" className={cn("shrink-0", cls)}>

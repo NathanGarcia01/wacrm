@@ -81,6 +81,13 @@ describe("defaultConfigFor", () => {
   // being self-consistent. A broken default would surface as a
   // validation error on a freshly-added node, which is exactly what
   // these snapshots guard against.
+  //
+  // `defaultConfigFor` takes a translator for the seed text (button
+  // titles, etc.) since it's no longer hardcoded to Portuguese — this
+  // stub just echoes the key so assertions can stay structural.
+  const stubT = (key: string, values?: Record<string, unknown>) =>
+    values ? `${key}:${JSON.stringify(values)}` : key;
+
   const types: NodeType[] = [
     "start",
     "send_message",
@@ -95,13 +102,13 @@ describe("defaultConfigFor", () => {
   ];
 
   it("returns an object for every known node type", () => {
-    for (const t of types) {
-      expect(typeof defaultConfigFor(t)).toBe("object");
+    for (const type of types) {
+      expect(typeof defaultConfigFor(type, stubT)).toBe("object");
     }
   });
 
   it("send_buttons default has at least one button row", () => {
-    const cfg = defaultConfigFor("send_buttons") as {
+    const cfg = defaultConfigFor("send_buttons", stubT) as {
       buttons?: Array<{ reply_id: string; title: string }>;
     };
     expect(cfg.buttons?.length).toBeGreaterThan(0);
@@ -109,7 +116,7 @@ describe("defaultConfigFor", () => {
   });
 
   it("send_list default has at least one section with one row", () => {
-    const cfg = defaultConfigFor("send_list") as {
+    const cfg = defaultConfigFor("send_list", stubT) as {
       sections?: Array<{ rows: unknown[] }>;
     };
     expect(cfg.sections?.length).toBeGreaterThan(0);
@@ -117,18 +124,18 @@ describe("defaultConfigFor", () => {
   });
 
   it("send_media defaults to image (the most common case)", () => {
-    const cfg = defaultConfigFor("send_media") as { media_type?: string };
+    const cfg = defaultConfigFor("send_media", stubT) as { media_type?: string };
     expect(cfg.media_type).toBe("image");
   });
 
   it("collect_input ships a valid var_key that passes the validator regex", () => {
-    const cfg = defaultConfigFor("collect_input") as { var_key?: string };
+    const cfg = defaultConfigFor("collect_input", stubT) as { var_key?: string };
     // Mirrors the regex in validate.ts: alphanumeric + underscore,
     // starts with letter or underscore.
     expect(cfg.var_key).toMatch(/^[a-zA-Z_][a-zA-Z0-9_]*$/);
   });
 
   it("end's default is an empty object (terminal — no config)", () => {
-    expect(defaultConfigFor("end")).toEqual({});
+    expect(defaultConfigFor("end", stubT)).toEqual({});
   });
 });

@@ -43,6 +43,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
@@ -51,7 +52,7 @@ import {
 } from "@/lib/flows/validate";
 import { unlinkNodeReferences } from "@/lib/flows/edges";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
-import { NODE_META, slugify, type BuilderNode, type NodeType } from "./shared";
+import { slugify, type BuilderNode, type NodeType } from "./shared";
 
 // ============================================================
 // State shape
@@ -133,7 +134,17 @@ export function uniqueNodeKey(base: string, existing: BuilderNode[]): string {
   return `${base}_${i}`;
 }
 
-export function defaultConfigFor(type: NodeType): Record<string, unknown> {
+/**
+ * Translator shape needed for the seed text on freshly-added nodes —
+ * pass `useTranslations('flows.editorState')` from the caller since
+ * this is a plain module (can't call the hook itself).
+ */
+type EditorStateT = (key: string, values?: Record<string, string | number | Date>) => string;
+
+export function defaultConfigFor(
+  type: NodeType,
+  t: EditorStateT,
+): Record<string, unknown> {
   switch (type) {
     case "start":
       return { next_node_key: "" };
@@ -142,17 +153,23 @@ export function defaultConfigFor(type: NodeType): Record<string, unknown> {
     case "send_buttons":
       return {
         text: "",
-        buttons: [{ reply_id: "yes", title: "Sim", next_node_key: "" }],
+        buttons: [
+          { reply_id: "yes", title: t("defaultConfirmButtonTitle"), next_node_key: "" },
+        ],
       };
     case "send_list":
       return {
         text: "",
-        button_label: "Ver opções",
+        button_label: t("defaultListButtonLabel"),
         sections: [
           {
             title: "",
             rows: [
-              { reply_id: "row_1", title: "Opção 1", next_node_key: "" },
+              {
+                reply_id: "row_1",
+                title: t("defaultOptionTitle", { n: 1 }),
+                next_node_key: "",
+              },
             ],
           },
         ],
@@ -237,6 +254,7 @@ export function FlowEditorProvider({
   children,
 }: ProviderProps) {
   const router = useRouter();
+  const t = useTranslations("flows.editorState");
 
   const [state, setStateRaw] = useState<BuilderState>(() => ({
     name: initialFlow.name,
@@ -344,23 +362,23 @@ export function FlowEditorProvider({
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? `Falha ao salvar: ${res.status}`);
+        throw new Error(json.error ?? t("saveFailedWithStatus", { status: res.status }));
       }
       setDirty(false);
-      toast.success("Salvo.");
+      toast.success(t("saved"));
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Falha ao salvar";
+      const msg = err instanceof Error ? err.message : t("saveFailed");
       toast.error(msg);
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state]);
+  }, [initialFlow.id, state, t]);
 
   // ---- Activate / Pause / Archive ----
   const setStatus = useCallback(
     async (next: BuilderState["status"]) => {
       if (next === "active" && !canActivate) {
-        toast.error("Corrija os problemas abaixo antes de ativar.");
+        toast.error(t("fixIssuesBeforeActivate"));
         return;
       }
       setActivating(true);
@@ -378,43 +396,43 @@ export function FlowEditorProvider({
         });
         if (!res.ok) {
           const json = await res.json().catch(() => ({}));
-          throw new Error(json.error ?? `Falha ao atualizar o status: ${res.status}`);
+          throw new Error(
+            json.error ?? t("statusUpdateFailedWithStatus", { status: res.status }),
+          );
         }
         setStateRaw((s) => ({ ...s, status: next }));
         toast.success(
           next === "active"
-            ? "Fluxo ativado."
+            ? t("activated")
             : next === "archived"
-              ? "Arquivado."
-              : "Salvo como rascunho.",
+              ? t("archived")
+              : t("savedAsDraft"),
         );
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Falha ao atualizar o status";
+        const msg = err instanceof Error ? err.message : t("statusUpdateFailed");
         toast.error(msg);
       } finally {
         setActivating(false);
       }
     },
-    [canActivate, save, initialFlow.id],
+    [canActivate, save, initialFlow.id, t],
   );
 
   // ---- Delete ----
   const deleteFlow = useCallback(async () => {
-    const yes = window.confirm(
-      `Excluir "${state.name}"? Todas as execuções ativas serão encerradas imediatamente. Isso não pode ser desfeito.`,
-    );
+    const yes = window.confirm(t("deleteConfirm", { name: state.name }));
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
         method: "DELETE",
       });
-      if (!res.ok) throw new Error(`Falha ao excluir: ${res.status}`);
+      if (!res.ok) throw new Error(t("deleteFailedWithStatus", { status: res.status }));
       router.push("/flows");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Falha ao excluir";
+      const msg = err instanceof Error ? err.message : t("deleteFailed");
       toast.error(msg);
     }
-  }, [initialFlow.id, router, state.name]);
+  }, [initialFlow.id, router, state.name, t]);
 
   // ---- Node mutations ----
   const updateNode = useCallback(
@@ -472,8 +490,10 @@ export function FlowEditorProvider({
 
   const addNode = useCallback(
     (type: NodeType): string => {
-      const meta = NODE_META[type];
-      const base = slugify(meta.label, type);
+      // The node_key must stay locale-independent (it's the stable
+      // analytics identifier), so it's slugified from the NodeType
+      // itself rather than the (translated) NODE_META label.
+      const base = slugify(type, type);
       let createdKey = base;
       setState((s) => {
         const node_key = uniqueNodeKey(base, s.nodes);
@@ -481,7 +501,7 @@ export function FlowEditorProvider({
         const next: BuilderNode = {
           node_key,
           node_type: type,
-          config: defaultConfigFor(type),
+          config: defaultConfigFor(type, t),
         };
         return {
           ...s,
@@ -495,7 +515,7 @@ export function FlowEditorProvider({
       });
       return createdKey;
     },
-    [setState],
+    [setState, t],
   );
 
   const removeNode = useCallback(

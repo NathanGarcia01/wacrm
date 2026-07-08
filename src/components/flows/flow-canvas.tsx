@@ -37,6 +37,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   applyNodeChanges,
   Background,
@@ -110,11 +111,15 @@ const NODE_HEIGHT = 90;
 // ============================================================
 
 function FlowNodeCard({ data, selected }: NodeProps) {
+  const tFlows = useTranslations("flows");
+  const tNodeTypes = useTranslations("flows.nodeTypes");
+  const tSummary = useTranslations("flows.summary");
+  const tEdges = useTranslations("flows.edges");
   const { node, isEntry, isFlashed } = data as NodeData;
   const meta = NODE_META[node.node_type];
-  const summary = summarizeNode(node);
+  const summary = summarizeNode(node, tSummary);
   const Icon = meta.icon;
-  const slots = outgoingSlots(node);
+  const slots = outgoingSlots(node, tEdges);
   // Start nodes are entry-only; nothing ever targets them, so they
   // don't need an incoming Handle. Every other node type accepts
   // incoming edges (including terminal handoff / end — they're the
@@ -149,11 +154,11 @@ function FlowNodeCard({ data, selected }: NodeProps) {
       <div className="flex items-center gap-2">
         <Icon className={cn("h-3.5 w-3.5 shrink-0", meta.color)} />
         <span className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          {meta.label}
+          {tNodeTypes(node.node_type)}
         </span>
         {isEntry && (
           <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-300">
-            Entrada
+            {tFlows("entryBadge")}
           </span>
         )}
       </div>
@@ -224,6 +229,8 @@ export function FlowCanvas() {
 }
 
 function FlowCanvasInner() {
+  const t = useTranslations("flows.canvas");
+  const tEdges = useTranslations("flows.edges");
   const {
     state,
     setState,
@@ -250,7 +257,7 @@ function FlowCanvasInner() {
   );
 
   const autoLayoutPositions = useMemo(() => {
-    const canvasEdges = deriveCanvasEdges(builderNodes);
+    const canvasEdges = deriveCanvasEdges(builderNodes, tEdges);
 
     return shouldAutoLayout(builderNodes)
       ? autoLayout(
@@ -263,7 +270,7 @@ function FlowCanvasInner() {
           { direction: "TB" },
         )
       : null;
-  }, [builderNodes]);
+  }, [builderNodes, tEdges]);
 
   // If dagre had to place an all-zero flow, persist the generated
   // positions into editor state once. Otherwise the next drag would
@@ -308,7 +315,7 @@ function FlowCanvasInner() {
   }, [derivedRfNodes]);
 
   const rfEdges = useMemo(() => {
-    const canvasEdges = deriveCanvasEdges(builderNodes);
+    const canvasEdges = deriveCanvasEdges(builderNodes, tEdges);
 
     // sourceHandle is now wired up — the FlowNodeCard renders a Handle
     // per slot whose id matches the scheme in edges.ts, so React-Flow
@@ -328,7 +335,7 @@ function FlowCanvasInner() {
     }));
 
     return rfEdges;
-  }, [builderNodes]);
+  }, [builderNodes, tEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange<RfNode<NodeData>>[]) => {
@@ -458,7 +465,7 @@ function FlowCanvasInner() {
   if (rfNodes.length === 0) {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-background text-sm text-muted-foreground">
-        <p>Nenhum nó ainda.</p>
+        <p>{t("emptyTitle")}</p>
         <CanvasAddNodeButton />
       </div>
     );
@@ -546,6 +553,9 @@ function NodeEditSheet({
   onDelete: () => void;
   onSetEntry: () => void;
 }) {
+  const t = useTranslations("flows.canvas");
+  const tFlows = useTranslations("flows");
+  const tNodeTypes = useTranslations("flows.nodeTypes");
   // Sheet is controlled — opens when a node is selected, closes via
   // Esc / overlay / close button (all delegated to onClose).
   const open = node !== null;
@@ -567,10 +577,10 @@ function NodeEditSheet({
         <SheetHeader className="border-b border-border px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-popover-foreground">
             <Icon className={cn("h-4 w-4 shrink-0", meta.color)} />
-            <span>{meta.label}</span>
+            <span>{tNodeTypes(node.node_type)}</span>
             {isEntry && (
               <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
-                Entrada
+                {tFlows("entryBadge")}
               </span>
             )}
           </SheetTitle>
@@ -591,7 +601,7 @@ function NodeEditSheet({
         <SheetFooter className="border-t border-border px-5 py-3 sm:flex-row sm:justify-between">
           {!isEntry ? (
             <Button variant="ghost" size="sm" onClick={onSetEntry}>
-              Definir como entrada
+              {tFlows("setAsEntry")}
             </Button>
           ) : (
             <span />
@@ -603,7 +613,7 @@ function NodeEditSheet({
             className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Excluir nó
+            {t("deleteNodeButton")}
           </Button>
         </SheetFooter>
       </SheetContent>
@@ -632,6 +642,8 @@ const ADD_NODE_TYPES: NodeType[] = [
 ];
 
 function CanvasAddNodeButton() {
+  const tFlows = useTranslations("flows");
+  const tNodeTypes = useTranslations("flows.nodeTypes");
   const reactFlow = useReactFlow();
   const { addNode, updateNodePosition } = useFlowEditor();
 
@@ -659,19 +671,19 @@ function CanvasAddNodeButton() {
     <DropdownMenu>
       <DropdownMenuTrigger
         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-lg transition-colors hover:bg-muted"
-        aria-label="Adicionar nó"
+        aria-label={tFlows("addNode")}
       >
         <Plus className="h-3.5 w-3.5" />
-        Adicionar nó
+        {tFlows("addNode")}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-border bg-popover">
-        {ADD_NODE_TYPES.map((t) => {
-          const meta = NODE_META[t];
+        {ADD_NODE_TYPES.map((type) => {
+          const meta = NODE_META[type];
           const Icon = meta.icon;
           return (
-            <DropdownMenuItem key={t} onClick={() => handleAdd(t)}>
+            <DropdownMenuItem key={type} onClick={() => handleAdd(type)}>
               <Icon className={cn("h-3.5 w-3.5", meta.color)} />
-              {meta.label}
+              {tNodeTypes(type)}
             </DropdownMenuItem>
           );
         })}

@@ -65,52 +65,50 @@ export interface BuilderNode {
 // the user sees a node summary.
 // ============================================================
 
+/**
+ * No `label` here — this is a plain data module (not a component), so
+ * it can't call `useTranslations`. Consumers render the label via
+ * `useTranslations('flows.nodeTypes')` and `t(nodeType)` — every
+ * `NodeType` value below is itself a key in that messages namespace.
+ */
 export const NODE_META: Record<
   NodeType,
-  { label: string; icon: typeof Workflow; color: string }
+  { icon: typeof Workflow; color: string }
 > = {
-  start: { label: "Início", icon: PlayCircle, color: "text-emerald-400" },
+  start: { icon: PlayCircle, color: "text-emerald-400" },
   send_message: {
-    label: "Enviar mensagem",
     icon: MessageCircle,
     color: "text-sky-400",
   },
   send_buttons: {
-    label: "Enviar botões",
     icon: ListChecks,
     color: "text-primary",
   },
   send_list: {
-    label: "Enviar lista",
     icon: ListPlus,
     color: "text-indigo-400",
   },
   send_media: {
-    label: "Enviar mídia",
     icon: Paperclip,
     color: "text-cyan-400",
   },
   collect_input: {
-    label: "Coletar resposta",
     icon: Inbox,
     color: "text-teal-400",
   },
   condition: {
-    label: "Se / senão",
     icon: GitFork,
     color: "text-fuchsia-400",
   },
   set_tag: {
-    label: "Marcar contato com tag",
     icon: Tag,
     color: "text-pink-400",
   },
   handoff: {
-    label: "Transferir para atendente",
     icon: UserPlus,
     color: "text-amber-400",
   },
-  end: { label: "Fim", icon: Flag, color: "text-muted-foreground" },
+  end: { icon: Flag, color: "text-muted-foreground" },
 };
 
 // ============================================================
@@ -145,7 +143,12 @@ export function truncate(s: string, max = 80): string {
   return clean.slice(0, max - 1) + "…";
 }
 
-export function summarizeNode(node: BuilderNode): string | null {
+/** Translator shape needed for the node-card preview strings — pass
+ *  `useTranslations('flows.summary')` from the caller since this is a
+ *  plain module (can't call the hook itself). */
+type SummaryT = (key: string, values?: Record<string, string | number | Date>) => string;
+
+export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
   const cfg = node.config;
   switch (node.node_type) {
     case "start":
@@ -180,11 +183,11 @@ export function summarizeNode(node: BuilderNode): string | null {
       }, 0);
       if (text.length > 0) {
         return rowCount > 0
-          ? `${truncate(text, 50)} · ${rowCount} ${rowCount === 1 ? "opção" : "opções"}`
+          ? `${truncate(text, 50)} · ${t("option", { count: rowCount })}`
           : truncate(text);
       }
       return rowCount > 0
-        ? `${rowCount} ${rowCount === 1 ? "opção" : "opções"} em ${sections.length} ${sections.length === 1 ? "seção" : "seções"}`
+        ? `${t("option", { count: rowCount })} ${t("inSectionsConnector")} ${t("section", { count: sections.length })}`
         : null;
     }
     case "send_media": {
@@ -195,9 +198,9 @@ export function summarizeNode(node: BuilderNode): string | null {
       const caption = typeof cfg.caption === "string" ? cfg.caption : "";
       const label = mediaType
         ? mediaType.charAt(0).toUpperCase() + mediaType.slice(1)
-        : "Mídia";
-      if (!url) return `${label} (nenhum arquivo enviado)`;
-      const name = filename || url.split("/").pop() || "file";
+        : t("media");
+      if (!url) return `${label} ${t("noFileUploaded")}`;
+      const name = filename || url.split("/").pop() || t("fileFallback");
       return caption
         ? `${label}: ${truncate(name, 30)} · ${truncate(caption, 40)}`
         : `${label}: ${truncate(name, 60)}`;
@@ -221,16 +224,18 @@ export function summarizeNode(node: BuilderNode): string | null {
             ? "field"
             : "var";
       const subjectStr =
-        subject === "tag" ? `tem tag ${truncate(subjectKey, 24)}` : `${subject}.${subjectKey}`;
+        subject === "tag"
+          ? t("hasTag", { key: truncate(subjectKey, 24) })
+          : `${subject}.${subjectKey}`;
       const op =
         cfg.operator === "equals"
           ? "=="
           : cfg.operator === "contains"
-            ? "contém"
+            ? t("opContains")
             : cfg.operator === "present"
-              ? "existe"
+              ? t("opExists")
               : cfg.operator === "absent"
-                ? "ausente"
+                ? t("opAbsent")
                 : "";
       const value = typeof cfg.value === "string" ? cfg.value : "";
       const valStr =
@@ -240,12 +245,12 @@ export function summarizeNode(node: BuilderNode): string | null {
       return subject === "tag" ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
     case "set_tag": {
-      const mode = cfg.mode === "remove" ? "Remover" : "Adicionar";
+      const mode = cfg.mode === "remove" ? t("modeRemove") : t("modeAdd");
       const tagId = typeof cfg.tag_id === "string" ? cfg.tag_id : "";
       // No tag name available without an async lookup here; show a
       // short prefix of the UUID so users can disambiguate between
       // multiple set_tag nodes at a glance.
-      return tagId ? `${mode} tag ${tagId.slice(0, 8)}…` : `${mode} tag (nenhuma selecionada)`;
+      return tagId ? `${mode} tag ${tagId.slice(0, 8)}…` : `${mode} tag ${t("noneSelected")}`;
     }
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
