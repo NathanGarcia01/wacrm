@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Loader2, Package, Pencil, Plus, Shield, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -57,6 +58,8 @@ const EMPTY_DRAFT = {
 export function ProductCatalogSettings() {
   const supabase = createClient();
   const { accountId, canEditSettings } = useAuth();
+  const t = useTranslations('settings.productCatalog');
+  const tCommon = useTranslations('common');
 
   const [products, setProducts] = useState<ProductCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,10 +124,10 @@ export function ProductCatalogSettings() {
 
     setSaving(false);
     if (error) {
-      toast.error(editing ? 'Falha ao salvar produto' : 'Falha ao criar produto');
+      toast.error(editing ? t('saveFailed') : t('createFailed'));
       return;
     }
-    toast.success(editing ? 'Produto atualizado' : 'Produto criado');
+    toast.success(editing ? t('updated') : t('created'));
     setDialogOpen(false);
     await fetchProducts();
   }
@@ -137,7 +140,7 @@ export function ProductCatalogSettings() {
       .eq('id', product.id);
     setBusyId(null);
     if (error) {
-      toast.error('Falha ao atualizar status');
+      toast.error(t('toggleFailed'));
       return;
     }
     setProducts((prev) =>
@@ -146,36 +149,36 @@ export function ProductCatalogSettings() {
   }
 
   async function handleDelete(product: ProductCatalogItem) {
-    if (!window.confirm(`Excluir o produto "${product.name}" do catálogo?`)) return;
+    if (!window.confirm(t('confirmDelete', { name: product.name }))) return;
     setBusyId(product.id);
     const { error } = await supabase.from('product_catalog').delete().eq('id', product.id);
     setBusyId(null);
     if (error) {
-      toast.error('Falha ao excluir produto');
+      toast.error(t('deleteFailed'));
       return;
     }
-    toast.success('Produto excluído');
+    toast.success(t('deleted'));
     setProducts((prev) => prev.filter((p) => p.id !== product.id));
   }
 
   return (
     <section className="max-w-3xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="Produtos"
-        description="Catálogo de produtos pré-cadastrados — nome, valor e comissão padrão que o agente pode escolher ao adicionar um produto num negócio."
+        title={t('title')}
+        description={t('description')}
       />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Package className="size-4 text-primary" />
-            Catálogo de produtos
+            {t('cardTitle')}
             <SettingsChip variant="admin" className="font-medium">
               <Shield />
-              Admin
+              {tCommon('roles.admin')}
             </SettingsChip>
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Só administradores podem criar, editar ou excluir produtos do catálogo.
+            {t('cardDescription')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -186,7 +189,7 @@ export function ProductCatalogSettings() {
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Plus className="size-4" />
-                Novo produto
+                {t('newProduct')}
               </Button>
             </div>
           )}
@@ -195,10 +198,10 @@ export function ProductCatalogSettings() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">Nome</TableHead>
-                  <TableHead className="text-muted-foreground">Valor padrão</TableHead>
-                  <TableHead className="text-muted-foreground">Comissão padrão</TableHead>
-                  <TableHead className="text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-muted-foreground">{tCommon('name')}</TableHead>
+                  <TableHead className="text-muted-foreground">{t('tableDefaultValue')}</TableHead>
+                  <TableHead className="text-muted-foreground">{t('tableDefaultCommission')}</TableHead>
+                  <TableHead className="text-muted-foreground">{tCommon('status')}</TableHead>
                   {canEditSettings && <TableHead className="w-20 text-muted-foreground" />}
                 </TableRow>
               </TableHeader>
@@ -212,7 +215,7 @@ export function ProductCatalogSettings() {
                 ) : products.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                      Nenhum produto cadastrado ainda.
+                      {t('empty')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -232,7 +235,7 @@ export function ProductCatalogSettings() {
                           checked={product.is_active}
                           onCheckedChange={() => handleToggleActive(product)}
                           disabled={!canEditSettings || busyId === product.id}
-                          aria-label={`${product.is_active ? 'Desativar' : 'Ativar'} ${product.name}`}
+                          aria-label={`${product.is_active ? t('deactivate') : t('activate')} ${product.name}`}
                         />
                       </TableCell>
                       {canEditSettings && (
@@ -241,7 +244,7 @@ export function ProductCatalogSettings() {
                             <button
                               type="button"
                               onClick={() => openEdit(product)}
-                              aria-label={`Editar ${product.name}`}
+                              aria-label={`${tCommon('edit')} ${product.name}`}
                               className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
                               <Pencil className="size-3.5" />
@@ -250,7 +253,7 @@ export function ProductCatalogSettings() {
                               type="button"
                               onClick={() => handleDelete(product)}
                               disabled={busyId === product.id}
-                              aria-label={`Excluir ${product.name}`}
+                              aria-label={`${tCommon('delete')} ${product.name}`}
                               className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-400 disabled:opacity-50"
                             >
                               {busyId === product.id ? (
@@ -275,27 +278,26 @@ export function ProductCatalogSettings() {
         <DialogContent className="border-border bg-popover text-popover-foreground sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-popover-foreground">
-              {editing ? 'Editar produto' : 'Novo produto'}
+              {editing ? t('editProductTitle') : t('newProductTitle')}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Esses valores só preenchem os campos por padrão — o agente ainda pode
-              ajustá-los ao adicionar o produto num negócio.
+              {t('formHint')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Nome</Label>
+              <Label className="text-muted-foreground">{tCommon('name')}</Label>
               <Input
                 value={draft.name}
                 onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Nome do produto"
+                placeholder={t('namePlaceholder')}
                 className="border-border bg-muted text-foreground"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-2">
-                <Label className="text-muted-foreground">Valor padrão</Label>
+                <Label className="text-muted-foreground">{t('tableDefaultValue')}</Label>
                 <Input
                   type="number"
                   value={draft.defaultValue}
@@ -305,7 +307,7 @@ export function ProductCatalogSettings() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label className="text-muted-foreground">Comissão padrão (%)</Label>
+                <Label className="text-muted-foreground">{t('formCommissionLabel')}</Label>
                 <Input
                   type="number"
                   step="0.1"
@@ -319,11 +321,11 @@ export function ProductCatalogSettings() {
               </div>
             </div>
             <div className="grid gap-2">
-              <Label className="text-muted-foreground">Descrição</Label>
+              <Label className="text-muted-foreground">{tCommon('description')}</Label>
               <Textarea
                 value={draft.description}
                 onChange={(e) => setDraft((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Opcional"
+                placeholder={t('descriptionPlaceholder')}
                 className="min-h-[80px] border-border bg-muted text-foreground"
               />
             </div>
@@ -337,7 +339,7 @@ export function ProductCatalogSettings() {
               disabled={saving}
               className="border-border bg-transparent text-muted-foreground hover:bg-muted"
             >
-              Cancelar
+              {tCommon('cancel')}
             </Button>
             <Button
               type="button"
@@ -345,7 +347,13 @@ export function ProductCatalogSettings() {
               disabled={saving || !draft.name.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {saving ? <Loader2 className="size-4 animate-spin" /> : editing ? 'Salvar' : 'Criar'}
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : editing ? (
+                tCommon('save')
+              ) : (
+                tCommon('create')
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
