@@ -80,6 +80,7 @@ export function TemplatePicker({
   onSelect,
 }: TemplatePickerProps) {
   const t = useTranslations("inbox.templatePicker");
+  const tCommon = useTranslations("common");
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
@@ -334,7 +335,7 @@ export function TemplatePicker({
               onClick={() => handleOpenChange(false)}
               className="border-border text-popover-foreground hover:bg-muted"
             >
-              {t("cancel")}
+              {tCommon("cancel")}
             </Button>
           )}
         </DialogFooter>

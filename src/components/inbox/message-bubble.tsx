@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction } from "@/types";
 import {
@@ -67,6 +68,7 @@ async function downloadMediaBlob(url: string, filename: string) {
 /** Hover-reveal download affordance for images/videos — positioned by
  *  the caller's `relative group` wrapper. */
 function MediaDownloadButton({ url, filename }: { url: string; filename: string }) {
+  const t = useTranslations("inbox.bubble");
   const handleDownload = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -84,8 +86,8 @@ function MediaDownloadButton({ url, filename }: { url: string; filename: string 
     <button
       type="button"
       onClick={handleDownload}
-      aria-label="Download"
-      title="Download"
+      aria-label={t("downloadAria")}
+      title={t("downloadAria")}
       className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded p-1"
     >
       <Download className="h-4 w-4 text-white" />
@@ -94,10 +96,11 @@ function MediaDownloadButton({ url, filename }: { url: string; filename: string 
 }
 
 function MediaUnavailable({ label }: { label: string }) {
+  const t = useTranslations("inbox.bubble");
   return (
     <div className="flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
       <ImageOff className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span>{label} unavailable</span>
+      <span>{label} {t("unavailableSuffix")}</span>
     </div>
   );
 }
@@ -169,6 +172,7 @@ function MediaImage({ url, alt, filename }: { url: string; alt: string; filename
 }
 
 function MessageContent({ message }: { message: Message }) {
+  const t = useTranslations("inbox.bubble");
   switch (message.content_type) {
     case "text":
       return (
@@ -183,14 +187,14 @@ function MessageContent({ message }: { message: Message }) {
           {message.media_url ? (
             <MediaImage
               url={message.media_url}
-              alt="Shared image"
+              alt={t("sharedImageAlt")}
               filename={
                 message.media_filename ||
-                `imagem.${extensionForMimeType(message.media_mime_type)}`
+                `${t("imageFilenamePrefix")}.${extensionForMimeType(message.media_mime_type)}`
               }
             />
           ) : (
-            <MediaUnavailable label="Image" />
+            <MediaUnavailable label={t("imageLabel")} />
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
@@ -214,12 +218,12 @@ function MessageContent({ message }: { message: Message }) {
                 url={message.media_url}
                 filename={
                   message.media_filename ||
-                  `video.${extensionForMimeType(message.media_mime_type)}`
+                  `${t("videoFilenamePrefix")}.${extensionForMimeType(message.media_mime_type)}`
                 }
               />
             </div>
           ) : (
-            <MediaUnavailable label="Video" />
+            <MediaUnavailable label={t("videoLabel")} />
           )}
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
@@ -235,13 +239,13 @@ function MessageContent({ message }: { message: Message }) {
           {message.media_url ? (
             <audio src={message.media_url} controls className="max-w-60" />
           ) : (
-            <MediaUnavailable label="Audio" />
+            <MediaUnavailable label={t("audioLabel")} />
           )}
         </div>
       );
 
     case "document": {
-      const label = message.media_filename || message.content_text || "Document";
+      const label = message.media_filename || message.content_text || t("documentLabel");
       if (!message.media_url) {
         return <MediaUnavailable label={label} />;
       }
@@ -265,7 +269,7 @@ function MessageContent({ message }: { message: Message }) {
         <div>
           <span className="mb-1 inline-flex items-center gap-1 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-medium text-primary">
             <LayoutTemplate className="h-3 w-3" />
-            Template
+            {t("templateBadge")}
           </span>
           {message.content_text && (
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">
@@ -279,7 +283,7 @@ function MessageContent({ message }: { message: Message }) {
       return (
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span>{message.content_text || "Location shared"}</span>
+          <span>{message.content_text || t("locationShared")}</span>
         </div>
       );
 
@@ -293,10 +297,10 @@ function MessageContent({ message }: { message: Message }) {
         <div className="flex flex-col gap-0.5">
           <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <CornerDownLeft className="h-3 w-3" />
-            Button reply
+            {t("buttonReply")}
           </span>
           <p className="whitespace-pre-wrap break-words text-sm">
-            {message.content_text || "[Interactive reply]"}
+            {message.content_text || t("interactiveReplyFallback")}
           </p>
         </div>
       );
@@ -305,7 +309,7 @@ function MessageContent({ message }: { message: Message }) {
     default:
       return (
         <p className="whitespace-pre-wrap break-words text-sm">
-          {message.content_text || "[Unsupported message type]"}
+          {message.content_text || t("unsupportedMessageType")}
         </p>
       );
   }

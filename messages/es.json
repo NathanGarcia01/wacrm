@@ -40,6 +40,12 @@
     "optional": "Opcional",
     "required": "Obligatorio",
     "unknownError": "Error desconocido",
+    "switchToLightMode": "Cambiar a modo claro",
+    "switchToDarkMode": "Cambiar a modo oscuro",
+    "openMenu": "Abrir menú",
+    "openAccountMenu": "Abrir menú de la cuenta",
+    "avatarAlt": "Avatar",
+    "user": "Usuario",
     "role": "Rol",
     "roles": {
       "owner": "Propietario",
@@ -286,6 +292,31 @@
       "urlSuffixPlaceholder": "Valor del sufijo de la URL",
       "finalUrl": "URL final:",
       "back": "Volver"
+    },
+    "messageActions": {
+      "nothingToCopy": "Nada para copiar",
+      "copied": "Copiado",
+      "copyFailed": "Error al copiar",
+      "reactAria": "Reaccionar",
+      "reactWithAria": "Reaccionar con {emoji}",
+      "replyAria": "Responder",
+      "copyAria": "Copiar"
+    },
+    "bubble": {
+      "unavailableSuffix": "no disponible",
+      "sharedImageAlt": "Imagen compartida",
+      "imageLabel": "Imagen",
+      "videoLabel": "Video",
+      "audioLabel": "Audio",
+      "documentLabel": "Documento",
+      "imageFilenamePrefix": "imagen",
+      "videoFilenamePrefix": "video",
+      "downloadAria": "Descargar",
+      "templateBadge": "Template",
+      "locationShared": "Ubicación compartida",
+      "buttonReply": "Respuesta por botón",
+      "interactiveReplyFallback": "[Respuesta interactiva]",
+      "unsupportedMessageType": "[Tipo de mensaje no compatible]"
     }
   },
   "contacts": {
@@ -414,6 +445,7 @@
     "managePipelines": "Gestionar Pipelines",
     "addPipeline": "Agregar Pipeline",
     "addDeal": "Agregar Negocio",
+    "dropDealHere": "Suelta un negocio aquí",
     "createPipelineHint": "Crea un pipeline para empezar a rastrear negocios",
     "createPipeline": "Crear Pipeline",
     "newPipeline": "Nuevo Pipeline",

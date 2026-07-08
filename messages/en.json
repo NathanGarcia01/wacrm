@@ -40,6 +40,12 @@
     "optional": "Optional",
     "required": "Required",
     "unknownError": "Unknown error",
+    "switchToLightMode": "Switch to light mode",
+    "switchToDarkMode": "Switch to dark mode",
+    "openMenu": "Open menu",
+    "openAccountMenu": "Open account menu",
+    "avatarAlt": "Avatar",
+    "user": "User",
     "role": "Role",
     "roles": {
       "owner": "Owner",
@@ -286,6 +292,31 @@
       "urlSuffixPlaceholder": "URL suffix value",
       "finalUrl": "Final URL:",
       "back": "Back"
+    },
+    "messageActions": {
+      "nothingToCopy": "Nothing to copy",
+      "copied": "Copied",
+      "copyFailed": "Copy failed",
+      "reactAria": "React",
+      "reactWithAria": "React with {emoji}",
+      "replyAria": "Reply",
+      "copyAria": "Copy"
+    },
+    "bubble": {
+      "unavailableSuffix": "unavailable",
+      "sharedImageAlt": "Shared image",
+      "imageLabel": "Image",
+      "videoLabel": "Video",
+      "audioLabel": "Audio",
+      "documentLabel": "Document",
+      "imageFilenamePrefix": "image",
+      "videoFilenamePrefix": "video",
+      "downloadAria": "Download",
+      "templateBadge": "Template",
+      "locationShared": "Location shared",
+      "buttonReply": "Button reply",
+      "interactiveReplyFallback": "[Interactive reply]",
+      "unsupportedMessageType": "[Unsupported message type]"
     }
   },
   "contacts": {
@@ -414,6 +445,7 @@
     "managePipelines": "Manage Pipelines",
     "addPipeline": "Add Pipeline",
     "addDeal": "Add Deal",
+    "dropDealHere": "Drop a deal here",
     "createPipelineHint": "Create a pipeline to start tracking deals",
     "createPipeline": "Create Pipeline",
     "newPipeline": "New Pipeline",
