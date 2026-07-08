@@ -2,24 +2,27 @@
 
 import { useMemo } from "react"
 import { useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
 
 import {
   AutomationBuilder,
   type BuilderInitial,
   type BuilderStep,
 } from "@/components/automations/automation-builder"
-import { AUTOMATION_TEMPLATES, type TemplateSlug } from "@/lib/automations/templates"
+import { buildAutomationTemplates, type TemplateSlug } from "@/lib/automations/templates"
 import type { AutomationStepType, AutomationTriggerType } from "@/types"
 
 export default function NewAutomationPage() {
   const params = useSearchParams()
   const template = params.get("template") as TemplateSlug | null
+  const tTemplates = useTranslations("automations.templates")
 
   const initial: BuilderInitial = useMemo(() => {
-    if (template && AUTOMATION_TEMPLATES[template]) {
-      const t = AUTOMATION_TEMPLATES[template]
+    const automationTemplates = buildAutomationTemplates(tTemplates)
+    if (template && automationTemplates[template]) {
+      const tpl = automationTemplates[template]
       const steps = expandFromSeeds(
-        t.steps.map((seed, idx) => ({
+        tpl.steps.map((seed, idx) => ({
           index: idx,
           step_type: seed.step_type,
           step_config: seed.step_config as Record<string, unknown>,
@@ -28,10 +31,10 @@ export default function NewAutomationPage() {
         })),
       )
       return {
-        name: t.name,
-        description: t.description,
-        trigger_type: t.trigger_type,
-        trigger_config: t.trigger_config as Record<string, unknown>,
+        name: tpl.name,
+        description: tpl.description,
+        trigger_type: tpl.trigger_type,
+        trigger_config: tpl.trigger_config as Record<string, unknown>,
         is_active: false,
         steps,
       }
@@ -44,6 +47,7 @@ export default function NewAutomationPage() {
       is_active: false,
       steps: [],
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template])
 
   return <AutomationBuilder initial={initial} />

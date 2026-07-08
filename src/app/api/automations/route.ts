@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   let effectiveTriggerConfig = trigger_config
 
   if (template && (!steps || steps.length === 0)) {
-    const t = getTemplate(template)
+    const t = await getTemplate(template)
     if (t) {
       effectiveName = effectiveName ?? t.name
       effectiveDescription = effectiveDescription ?? t.description

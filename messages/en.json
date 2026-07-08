@@ -645,6 +645,80 @@
       "urlLabel": "URL",
       "bodyTemplateLabel": "Body template (JSON)",
       "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
+    },
+    "relativeTime": {
+      "never": "never",
+      "justNow": "just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago"
+    },
+    "list": {
+      "title": "Automations",
+      "description": "Build workflows that react to WhatsApp® events automatically.",
+      "createButton": "Create Automation",
+      "loadFailed": "Failed to load automations",
+      "activated": "Automation activated",
+      "paused": "Automation paused",
+      "updateFailed": "Failed to update",
+      "duplicateFailed": "Failed to duplicate",
+      "duplicated": "Automation duplicated",
+      "deleteFailed": "Failed to delete",
+      "deleted": "Automation deleted",
+      "retry": "Retry",
+      "quickStartTemplates": "Quick-start templates",
+      "emptyTitle": "No automations yet",
+      "emptyHint": "Pick a template above or create one from scratch.",
+      "deleteDialogTitle": "Delete automation",
+      "deleteDialogDescriptionPrefix": "This permanently removes",
+      "deleteDialogDescriptionSuffix": "and its execution history. This cannot be undone.",
+      "deactivateAria": "Deactivate",
+      "activateAria": "Activate",
+      "openMenuAria": "Open menu",
+      "duplicateAction": "Duplicate",
+      "viewLogs": "View Logs",
+      "deleteAction": "Delete",
+      "editAction": "Edit",
+      "runsCount": "{count, plural, one {# run} other {# runs}}",
+      "lastRun": "last {relative}"
+    },
+    "editPage": {
+      "loadFailedWithStatus": "Failed to load ({status})"
+    },
+    "logsPage": {
+      "loadFailed": "Failed to load logs",
+      "back": "Back",
+      "executionLogs": "Execution logs",
+      "emptyTitle": "No executions yet",
+      "emptyHint": "Trigger this automation to see runs here.",
+      "unknownContact": "Unknown contact",
+      "stepsCount": "{count, plural, one {# step} other {# steps}}",
+      "noStepsRecorded": "No steps recorded.",
+      "statusSuccess": "success",
+      "statusPartial": "partial",
+      "statusFailed": "failed"
+    },
+    "templates": {
+      "welcomeMessage": {
+        "name": "Welcome Message",
+        "description": "Automatically replies to first-time contacts with a greeting.",
+        "text1": "Hi! 👋 Thanks for reaching out. We'll get back to you shortly."
+      },
+      "outOfOffice": {
+        "name": "Out of Office",
+        "description": "Automatically replies outside business hours so no one is left waiting.",
+        "text1": "Thanks for your message! Our team is currently offline (9am–6pm) and will reply as soon as possible tomorrow."
+      },
+      "leadQualifier": {
+        "name": "Lead Qualifier",
+        "description": "Asks qualifying questions to filter incoming leads.",
+        "text1": "Great — I'll help you with pricing! Quick question: roughly how many users are you looking for?"
+      },
+      "followUpReminder": {
+        "name": "Follow-up Reminder",
+        "description": "Sends a reminder if a contact doesn't reply within 24 hours.",
+        "text1": "Just checking in — do you have any more questions? We're here to help!"
+      }
     }
   },
   "broadcasts": {

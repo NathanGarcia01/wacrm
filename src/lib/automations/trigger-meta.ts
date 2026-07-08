@@ -1,42 +1,57 @@
 import type { AutomationTriggerType } from '@/types'
 
 export interface TriggerMeta {
-  label: string
+  /** Key into the `automations.builder` messages namespace — the builder's
+   *  trigger-picker labels are reused here for the list row pill so the
+   *  wording doesn't drift between the two surfaces. `null` for a
+   *  legacy/unrecognized trigger type, where `rawLabel` is shown verbatim
+   *  instead (there's no sensible translation for an unknown value). */
+  labelKey:
+    | 'triggerNewMessageReceived'
+    | 'triggerFirstInboundMessage'
+    | 'triggerFirstOutboundMessage'
+    | 'triggerKeywordMatch'
+    | 'triggerNewContactCreated'
+    | 'triggerConversationAssigned'
+    | 'triggerTagAdded'
+    | 'triggerTimeBased'
+    | null
+  rawLabel?: string
   /** Tailwind classes for the Badge pill on the list row. */
   pillClass: string
 }
 
 export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
   new_message_received: {
-    label: 'New Message',
+    labelKey: 'triggerNewMessageReceived',
     pillClass: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
   },
   first_inbound_message: {
-    label: 'First Message from Contact',
+    labelKey: 'triggerFirstInboundMessage',
     pillClass: 'border-teal-500/30 bg-teal-500/10 text-teal-300',
   },
   first_outbound_message: {
-    label: 'First Outbound Message',
+    labelKey: 'triggerFirstOutboundMessage',
     pillClass: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
   },
   keyword_match: {
-    label: 'Keyword Match',
+    labelKey: 'triggerKeywordMatch',
     pillClass: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
   },
   new_contact_created: {
-    label: 'New Contact',
+    labelKey: 'triggerNewContactCreated',
     pillClass: 'border-primary/30 bg-primary/10 text-primary',
   },
   conversation_assigned: {
-    label: 'Conversation Assigned',
+    labelKey: 'triggerConversationAssigned',
     pillClass: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-300',
   },
   tag_added: {
-    label: 'Tag Added',
+    labelKey: 'triggerTagAdded',
     pillClass: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
   },
   time_based: {
-    label: 'Time-Based',
+    labelKey: 'triggerTimeBased',
     pillClass: 'border-slate-500/30 bg-slate-500/10 text-muted-foreground',
   },
 }
@@ -44,20 +59,26 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
   return (
     TRIGGER_META[t as AutomationTriggerType] ?? {
-      label: t,
+      labelKey: null,
+      rawLabel: t,
       pillClass: 'border-slate-500/30 bg-slate-500/10 text-muted-foreground',
     }
   )
 }
 
-export function formatRelative(iso: string | null | undefined): string {
-  if (!iso) return 'never'
+/** Translator shape needed to render relative-time strings — pass
+ *  `useTranslations('automations.relativeTime')` from the caller since
+ *  this is a plain module (can't call the hook itself). */
+type RelativeTimeT = (key: string, values?: Record<string, string | number | Date>) => string
+
+export function formatRelative(iso: string | null | undefined, t: RelativeTimeT): string {
+  if (!iso) return t('never')
   const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return 'never'
+  if (Number.isNaN(then)) return t('never')
   const diffSec = Math.round((Date.now() - then) / 1000)
-  if (diffSec < 60) return 'just now'
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
-  if (diffSec < 2_592_000) return `${Math.floor(diffSec / 86400)}d ago`
+  if (diffSec < 60) return t('justNow')
+  if (diffSec < 3600) return t('minutesAgo', { count: Math.floor(diffSec / 60) })
+  if (diffSec < 86400) return t('hoursAgo', { count: Math.floor(diffSec / 3600) })
+  if (diffSec < 2_592_000) return t('daysAgo', { count: Math.floor(diffSec / 86400) })
   return new Date(iso).toLocaleDateString()
 }

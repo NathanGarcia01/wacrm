@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
 
 import {
@@ -19,6 +20,8 @@ export default function EditAutomationPage({
 }) {
   const { id } = use(params)
   const router = useRouter()
+  const t = useTranslations("automations.editPage")
+  const tBuilder = useTranslations("automations.builder")
   const [initial, setInitial] = useState<BuilderInitial | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,7 +30,7 @@ export default function EditAutomationPage({
     async function load() {
       const res = await fetch(`/api/automations/${id}`)
       if (!res.ok) {
-        if (!cancelled) setError(`Failed to load (${res.status})`)
+        if (!cancelled) setError(t("loadFailedWithStatus", { status: res.status }))
         return
       }
       const body = await res.json()
@@ -46,6 +49,7 @@ export default function EditAutomationPage({
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   if (error) {
@@ -56,7 +60,7 @@ export default function EditAutomationPage({
           onClick={() => router.push("/automations")}
           className="text-sm text-primary hover:text-primary/80"
         >
-          Back to Automations
+          {tBuilder("backToAutomations")}
         </button>
       </div>
     )

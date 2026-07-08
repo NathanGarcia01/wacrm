@@ -645,6 +645,80 @@
       "urlLabel": "URL",
       "bodyTemplateLabel": "Template del cuerpo (JSON)",
       "closeConversationHint": "Establece el estado de la conversación como \"cerrada\". No necesita configuración."
+    },
+    "relativeTime": {
+      "never": "nunca",
+      "justNow": "justo ahora",
+      "minutesAgo": "hace {count}min",
+      "hoursAgo": "hace {count}h",
+      "daysAgo": "hace {count}d"
+    },
+    "list": {
+      "title": "Automatizaciones",
+      "description": "Crea flujos que reaccionan automáticamente a eventos de WhatsApp®.",
+      "createButton": "Crear automatización",
+      "loadFailed": "Error al cargar las automatizaciones",
+      "activated": "Automatización activada",
+      "paused": "Automatización pausada",
+      "updateFailed": "Error al actualizar",
+      "duplicateFailed": "Error al duplicar",
+      "duplicated": "Automatización duplicada",
+      "deleteFailed": "Error al eliminar",
+      "deleted": "Automatización eliminada",
+      "retry": "Reintentar",
+      "quickStartTemplates": "Plantillas de inicio rápido",
+      "emptyTitle": "Aún no hay automatizaciones",
+      "emptyHint": "Elige una plantilla arriba o crea una desde cero.",
+      "deleteDialogTitle": "Eliminar automatización",
+      "deleteDialogDescriptionPrefix": "Esto elimina permanentemente",
+      "deleteDialogDescriptionSuffix": "y su historial de ejecución. Esto no se puede deshacer.",
+      "deactivateAria": "Desactivar",
+      "activateAria": "Activar",
+      "openMenuAria": "Abrir menú",
+      "duplicateAction": "Duplicar",
+      "viewLogs": "Ver registros",
+      "deleteAction": "Eliminar",
+      "editAction": "Editar",
+      "runsCount": "{count, plural, one {# ejecución} other {# ejecuciones}}",
+      "lastRun": "última {relative}"
+    },
+    "editPage": {
+      "loadFailedWithStatus": "Error al cargar ({status})"
+    },
+    "logsPage": {
+      "loadFailed": "Error al cargar los registros",
+      "back": "Volver",
+      "executionLogs": "Registros de ejecución",
+      "emptyTitle": "Aún no hay ejecuciones",
+      "emptyHint": "Dispara esta automatización para ver las ejecuciones aquí.",
+      "unknownContact": "Contacto desconocido",
+      "stepsCount": "{count, plural, one {# paso} other {# pasos}}",
+      "noStepsRecorded": "No se registraron pasos.",
+      "statusSuccess": "éxito",
+      "statusPartial": "parcial",
+      "statusFailed": "fallido"
+    },
+    "templates": {
+      "welcomeMessage": {
+        "name": "Mensaje de Bienvenida",
+        "description": "Responde automáticamente a contactos por primera vez con un saludo.",
+        "text1": "¡Hola! 👋 Gracias por contactarnos. Te responderemos en breve."
+      },
+      "outOfOffice": {
+        "name": "Fuera de Oficina",
+        "description": "Responde automáticamente fuera del horario de atención para que nadie espere.",
+        "text1": "¡Gracias por tu mensaje! Nuestro equipo está fuera de línea en este momento (9h–18h) y responderá lo antes posible mañana."
+      },
+      "leadQualifier": {
+        "name": "Calificador de Leads",
+        "description": "Hace preguntas de calificación para filtrar los leads recibidos.",
+        "text1": "¡Genial — te ayudaré con los precios! Una pregunta rápida: ¿aproximadamente cuántos usuarios estás buscando?"
+      },
+      "followUpReminder": {
+        "name": "Recordatorio de Seguimiento",
+        "description": "Envía un recordatorio si un contacto no responde en 24 horas.",
+        "text1": "Solo quería saber — ¿tienes alguna otra duda? ¡Estamos aquí para ayudarte!"
+      }
     }
   },
   "broadcasts": {
