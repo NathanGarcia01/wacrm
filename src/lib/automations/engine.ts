@@ -553,6 +553,27 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .select('default_currency')
         .eq('id', args.automation.account_id)
         .maybeSingle()
+
+      // Title: the user's configured template (supports {{contact.name}}
+      // / {{contact.phone}} interpolation), or — when left blank — the
+      // contact's own name/phone. Never ships a blank or generic "Novo
+      // Lead" card title.
+      const needsContact = !cfg.title?.trim() || /\{\{\s*contact\./.test(cfg.title)
+      let contactName = ''
+      let contactPhone = ''
+      if (needsContact) {
+        const { data: contact } = await db
+          .from('contacts')
+          .select('name, phone')
+          .eq('id', args.contactId)
+          .maybeSingle()
+        contactName = contact?.name ?? ''
+        contactPhone = contact?.phone ?? ''
+      }
+      const title = cfg.title?.trim()
+        ? interpolate(cfg.title, args, { name: contactName, phone: contactPhone })
+        : contactName || contactPhone
+
       await db.from('deals').insert({
         // Tenancy + audit, same split as automation_logs above.
         account_id: args.automation.account_id,
@@ -560,7 +581,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         pipeline_id: pipelineId,
         stage_id: stageId,
         contact_id: args.contactId,
-        title: interpolate(cfg.title, args),
+        title,
         value: cfg.value ?? 0,
         currency: acct?.default_currency ?? 'USD',
         status: 'open',
@@ -692,11 +713,17 @@ function waitMs(cfg: WaitStepConfig): number {
   return Math.max(1_000, cfg.amount * unitMs)
 }
 
-function interpolate(s: string, args: ExecuteArgs): string {
+function interpolate(
+  s: string,
+  args: ExecuteArgs,
+  contact?: { name: string; phone: string },
+): string {
   return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
     const [ns, prop] = String(key).split('.')
     if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
     if (ns === 'vars' && prop) return String(args.context.vars?.[prop] ?? '')
+    if (ns === 'contact' && prop === 'name') return contact?.name ?? ''
+    if (ns === 'contact' && prop === 'phone') return contact?.phone ?? ''
     return ''
   })
 }

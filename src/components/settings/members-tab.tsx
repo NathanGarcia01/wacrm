@@ -133,6 +133,7 @@ export function MembersTab() {
   const { getPresence, getRow, now } = usePresence();
   const t = useTranslations('settings.members');
   const tCommon = useTranslations('common');
+  const tPresence = useTranslations('presence');
 
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -348,6 +349,7 @@ export function MembersTab() {
                 presence,
                 presenceRow?.last_seen_at ?? null,
                 now,
+                tPresence,
               );
 
               return (

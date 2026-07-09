@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
-import { CustomField, Tag } from '@/types';
+import { CustomField, Pipeline, PipelineStage, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import { parseContactCsv } from '@/lib/contacts/parse-contact-csv';
 import { isValidE164, normalizePhone } from '@/lib/whatsapp/phone-utils';
@@ -19,11 +19,12 @@ import {
   FileText,
   AlertTriangle,
   Clock,
+  GitBranch,
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { fetchRecentlyMessagedContactIds } from '@/hooks/use-broadcast-sending';
 
-type AudienceType = 'all' | 'tags' | 'custom_field' | 'csv';
+type AudienceType = 'all' | 'tags' | 'custom_field' | 'csv' | 'pipeline_stage';
 type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
 interface CustomFieldFilter {
@@ -37,6 +38,9 @@ interface AudienceConfig {
   tagIds?: string[];
   customField?: CustomFieldFilter;
   csvContacts?: { phone: string; name?: string }[];
+  /** For type === 'pipeline_stage': contacts with an open deal in this stage. */
+  pipelineId?: string;
+  stageId?: string;
   excludeTagIds?: string[];
   /** Anti-duplicate guard — see #8: subtract contacts who already have a
    *  broadcast_recipients row with status='sent' in the last N days. */
@@ -83,6 +87,12 @@ const audienceOptions: {
     descriptionKey: 'uploadCsvDescription',
     icon: Upload,
   },
+  {
+    type: 'pipeline_stage',
+    labelKey: 'filterByStage',
+    descriptionKey: 'filterByStageDescription',
+    icon: GitBranch,
+  },
 ];
 
 const OPERATOR_OPTIONS: { value: CustomFieldOperator; labelKey: string }[] = [
@@ -100,8 +110,12 @@ export function Step2SelectAudience({
   const t = useTranslations('broadcasts.step2');
   const [tags, setTags] = useState<Tag[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
   const [loadingFields, setLoadingFields] = useState(false);
+  const [loadingPipelines, setLoadingPipelines] = useState(false);
+  const [loadingPipelineStages, setLoadingPipelineStages] = useState(false);
   const [estimatedCount, setEstimatedCount] = useState<number | null>(null);
   const [loadingCount, setLoadingCount] = useState(false);
   const [excludedRecentCount, setExcludedRecentCount] = useState(0);
@@ -144,6 +158,52 @@ export function Step2SelectAudience({
     }
     fetchFields();
   }, [audience.type]);
+
+  // Lazy-load pipelines only when that audience type is active.
+  useEffect(() => {
+    if (audience.type !== 'pipeline_stage') return;
+    async function fetchPipelines() {
+      setLoadingPipelines(true);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('pipelines')
+          .select('*')
+          .order('created_at');
+        setPipelines(data ?? []);
+      } finally {
+        setLoadingPipelines(false);
+      }
+    }
+    fetchPipelines();
+  }, [audience.type]);
+
+  // Stages for the selected pipeline — reloads whenever the user picks
+  // a different pipeline within the "filter by stage" audience type.
+  useEffect(() => {
+    if (audience.type !== 'pipeline_stage' || !audience.pipelineId) {
+      setPipelineStages([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingPipelineStages(true);
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from('pipeline_stages')
+          .select('*')
+          .eq('pipeline_id', audience.pipelineId)
+          .order('position');
+        if (!cancelled) setPipelineStages(data ?? []);
+      } finally {
+        if (!cancelled) setLoadingPipelineStages(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [audience.type, audience.pipelineId]);
 
   const fetchEstimatedCount = useCallback(async () => {
     setLoadingCount(true);
@@ -188,6 +248,17 @@ export function Step2SelectAudience({
       ) {
         setEstimatedCount(audience.csvContacts.length);
         return;
+      } else if (audience.type === 'pipeline_stage' && audience.stageId) {
+        const { data } = await supabase
+          .from('deals')
+          .select('contact_id')
+          .eq('stage_id', audience.stageId)
+          .eq('status', 'open');
+        baseIds = new Set(
+          (data ?? [])
+            .map((r) => r.contact_id as string | null)
+            .filter((id): id is string => Boolean(id)),
+        );
       } else {
         // Partially-configured audience — wait for the user to finish.
         setEstimatedCount(null);
@@ -252,6 +323,7 @@ export function Step2SelectAudience({
     audience.tagIds,
     audience.customField,
     audience.csvContacts,
+    audience.stageId,
     audience.excludeRecentlyMessaged,
     audience.excludeRecentDays,
     audience.excludeTagIds,
@@ -330,7 +402,10 @@ export function Step2SelectAudience({
       audience.customField.value.length > 0) ||
     (audience.type === 'csv' &&
       audience.csvContacts &&
-      audience.csvContacts.length > 0);
+      audience.csvContacts.length > 0) ||
+    (audience.type === 'pipeline_stage' && !!audience.pipelineId && !!audience.stageId);
+
+  const selectedStageName = pipelineStages.find((s) => s.id === audience.stageId)?.name;
 
   return (
     <div className="space-y-6">
@@ -367,6 +442,10 @@ export function Step2SelectAudience({
                       : undefined,
                   csvContacts:
                     option.type === 'csv' ? audience.csvContacts : undefined,
+                  pipelineId:
+                    option.type === 'pipeline_stage' ? audience.pipelineId : undefined,
+                  stageId:
+                    option.type === 'pipeline_stage' ? audience.stageId : undefined,
                 });
               }}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
@@ -559,6 +638,47 @@ export function Step2SelectAudience({
         </div>
       )}
 
+      {audience.type === 'pipeline_stage' && (
+        <div className="space-y-3 rounded-xl border border-border bg-card/50 p-4">
+          <p className="text-sm font-medium text-foreground">{t('stageFilter')}</p>
+          {loadingPipelines ? (
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          ) : pipelines.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('noPipelinesFound')}</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <select
+                value={audience.pipelineId ?? ''}
+                onChange={(e) =>
+                  onUpdate({ ...audience, pipelineId: e.target.value, stageId: undefined })
+                }
+                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              >
+                <option value="">{t('selectPipelinePlaceholder')}</option>
+                {pipelines.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={audience.stageId ?? ''}
+                onChange={(e) => onUpdate({ ...audience, stageId: e.target.value })}
+                disabled={!audience.pipelineId || loadingPipelineStages}
+                className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50"
+              >
+                <option value="">{t('selectStagePlaceholder')}</option>
+                {pipelineStages.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Exclude list — applies regardless of audience type */}
       <div className="rounded-xl border border-border bg-card/50 p-4">
         <div className="mb-3 flex items-center gap-2">
@@ -656,10 +776,21 @@ export function Step2SelectAudience({
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
-              <span className="text-sm text-foreground">
-                {estimatedCount.toLocaleString()}
-              </span>
-              <span className="text-xs text-muted-foreground">{t('estimatedRecipients')}</span>
+              {audience.type === 'pipeline_stage' && selectedStageName ? (
+                <span className="text-sm text-foreground">
+                  {t('contactsInStage', {
+                    count: estimatedCount,
+                    stage: selectedStageName,
+                  })}
+                </span>
+              ) : (
+                <>
+                  <span className="text-sm text-foreground">
+                    {estimatedCount.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{t('estimatedRecipients')}</span>
+                </>
+              )}
             </div>
             {excludedRecentCount > 0 && (
               <div className="flex items-center gap-2">

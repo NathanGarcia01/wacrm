@@ -11,6 +11,22 @@
     "settings": "Configuración",
     "beta": "Beta"
   },
+  "currencies": {
+    "USD": "Dólar estadounidense",
+    "EUR": "Euro",
+    "GBP": "Libra esterlina",
+    "INR": "Rupia india",
+    "AUD": "Dólar australiano",
+    "CAD": "Dólar canadiense",
+    "BRL": "Real brasileño",
+    "JPY": "Yen japonés",
+    "CNY": "Yuan chino",
+    "AED": "Dirham de los Emiratos Árabes Unidos",
+    "ZAR": "Rand sudafricano",
+    "NGN": "Naira nigeriano",
+    "SGD": "Dólar de Singapur",
+    "MXN": "Peso mexicano"
+  },
   "common": {
     "save": "Guardar",
     "cancel": "Cancelar",
@@ -104,7 +120,23 @@
     "newContact": "Nuevo Contacto",
     "newDeal": "Nuevo Negocio",
     "newBroadcast": "Nueva Transmisión",
-    "newAutomation": "Nueva Automatización"
+    "newAutomation": "Nueva Automatización",
+    "secondsAgo": "{count, plural, one {hace # segundo} other {hace # segundos}}",
+    "minutesAgo": "{count, plural, one {hace # minuto} other {hace # minutos}}",
+    "hoursAgo": "{count, plural, one {hace # hora} other {hace # horas}}",
+    "daysAgo": "{count, plural, one {hace # día} other {hace # días}}",
+    "activityUnknownContact": "Desconocido",
+    "activityAContact": "un contacto",
+    "activityAutomationFallback": "Automatización",
+    "activityMessageFrom": "Nuevo mensaje de {who}",
+    "activityNewContact": "Nuevo contacto: {who}",
+    "activityDealInStage": "Negocio \"{title}\" en {stage}",
+    "activityDealUpdated": "Negocio \"{title}\" actualizado",
+    "activityBroadcastSentTo": "enviada a {count} contactos",
+    "activityBroadcastStatus": "{status} ({count} destinatarios)",
+    "activityBroadcastLine": "Transmisión \"{name}\" {detail}",
+    "activityAutomationTriggered": "Automatización \"{name}\" activada para {who}",
+    "activityAutomationFailed": "Automatización \"{name}\" falló para {who}"
   },
   "inbox": {
     "composer": {
@@ -126,7 +158,12 @@
       "typeMessagePlaceholder": "Escribe un mensaje... (Shift+Enter para nueva línea)",
       "quickReplyHint": "Escribe '/' para respuestas rápidas",
       "removeAttachment": "Eliminar adjunto",
-      "addCaptionPlaceholder": "Agregar una leyenda…"
+      "addCaptionPlaceholder": "Agregar una leyenda…",
+      "fileTooLarge": "El archivo tiene {size} MB — el límite para {kind} es {limit} MB.",
+      "uploadFailed": "Error al subir el archivo.",
+      "recordingTooLong": "Grabación demasiado larga (más de 16 MB).",
+      "voiceRecordingNotSupported": "La grabación de voz no es compatible con este navegador.",
+      "microphoneAccessDenied": "Acceso al micrófono denegado o no disponible."
     },
     "list": {
       "searchPlaceholder": "Buscar conversaciones...",
@@ -260,7 +297,14 @@
       "sessionExpired": "Expirada",
       "hoursRemaining": "{hours}h restantes",
       "minutesRemaining": "{minutes}min restantes",
-      "documentFallback": "Documento"
+      "documentFallback": "Documento",
+      "failedToSendReason": "Error al enviar: {reason}",
+      "failedToSendTemplateReason": "Error al enviar el template: {reason}",
+      "reactionFailedReason": "Error en la reacción: {reason}",
+      "waitForMessageToSend": "Espera a que el mensaje termine de enviarse",
+      "failedToUpdateAssignment": "Error al actualizar la asignación",
+      "noMessagesYet": "Aún no hay mensajes",
+      "sendTemplateToStart": "Envía un template para iniciar la conversación"
     },
     "tagPicker": {
       "addFailed": "Error al agregar el tag",
@@ -381,7 +425,12 @@
       "tagsLabel": "Tags",
       "loadingTags": "Cargando tags...",
       "noTagsAvailable": "Ningún tag disponible. Crea tags en Configuración.",
-      "update": "Actualizar"
+      "update": "Actualizar",
+      "notAuthenticated": "No autenticado",
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
+      "namePlaceholder": "Juan Pérez",
+      "emailPlaceholder": "juan@ejemplo.com",
+      "companyPlaceholder": "Empresa S.A."
     },
     "detail": {
       "phoneRequired": "El teléfono es obligatorio",
@@ -435,6 +484,16 @@
       "deleteField": "Eliminar campo"
     }
   },
+  "presence": {
+    "aWhileAgo": "hace un rato",
+    "justNow": "ahora mismo",
+    "minutesAgo": "{count, plural, one {hace # minuto} other {hace # minutos}}",
+    "hoursAgo": "{count, plural, one {hace # hora} other {hace # horas}}",
+    "daysAgo": "{count, plural, one {hace # día} other {hace # días}}",
+    "onlineLabel": "En línea — activo ahora",
+    "awayLabel": "Ausente — inactivo",
+    "offlineLabel": "Desconectado — visto por última vez {time}"
+  },
   "pipelines": {
     "moveFailed": "Error al mover el negocio",
     "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
@@ -454,6 +513,26 @@
     "defaultStagesHint": "Las etapas predeterminadas (Nuevo Lead → Ganado) se crearán automáticamente.",
     "cancel": "Cancelar",
     "creating": "Creando...",
+    "defaultPipelineName": "Pipeline de Ventas",
+    "defaultStageNewLead": "Nuevo Lead",
+    "defaultStageQualified": "Calificado",
+    "defaultStageProposalSent": "Propuesta Enviada",
+    "defaultStageNegotiation": "Negociación",
+    "defaultStageWon": "Ganado",
+    "filters": {
+      "statusLabel": "Estado",
+      "statusAll": "Todos",
+      "statusOpen": "Abierto",
+      "statusWon": "Ganado",
+      "statusLost": "Perdido",
+      "responsibleLabel": "Responsable",
+      "responsibleAll": "Todos",
+      "responsibleUnassigned": "Sin responsable",
+      "stageLabel": "Etapa",
+      "stageAll": "Todas las etapas",
+      "clearFilters": "Limpiar filtros",
+      "activeFilters": "{count, plural, one {# filtro activo} other {# filtros activos}}"
+    },
     "analytics": {
       "totalDeals": "Total de Negocios",
       "totalDealsTooltip": "Cantidad de cada negocio en este pipeline que no está marcado como Perdido. Los negocios ganados siguen incluidos.",
@@ -660,6 +739,7 @@
       "stageIdLabel": "ID de la etapa",
       "stageIdPlaceholder": "Deja en blanco para usar la primera etapa del pipeline",
       "titleLabel": "Título",
+      "titlePlaceholder": "Deja en blanco para usar el nombre del contacto — o usa '{{ contact.name }}' / '{{ contact.phone }}'",
       "amountLabel": "Cantidad",
       "unitLabel": "Unidad",
       "minutes": "Minutos",
@@ -754,6 +834,21 @@
     }
   },
   "broadcasts": {
+    "new": {
+      "pageTitle": "Nueva Transmisión",
+      "pageSubtitle": "Crea y envía un mensaje de transmisión a tus contactos.",
+      "stepTemplate": "Template",
+      "stepAudience": "Audiencia",
+      "stepPersonalize": "Personalizar",
+      "stepSend": "Enviar",
+      "nameRequiredForDraft": "Dale un nombre a la transmisión antes de guardar el borrador.",
+      "notSignedIn": "No conectado.",
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
+      "saveDraftFailedReason": "Error al guardar el borrador: {reason}",
+      "draftSaved": "Borrador guardado",
+      "broadcastFailed": "Error en la transmisión",
+      "noContactsFound": "No se encontraron contactos para esta audiencia."
+    },
     "step1": {
       "loadFailed": "Error al cargar los templates",
       "title": "Elige un Template",
@@ -774,6 +869,13 @@
       "customFieldDescription": "Filtrar por el valor de un campo personalizado",
       "uploadCsv": "Subir CSV",
       "uploadCsvDescription": "Sube una lista de números de teléfono",
+      "filterByStage": "Filtrar por Etapa del Embudo",
+      "filterByStageDescription": "Enviar a contactos con un negocio abierto en una etapa específica",
+      "stageFilter": "Filtro de Etapa",
+      "noPipelinesFound": "No se encontraron pipelines. Crea uno en Pipelines.",
+      "selectPipelinePlaceholder": "Selecciona el pipeline…",
+      "selectStagePlaceholder": "Selecciona la etapa…",
+      "contactsInStage": "{count, plural, one {# contacto} other {# contactos}} en la etapa {stage}",
       "csvUploadPrompt": "Haz clic para seleccionar un archivo CSV",
       "csvUploadHint": "Debe incluir la columna \"phone\" (obligatoria). \"name\" es opcional.",
       "csvNoHeaderError": "No se pudo leer el CSV. Verifica que tenga una columna \"phone\".",
@@ -883,6 +985,7 @@
       "allContacts": "Todos los Contactos",
       "tagsSelected": "Tags ({count} seleccionados)",
       "csvUpload": "Subida de CSV",
+      "pipelineStage": "Etapa del Embudo",
       "custom": "Personalizado"
     },
     "status": {

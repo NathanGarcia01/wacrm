@@ -11,6 +11,22 @@
     "settings": "Settings",
     "beta": "Beta"
   },
+  "currencies": {
+    "USD": "US Dollar",
+    "EUR": "Euro",
+    "GBP": "British Pound",
+    "INR": "Indian Rupee",
+    "AUD": "Australian Dollar",
+    "CAD": "Canadian Dollar",
+    "BRL": "Brazilian Real",
+    "JPY": "Japanese Yen",
+    "CNY": "Chinese Yuan",
+    "AED": "UAE Dirham",
+    "ZAR": "South African Rand",
+    "NGN": "Nigerian Naira",
+    "SGD": "Singapore Dollar",
+    "MXN": "Mexican Peso"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -104,7 +120,23 @@
     "newContact": "New Contact",
     "newDeal": "New Deal",
     "newBroadcast": "New Broadcast",
-    "newAutomation": "New Automation"
+    "newAutomation": "New Automation",
+    "secondsAgo": "{count, plural, one {# second ago} other {# seconds ago}}",
+    "minutesAgo": "{count, plural, one {# minute ago} other {# minutes ago}}",
+    "hoursAgo": "{count, plural, one {# hour ago} other {# hours ago}}",
+    "daysAgo": "{count, plural, one {# day ago} other {# days ago}}",
+    "activityUnknownContact": "Unknown",
+    "activityAContact": "a contact",
+    "activityAutomationFallback": "Automation",
+    "activityMessageFrom": "New message from {who}",
+    "activityNewContact": "New contact: {who}",
+    "activityDealInStage": "Deal \"{title}\" in {stage}",
+    "activityDealUpdated": "Deal \"{title}\" updated",
+    "activityBroadcastSentTo": "sent to {count} contacts",
+    "activityBroadcastStatus": "{status} ({count} recipients)",
+    "activityBroadcastLine": "Broadcast \"{name}\" {detail}",
+    "activityAutomationTriggered": "Automation \"{name}\" triggered for {who}",
+    "activityAutomationFailed": "Automation \"{name}\" failed for {who}"
   },
   "inbox": {
     "composer": {
@@ -126,7 +158,12 @@
       "typeMessagePlaceholder": "Type a message... (Shift+Enter for new line)",
       "quickReplyHint": "Type '/' for quick replies",
       "removeAttachment": "Remove attachment",
-      "addCaptionPlaceholder": "Add a caption…"
+      "addCaptionPlaceholder": "Add a caption…",
+      "fileTooLarge": "File is {size} MB — {kind} limit is {limit} MB.",
+      "uploadFailed": "Upload failed.",
+      "recordingTooLong": "Recording is too long (over 16 MB).",
+      "voiceRecordingNotSupported": "Voice recording isn't supported in this browser.",
+      "microphoneAccessDenied": "Microphone access denied or unavailable."
     },
     "list": {
       "searchPlaceholder": "Search conversations...",
@@ -260,7 +297,14 @@
       "sessionExpired": "Expired",
       "hoursRemaining": "{hours}h remaining",
       "minutesRemaining": "{minutes}m remaining",
-      "documentFallback": "Document"
+      "documentFallback": "Document",
+      "failedToSendReason": "Failed to send: {reason}",
+      "failedToSendTemplateReason": "Failed to send template: {reason}",
+      "reactionFailedReason": "Reaction failed: {reason}",
+      "waitForMessageToSend": "Wait for the message to finish sending",
+      "failedToUpdateAssignment": "Failed to update assignment",
+      "noMessagesYet": "No messages yet",
+      "sendTemplateToStart": "Send a template to start the conversation"
     },
     "tagPicker": {
       "addFailed": "Failed to add tag",
@@ -381,7 +425,12 @@
       "tagsLabel": "Tags",
       "loadingTags": "Loading tags...",
       "noTagsAvailable": "No tags available. Create tags in Settings.",
-      "update": "Update"
+      "update": "Update",
+      "notAuthenticated": "Not authenticated",
+      "noAccountLinked": "Your profile is not linked to an account.",
+      "namePlaceholder": "John Doe",
+      "emailPlaceholder": "john@example.com",
+      "companyPlaceholder": "Acme Inc."
     },
     "detail": {
       "phoneRequired": "Phone number is required",
@@ -435,6 +484,16 @@
       "deleteField": "Delete field"
     }
   },
+  "presence": {
+    "aWhileAgo": "a while ago",
+    "justNow": "just now",
+    "minutesAgo": "{count, plural, one {# minute ago} other {# minutes ago}}",
+    "hoursAgo": "{count, plural, one {# hour ago} other {# hours ago}}",
+    "daysAgo": "{count, plural, one {# day ago} other {# days ago}}",
+    "onlineLabel": "Online — active now",
+    "awayLabel": "Away — idle",
+    "offlineLabel": "Offline — last seen {time}"
+  },
   "pipelines": {
     "moveFailed": "Failed to move deal",
     "noAccountLinked": "Your profile is not linked to an account.",
@@ -454,6 +513,26 @@
     "defaultStagesHint": "Default stages (New Lead → Won) will be created automatically.",
     "cancel": "Cancel",
     "creating": "Creating...",
+    "defaultPipelineName": "Sales Pipeline",
+    "defaultStageNewLead": "New Lead",
+    "defaultStageQualified": "Qualified",
+    "defaultStageProposalSent": "Proposal Sent",
+    "defaultStageNegotiation": "Negotiation",
+    "defaultStageWon": "Won",
+    "filters": {
+      "statusLabel": "Status",
+      "statusAll": "All",
+      "statusOpen": "Open",
+      "statusWon": "Won",
+      "statusLost": "Lost",
+      "responsibleLabel": "Assignee",
+      "responsibleAll": "All",
+      "responsibleUnassigned": "Unassigned",
+      "stageLabel": "Stage",
+      "stageAll": "All stages",
+      "clearFilters": "Clear filters",
+      "activeFilters": "{count, plural, one {# active filter} other {# active filters}}"
+    },
     "analytics": {
       "totalDeals": "Total Deals",
       "totalDealsTooltip": "Count of every deal in this pipeline that isn't marked as Lost. Won deals are still included.",
@@ -660,6 +739,7 @@
       "stageIdLabel": "Stage ID",
       "stageIdPlaceholder": "Leave blank to use the pipeline's first stage",
       "titleLabel": "Title",
+      "titlePlaceholder": "Leave blank to use the contact's name — or use '{{ contact.name }}' / '{{ contact.phone }}'",
       "amountLabel": "Amount",
       "unitLabel": "Unit",
       "minutes": "Minutes",
@@ -754,6 +834,21 @@
     }
   },
   "broadcasts": {
+    "new": {
+      "pageTitle": "New Broadcast",
+      "pageSubtitle": "Create and send a broadcast message to your contacts.",
+      "stepTemplate": "Template",
+      "stepAudience": "Audience",
+      "stepPersonalize": "Personalize",
+      "stepSend": "Send",
+      "nameRequiredForDraft": "Give the broadcast a name before saving a draft.",
+      "notSignedIn": "Not signed in.",
+      "noAccountLinked": "Your profile is not linked to an account.",
+      "saveDraftFailedReason": "Failed to save draft: {reason}",
+      "draftSaved": "Draft saved",
+      "broadcastFailed": "Broadcast failed",
+      "noContactsFound": "No contacts found for this audience."
+    },
     "step1": {
       "loadFailed": "Failed to load templates",
       "title": "Choose a Template",
@@ -774,6 +869,13 @@
       "customFieldDescription": "Filter by a custom field value",
       "uploadCsv": "Upload CSV",
       "uploadCsvDescription": "Upload a list of phone numbers",
+      "filterByStage": "Filter by Funnel Stage",
+      "filterByStageDescription": "Send to contacts with an open deal in a specific stage",
+      "stageFilter": "Stage Filter",
+      "noPipelinesFound": "No pipelines found. Create one in Pipelines.",
+      "selectPipelinePlaceholder": "Select the pipeline…",
+      "selectStagePlaceholder": "Select the stage…",
+      "contactsInStage": "{count, plural, one {# contact} other {# contacts}} in stage {stage}",
       "csvUploadPrompt": "Click to choose a CSV file",
       "csvUploadHint": "Must include a \"phone\" column (required). \"name\" is optional.",
       "csvNoHeaderError": "Couldn't read the CSV. Make sure it has a \"phone\" column.",
@@ -883,6 +985,7 @@
       "allContacts": "All Contacts",
       "tagsSelected": "Tags ({count} selected)",
       "csvUpload": "CSV Upload",
+      "pipelineStage": "Funnel Stage",
       "custom": "Custom"
     },
     "status": {

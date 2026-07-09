@@ -32,6 +32,7 @@ export function DealsSettings() {
   const supabase = createClient();
   const t = useTranslations('settings.deals');
   const tCommon = useTranslations('common');
+  const tCurrencies = useTranslations('currencies');
   const {
     accountId,
     defaultCurrency,
@@ -97,7 +98,7 @@ export function DealsSettings() {
             >
               {CURRENCIES.map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.code} — {c.label}
+                  {c.code} — {tCurrencies(c.code)}
                 </option>
               ))}
             </select>

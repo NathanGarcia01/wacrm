@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { localeToIntl, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePresence } from "@/hooks/use-presence";
@@ -115,11 +116,19 @@ interface MessageThreadProps {
   onToggleContactPanel?: () => void;
 }
 
-function formatDateSeparator(dateStr: string, t: (key: string) => string): string {
+function formatDateSeparator(
+  dateStr: string,
+  t: (key: string) => string,
+  intlLocale: string,
+): string {
   const date = new Date(dateStr);
   if (isToday(date)) return t("today");
   if (isYesterday(date)) return t("yesterday");
-  return format(date, "MMMM d, yyyy");
+  return date.toLocaleDateString(intlLocale, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function groupMessagesByDate(messages: Message[]) {
@@ -174,6 +183,9 @@ export function MessageThread({
   onToggleContactPanel,
 }: MessageThreadProps) {
   const t = useTranslations("inbox.thread");
+  const tPresence = useTranslations("presence");
+  const locale = useLocale() as Locale;
+  const intlLocale = localeToIntl(locale);
   const tReplyQuote = useTranslations("inbox.replyQuote");
   const tInboxList = useTranslations("inbox.list");
   const { user } = useAuth();
@@ -542,7 +554,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send message:", reason);
-          toast.error(`Failed to send: ${reason}`);
+          toast.error(t("failedToSendReason", { reason }));
           // Mark the optimistic bubble as failed so the user sees what happened
           onUpdateMessage(tempId, { status: "failed" });
           return;
@@ -555,7 +567,7 @@ export function MessageThread({
       } catch (err) {
         console.error("Failed to send message:", err);
         const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send: ${reason}`);
+        toast.error(t("failedToSendReason", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
@@ -608,7 +620,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = data?.error || `HTTP ${res.status}`;
           console.error("Failed to send media:", reason);
-          toast.error(`Failed to send: ${reason}`);
+          toast.error(t("failedToSendReason", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           // The upload never reached the recipient — GC the orphaned
           // object rather than leaving it in the public bucket forever.
@@ -620,7 +632,7 @@ export function MessageThread({
       } catch (err) {
         console.error("Failed to send media:", err);
         const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send: ${reason}`);
+        toast.error(t("failedToSendReason", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
@@ -733,7 +745,7 @@ export function MessageThread({
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
           console.error("Failed to send template:", reason);
-          toast.error(`Failed to send template: ${reason}`);
+          toast.error(t("failedToSendTemplateReason", { reason }));
           onUpdateMessage(tempId, { status: "failed" });
           return;
         }
@@ -742,7 +754,7 @@ export function MessageThread({
       } catch (err) {
         console.error("Failed to send template:", err);
         const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Failed to send template: ${reason}`);
+        toast.error(t("failedToSendTemplateReason", { reason }));
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
@@ -803,7 +815,7 @@ export function MessageThread({
         return;
       }
       if (messageId.startsWith("temp-")) {
-        toast.error("Wait for the message to finish sending");
+        toast.error(t("waitForMessageToSend"));
         return;
       }
 
@@ -849,7 +861,7 @@ export function MessageThread({
         }
       } catch (err) {
         const reason = err instanceof Error ? err.message : "network error";
-        toast.error(`Reaction failed: ${reason}`);
+        toast.error(t("reactionFailedReason", { reason }));
         setReactions(snapshot);
       }
     },
@@ -868,7 +880,7 @@ export function MessageThread({
 
       if (error) {
         console.error("Failed to update assignment:", error);
-        toast.error("Failed to update assignment");
+        toast.error(t("failedToUpdateAssignment"));
         return;
       }
 
@@ -1086,7 +1098,8 @@ export function MessageThread({
                         label={presenceLabel(
                           presence,
                           getRow(p.user_id)?.last_seen_at ?? null,
-                          now
+                          now,
+                          tPresence
                         )}
                         className="mr-2"
                       />
@@ -1123,9 +1136,9 @@ export function MessageThread({
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <p className="text-sm text-muted-foreground">No messages yet</p>
+            <p className="text-sm text-muted-foreground">{t("noMessagesYet")}</p>
             <p className="text-xs text-muted-foreground">
-              Send a template to start the conversation
+              {t("sendTemplateToStart")}
             </p>
           </div>
         ) : (
@@ -1135,7 +1148,7 @@ export function MessageThread({
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
                   <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-medium text-muted-foreground">
-                    {formatDateSeparator(group.date, t)}
+                    {formatDateSeparator(group.date, t, intlLocale)}
                   </span>
                 </div>
                 {/* Messages */}

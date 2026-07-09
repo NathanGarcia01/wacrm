@@ -1,3 +1,6 @@
+import { ptBR, enUS, es } from "date-fns/locale";
+import type { Locale as DateFnsLocale } from "date-fns";
+
 export const LOCALES = ["pt", "en", "es"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "pt";
@@ -17,4 +20,17 @@ const INTL_LOCALE: Record<Locale, string> = {
 
 export function localeToIntl(locale: Locale): string {
   return INTL_LOCALE[locale];
+}
+
+/** Maps our short app locale to a date-fns Locale object, for calls
+ *  like `formatDistanceToNow`/`format` that take one directly (as
+ *  opposed to the Intl-based `localeToIntl` calls above). */
+const DATE_FNS_LOCALE: Record<Locale, DateFnsLocale> = {
+  pt: ptBR,
+  en: enUS,
+  es: es,
+};
+
+export function localeToDateFns(locale: Locale): DateFnsLocale {
+  return DATE_FNS_LOCALE[locale];
 }

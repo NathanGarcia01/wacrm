@@ -11,6 +11,22 @@
     "settings": "Configurações",
     "beta": "Beta"
   },
+  "currencies": {
+    "USD": "Dólar americano",
+    "EUR": "Euro",
+    "GBP": "Libra esterlina",
+    "INR": "Rúpia indiana",
+    "AUD": "Dólar australiano",
+    "CAD": "Dólar canadense",
+    "BRL": "Real brasileiro",
+    "JPY": "Iene japonês",
+    "CNY": "Yuan chinês",
+    "AED": "Dirham dos Emirados Árabes",
+    "ZAR": "Rand sul-africano",
+    "NGN": "Naira nigeriana",
+    "SGD": "Dólar de Singapura",
+    "MXN": "Peso mexicano"
+  },
   "common": {
     "save": "Salvar",
     "cancel": "Cancelar",
@@ -104,7 +120,23 @@
     "newContact": "Novo Contato",
     "newDeal": "Novo Negócio",
     "newBroadcast": "Nova Transmissão",
-    "newAutomation": "Nova Automação"
+    "newAutomation": "Nova Automação",
+    "secondsAgo": "{count, plural, one {há # segundo} other {há # segundos}}",
+    "minutesAgo": "{count, plural, one {há # minuto} other {há # minutos}}",
+    "hoursAgo": "{count, plural, one {há # hora} other {há # horas}}",
+    "daysAgo": "{count, plural, one {há # dia} other {há # dias}}",
+    "activityUnknownContact": "Desconhecido",
+    "activityAContact": "um contato",
+    "activityAutomationFallback": "Automação",
+    "activityMessageFrom": "Nova mensagem de {who}",
+    "activityNewContact": "Novo contato: {who}",
+    "activityDealInStage": "Negócio \"{title}\" em {stage}",
+    "activityDealUpdated": "Negócio \"{title}\" atualizado",
+    "activityBroadcastSentTo": "enviada para {count} contatos",
+    "activityBroadcastStatus": "{status} ({count} destinatários)",
+    "activityBroadcastLine": "Transmissão \"{name}\" {detail}",
+    "activityAutomationTriggered": "Automação \"{name}\" disparada para {who}",
+    "activityAutomationFailed": "Automação \"{name}\" falhou para {who}"
   },
   "inbox": {
     "composer": {
@@ -126,7 +158,12 @@
       "typeMessagePlaceholder": "Digite uma mensagem... (Shift+Enter para nova linha)",
       "quickReplyHint": "Digite '/' para respostas rápidas",
       "removeAttachment": "Remover anexo",
-      "addCaptionPlaceholder": "Adicionar uma legenda…"
+      "addCaptionPlaceholder": "Adicionar uma legenda…",
+      "fileTooLarge": "O arquivo tem {size} MB — o limite para {kind} é {limit} MB.",
+      "uploadFailed": "Falha no upload.",
+      "recordingTooLong": "Gravação muito longa (acima de 16 MB).",
+      "voiceRecordingNotSupported": "Gravação de voz não é suportada neste navegador.",
+      "microphoneAccessDenied": "Acesso ao microfone negado ou indisponível."
     },
     "list": {
       "searchPlaceholder": "Pesquisar conversas...",
@@ -260,7 +297,14 @@
       "sessionExpired": "Expirada",
       "hoursRemaining": "{hours}h restantes",
       "minutesRemaining": "{minutes}min restantes",
-      "documentFallback": "Documento"
+      "documentFallback": "Documento",
+      "failedToSendReason": "Falha ao enviar: {reason}",
+      "failedToSendTemplateReason": "Falha ao enviar template: {reason}",
+      "reactionFailedReason": "Falha na reação: {reason}",
+      "waitForMessageToSend": "Aguarde a mensagem terminar de ser enviada",
+      "failedToUpdateAssignment": "Falha ao atualizar atribuição",
+      "noMessagesYet": "Nenhuma mensagem ainda",
+      "sendTemplateToStart": "Envie um template para iniciar a conversa"
     },
     "tagPicker": {
       "addFailed": "Falha ao adicionar tag",
@@ -381,7 +425,12 @@
       "tagsLabel": "Tags",
       "loadingTags": "Carregando tags...",
       "noTagsAvailable": "Nenhuma tag disponível. Crie tags em Configurações.",
-      "update": "Atualizar"
+      "update": "Atualizar",
+      "notAuthenticated": "Não autenticado",
+      "noAccountLinked": "Seu perfil não está vinculado a uma conta.",
+      "namePlaceholder": "João da Silva",
+      "emailPlaceholder": "joao@exemplo.com",
+      "companyPlaceholder": "Empresa Ltda."
     },
     "detail": {
       "phoneRequired": "Telefone é obrigatório",
@@ -435,6 +484,16 @@
       "deleteField": "Excluir campo"
     }
   },
+  "presence": {
+    "aWhileAgo": "há um tempo",
+    "justNow": "agora mesmo",
+    "minutesAgo": "{count, plural, one {há # minuto} other {há # minutos}}",
+    "hoursAgo": "{count, plural, one {há # hora} other {há # horas}}",
+    "daysAgo": "{count, plural, one {há # dia} other {há # dias}}",
+    "onlineLabel": "Online — ativo agora",
+    "awayLabel": "Ausente — inativo",
+    "offlineLabel": "Offline — visto por último {time}"
+  },
   "pipelines": {
     "moveFailed": "Falha ao mover negócio",
     "noAccountLinked": "Seu perfil não está vinculado a uma conta.",
@@ -454,6 +513,26 @@
     "defaultStagesHint": "Etapas padrão (Novo Lead → Ganho) serão criadas automaticamente.",
     "cancel": "Cancelar",
     "creating": "Criando...",
+    "defaultPipelineName": "Pipeline de Vendas",
+    "defaultStageNewLead": "Novo Lead",
+    "defaultStageQualified": "Qualificado",
+    "defaultStageProposalSent": "Proposta Enviada",
+    "defaultStageNegotiation": "Negociação",
+    "defaultStageWon": "Ganho",
+    "filters": {
+      "statusLabel": "Status",
+      "statusAll": "Todos",
+      "statusOpen": "Aberto",
+      "statusWon": "Ganho",
+      "statusLost": "Perdido",
+      "responsibleLabel": "Responsável",
+      "responsibleAll": "Todos",
+      "responsibleUnassigned": "Sem responsável",
+      "stageLabel": "Etapa",
+      "stageAll": "Todas as etapas",
+      "clearFilters": "Limpar filtros",
+      "activeFilters": "{count, plural, one {# filtro ativo} other {# filtros ativos}}"
+    },
     "analytics": {
       "totalDeals": "Total de Negócios",
       "totalDealsTooltip": "Contagem de todo negócio neste pipeline que não está marcado como Perdido. Negócios ganhos ainda são incluídos.",
@@ -660,6 +739,7 @@
       "stageIdLabel": "ID da etapa",
       "stageIdPlaceholder": "Deixe em branco para usar a primeira etapa do pipeline",
       "titleLabel": "Título",
+      "titlePlaceholder": "Deixe em branco para usar o nome do contato — ou use '{{ contact.name }}' / '{{ contact.phone }}'",
       "amountLabel": "Quantidade",
       "unitLabel": "Unidade",
       "minutes": "Minutos",
@@ -754,6 +834,21 @@
     }
   },
   "broadcasts": {
+    "new": {
+      "pageTitle": "Nova Transmissão",
+      "pageSubtitle": "Crie e envie uma mensagem de transmissão para seus contatos.",
+      "stepTemplate": "Template",
+      "stepAudience": "Audiência",
+      "stepPersonalize": "Personalizar",
+      "stepSend": "Enviar",
+      "nameRequiredForDraft": "Dê um nome à transmissão antes de salvar o rascunho.",
+      "notSignedIn": "Não conectado.",
+      "noAccountLinked": "Seu perfil não está vinculado a uma conta.",
+      "saveDraftFailedReason": "Falha ao salvar rascunho: {reason}",
+      "draftSaved": "Rascunho salvo",
+      "broadcastFailed": "Falha na transmissão",
+      "noContactsFound": "Nenhum contato encontrado para esta audiência."
+    },
     "step1": {
       "loadFailed": "Falha ao carregar templates",
       "title": "Escolha um Template",
@@ -774,6 +869,13 @@
       "customFieldDescription": "Filtrar por valor de um campo personalizado",
       "uploadCsv": "Enviar CSV",
       "uploadCsvDescription": "Enviar uma lista de números de telefone",
+      "filterByStage": "Filtrar por Etapa do Funil",
+      "filterByStageDescription": "Enviar para contatos com um negócio aberto em uma etapa específica",
+      "stageFilter": "Filtro de Etapa",
+      "noPipelinesFound": "Nenhum pipeline encontrado. Crie um pipeline em Pipelines.",
+      "selectPipelinePlaceholder": "Selecione o pipeline…",
+      "selectStagePlaceholder": "Selecione a etapa…",
+      "contactsInStage": "{count, plural, one {# contato} other {# contatos}} na etapa {stage}",
       "csvUploadPrompt": "Clique para selecionar um arquivo CSV",
       "csvUploadHint": "Deve conter a coluna \"phone\" (obrigatória). \"name\" é opcional.",
       "csvNoHeaderError": "Não foi possível ler o CSV. Verifique se há uma coluna \"phone\".",
@@ -883,6 +985,7 @@
       "allContacts": "Todos os Contatos",
       "tagsSelected": "Tags ({count} selecionadas)",
       "csvUpload": "Upload de CSV",
+      "pipelineStage": "Etapa do Funil",
       "custom": "Personalizado"
     },
     "status": {

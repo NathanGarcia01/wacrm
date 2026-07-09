@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Contact, MessageTemplate } from '@/types';
@@ -18,10 +19,13 @@ export interface CustomFieldFilter {
 }
 
 export interface AudienceConfig {
-  type: 'all' | 'tags' | 'custom_field' | 'csv';
+  type: 'all' | 'tags' | 'custom_field' | 'csv' | 'pipeline_stage';
   tagIds?: string[];
   customField?: CustomFieldFilter;
   csvContacts?: { phone: string; name?: string }[];
+  /** For type === 'pipeline_stage': contacts with an open deal in this stage. */
+  pipelineId?: string;
+  stageId?: string;
   /** Contacts carrying any of these tags are subtracted from the result. */
   excludeTagIds?: string[];
   /** Anti-duplicate guard — subtract contacts who already have a
@@ -78,6 +82,7 @@ interface UseBroadcastSendingReturn {
 const INSERT_BATCH_SIZE = 200;
 
 export function useBroadcastSending(): UseBroadcastSendingReturn {
+  const t = useTranslations('broadcasts.new');
   const { accountId } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -119,6 +124,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       contacts = await resolveCustomFieldAudience(supabase, audience.customField);
     } else if (audience.type === 'csv' && audience.csvContacts) {
       contacts = await upsertCsvContacts(supabase, audience.csvContacts);
+    } else if (audience.type === 'pipeline_stage' && audience.stageId) {
+      contacts = await resolvePipelineStageAudience(supabase, audience.stageId);
     }
 
     // Apply exclude tags (works across all contact-derived audience
@@ -163,10 +170,10 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) {
-      throw new Error('You are not signed in.');
+      throw new Error(t('notSignedIn'));
     }
     if (!accountId) {
-      throw new Error('Your profile is not linked to an account.');
+      throw new Error(t('noAccountLinked'));
     }
 
     // De-duplicate by phone within the CSV (users can paste duplicates).
@@ -256,6 +263,35 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     return data ?? [];
   }
 
+  /** Contacts with an open deal sitting in the given pipeline stage. */
+  async function resolvePipelineStageAudience(
+    supabase: ReturnType<typeof createClient>,
+    stageId: string,
+  ): Promise<Contact[]> {
+    const { data: matches, error: matchErr } = await supabase
+      .from('deals')
+      .select('contact_id')
+      .eq('stage_id', stageId)
+      .eq('status', 'open');
+    if (matchErr) throw new Error(`Pipeline-stage filter failed: ${matchErr.message}`);
+
+    const contactIds = [
+      ...new Set(
+        (matches ?? [])
+          .map((m) => m.contact_id as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (contactIds.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .in('id', contactIds);
+    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
+    return data ?? [];
+  }
+
   /**
    * Resolves the audience and writes `broadcasts` + `broadcast_recipients`
    * rows, then returns. The actual sending (with anti-ban cadence,
@@ -277,16 +313,16 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user) {
-        throw new Error('You are not signed in.');
+        throw new Error(t('notSignedIn'));
       }
       if (!accountId) {
-        throw new Error('Your profile is not linked to an account.');
+        throw new Error(t('noAccountLinked'));
       }
 
       setProgress(10);
       const contacts = await resolveAudience(payload.audience);
       if (contacts.length === 0) {
-        throw new Error('No contacts found for this audience.');
+        throw new Error(t('noContactsFound'));
       }
 
       // Belt-and-braces dedup on top of the DB's unique index — audience
@@ -311,6 +347,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             type: payload.audience.type,
             tagIds: payload.audience.tagIds,
             customField: payload.audience.customField,
+            pipelineId: payload.audience.pipelineId,
+            stageId: payload.audience.stageId,
             excludeTagIds: payload.audience.excludeTagIds,
             excludeRecentlyMessaged: payload.audience.excludeRecentlyMessaged,
             excludeRecentDays: payload.audience.excludeRecentDays,

@@ -43,6 +43,7 @@ interface AudienceConfig {
   type: string;
   tagIds?: string[];
   csvContacts?: { phone: string; name?: string }[];
+  stageId?: string;
 }
 
 interface Step4Props {
@@ -177,6 +178,18 @@ export function Step4ScheduleSend({
           setEstimatedReach(uniqueIds.size);
         } else if (audience.type === 'csv' && audience.csvContacts) {
           setEstimatedReach(audience.csvContacts.length);
+        } else if (audience.type === 'pipeline_stage' && audience.stageId) {
+          const { data } = await supabase
+            .from('deals')
+            .select('contact_id')
+            .eq('stage_id', audience.stageId)
+            .eq('status', 'open');
+          const uniqueIds = new Set(
+            (data ?? [])
+              .map((d) => d.contact_id as string | null)
+              .filter((id): id is string => Boolean(id)),
+          );
+          setEstimatedReach(uniqueIds.size);
         } else {
           setEstimatedReach(0);
         }
@@ -217,7 +230,9 @@ export function Step4ScheduleSend({
         ? t('tagsSelected', { count: audience.tagIds?.length ?? 0 })
         : audience.type === 'csv'
           ? t('csvUpload')
-          : t('custom');
+          : audience.type === 'pipeline_stage'
+            ? t('pipelineStage')
+            : t('custom');
 
   const scheduledAt: Date | null =
     scheduleEnabled && scheduleDate && scheduleTime

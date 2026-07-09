@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage, Deal } from "@/types";
+import type { Pipeline, PipelineStage, Deal, Profile } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
+import {
+  PipelineFilterBar,
+  DEFAULT_PIPELINE_FILTERS,
+  type PipelineFilters,
+} from "@/components/pipelines/pipeline-filter-bar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,14 +41,24 @@ import { GatedButton } from "@/components/ui/gated-button";
 // agent+. The two CTAs gate on different `useCan` capabilities,
 // not on different copy.
 
-// Spec-defined seed — name and color per the product spec.
-const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
-];
+// Spec-defined seed — colors and position per the product spec; names
+// are resolved from translations at use (see specDefaultStages below)
+// since these get written verbatim into the DB on first pipeline creation.
+const SPEC_DEFAULT_STAGE_META = [
+  { labelKey: "defaultStageNewLead", color: "#3b82f6", position: 0 }, // blue
+  { labelKey: "defaultStageQualified", color: "#eab308", position: 1 }, // yellow
+  { labelKey: "defaultStageProposalSent", color: "#f97316", position: 2 }, // orange
+  { labelKey: "defaultStageNegotiation", color: "#8b5cf6", position: 3 }, // purple
+  { labelKey: "defaultStageWon", color: "#22c55e", position: 4 }, // green
+] as const;
+
+function specDefaultStages(t: ReturnType<typeof useTranslations>) {
+  return SPEC_DEFAULT_STAGE_META.map((s) => ({
+    name: t(s.labelKey),
+    color: s.color,
+    position: s.position,
+  }));
+}
 
 export default function PipelinesPage() {
   const t = useTranslations("pipelines");
@@ -56,7 +71,9 @@ export default function PipelinesPage() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<PipelineFilters>(DEFAULT_PIPELINE_FILTERS);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -111,6 +128,20 @@ export default function PipelinesPage() {
     [supabase],
   );
 
+  // Account members for the "Responsável" filter — RLS scopes this to
+  // the current account, same pattern as deal-form.tsx's assignee select.
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("profiles").select("*").order("full_name");
+      if (!cancelled) setProfiles((data ?? []) as Profile[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, supabase]);
+
   const seedDefaultPipeline = useCallback(async (): Promise<Pipeline | null> => {
     const {
       data: { session },
@@ -122,7 +153,7 @@ export default function PipelinesPage() {
 
     const { data: pipeline, error } = await supabase
       .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name: "Sales Pipeline" })
+      .insert({ user_id: user.id, account_id: accountId, name: t("defaultPipelineName") })
       .select()
       .single();
 
@@ -131,7 +162,7 @@ export default function PipelinesPage() {
       return null;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
+    const stagesPayload = specDefaultStages(t).map((s) => ({
       pipeline_id: pipeline.id,
       name: s.name,
       color: s.color,
@@ -140,7 +171,7 @@ export default function PipelinesPage() {
     await supabase.from("pipeline_stages").insert(stagesPayload);
 
     return pipeline as Pipeline;
-  }, [supabase, accountId]);
+  }, [supabase, accountId, t]);
 
   // Initial load + seed-if-empty
   useEffect(() => {
@@ -176,6 +207,11 @@ export default function PipelinesPage() {
   // state; the load completion uses async setters inside promise
   // callbacks (not synchronous in the effect body).
   useEffect(() => {
+    // A stage filter from a previously selected pipeline doesn't apply
+    // here — stage ids are pipeline-specific.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFilters((f) => (f.stageId ? { ...f, stageId: "" } : f));
+
     if (!selectedPipelineId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStages([]);
@@ -316,7 +352,7 @@ export default function PipelinesPage() {
       return;
     }
 
-    const stagesPayload = SPEC_DEFAULT_STAGES.map((s) => ({
+    const stagesPayload = specDefaultStages(t).map((s) => ({
       pipeline_id: pipeline.id,
       name: s.name,
       color: s.color,
@@ -333,6 +369,21 @@ export default function PipelinesPage() {
   }
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
+
+  const filteredDeals = useMemo(() => {
+    return deals.filter((d) => {
+      if (filters.status !== "all" && (d.status ?? "open") !== filters.status) return false;
+      if (filters.assignedTo === "unassigned" && d.assigned_to) return false;
+      if (
+        filters.assignedTo !== "" &&
+        filters.assignedTo !== "unassigned" &&
+        d.assigned_to !== filters.assignedTo
+      )
+        return false;
+      if (filters.stageId !== "" && d.stage_id !== filters.stageId) return false;
+      return true;
+    });
+  }, [deals, filters]);
 
   if (loading) {
     return (
@@ -449,10 +500,16 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineFilterBar
+            filters={filters}
+            onChange={setFilters}
+            profiles={profiles}
+            stages={stages}
+          />
+          <PipelineAnalytics stages={stages} deals={filteredDeals} />
           <PipelineBoard
             stages={stages}
-            deals={deals}
+            deals={filteredDeals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}

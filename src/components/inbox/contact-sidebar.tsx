@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -83,6 +84,7 @@ interface ContactSidebarProps {
 
 export function ContactSidebar({ contact, conversationId, onContactUpdated }: ContactSidebarProps) {
   const t = useTranslations("inbox.sidebar");
+  const locale = useLocale() as Locale;
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -742,7 +744,9 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                       </button>
                     </div>
                     <p className="mt-1 text-[10px] text-muted-foreground">
-                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
+                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm", {
+                        locale: localeToDateFns(locale),
+                      })}
                     </p>
                   </div>
                 ))}

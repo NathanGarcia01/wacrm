@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -14,14 +15,22 @@ import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
 import type { CadenceSettings } from '@/lib/broadcast-cadence';
 import { Check } from 'lucide-react';
 
+const STEP_LABEL_KEYS = {
+  template: 'stepTemplate',
+  audience: 'stepAudience',
+  personalize: 'stepPersonalize',
+  send: 'stepSend',
+} as const;
+
 const steps = [
-  { label: 'Template', key: 'template' },
-  { label: 'Audience', key: 'audience' },
-  { label: 'Personalize', key: 'personalize' },
-  { label: 'Send', key: 'send' },
+  { key: 'template' },
+  { key: 'audience' },
+  { key: 'personalize' },
+  { key: 'send' },
 ] as const;
 
 export default function NewBroadcastPage() {
+  const t = useTranslations('broadcasts.new');
   const router = useRouter();
   const { accountId } = useAuth();
   const { createBroadcast, isProcessing, progress } = useBroadcastSending();
@@ -29,7 +38,7 @@ export default function NewBroadcastPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
   const [audience, setAudience] = useState<{
-    type: 'all' | 'tags' | 'custom_field' | 'csv';
+    type: 'all' | 'tags' | 'custom_field' | 'csv' | 'pipeline_stage';
     tagIds?: string[];
     customField?: {
       fieldId: string;
@@ -37,6 +46,8 @@ export default function NewBroadcastPage() {
       value: string;
     };
     csvContacts?: { phone: string; name?: string }[];
+    pipelineId?: string;
+    stageId?: string;
     excludeTagIds?: string[];
     excludeRecentlyMessaged?: boolean;
     excludeRecentDays?: number;
@@ -58,6 +69,8 @@ export default function NewBroadcastPage() {
           tagIds: audience.tagIds,
           customField: audience.customField,
           csvContacts: audience.csvContacts,
+          pipelineId: audience.pipelineId,
+          stageId: audience.stageId,
           excludeTagIds: audience.excludeTagIds,
           excludeRecentlyMessaged: audience.excludeRecentlyMessaged,
           excludeRecentDays: audience.excludeRecentDays,
@@ -70,7 +83,7 @@ export default function NewBroadcastPage() {
     } catch (err) {
       // Previously swallowed with console.error — the wizard would
       // just no-op, leaving the user confused. Surface the reason.
-      const message = err instanceof Error ? err.message : 'Broadcast failed';
+      const message = err instanceof Error ? err.message : t('broadcastFailed');
       console.error('Broadcast failed:', err);
       toast.error(message);
     }
@@ -87,7 +100,7 @@ export default function NewBroadcastPage() {
    */
   async function handleSaveDraft() {
     if (!template || !name.trim()) {
-      toast.error('Give the broadcast a name before saving a draft.');
+      toast.error(t('nameRequiredForDraft'));
       return;
     }
     const supabase = createClient();
@@ -96,11 +109,11 @@ export default function NewBroadcastPage() {
     } = await supabase.auth.getSession();
     const user = session?.user;
     if (!user) {
-      toast.error('Not signed in.');
+      toast.error(t('notSignedIn'));
       return;
     }
     if (!accountId) {
-      toast.error('Your profile is not linked to an account.');
+      toast.error(t('noAccountLinked'));
       return;
     }
 
@@ -114,6 +127,8 @@ export default function NewBroadcastPage() {
       audience_filter: {
         type: audience.type,
         tagIds: audience.tagIds,
+        pipelineId: audience.pipelineId,
+        stageId: audience.stageId,
       },
       status: 'draft',
       total_recipients: 0,
@@ -125,10 +140,10 @@ export default function NewBroadcastPage() {
     });
 
     if (error) {
-      toast.error(`Failed to save draft: ${error.message}`);
+      toast.error(t('saveDraftFailedReason', { reason: error.message }));
       return;
     }
-    toast.success('Draft saved');
+    toast.success(t('draftSaved'));
     router.push('/broadcasts');
   }
 
@@ -136,9 +151,9 @@ export default function NewBroadcastPage() {
     <div className="mx-auto max-w-3xl space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">New Broadcast</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('pageTitle')}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create and send a broadcast message to your contacts.
+          {t('pageSubtitle')}
         </p>
       </div>
 
@@ -167,7 +182,7 @@ export default function NewBroadcastPage() {
                     isActive ? 'text-foreground' : isCompleted ? 'text-primary' : 'text-muted-foreground'
                   }`}
                 >
-                  {step.label}
+                  {t(STEP_LABEL_KEYS[step.key])}
                 </span>
               </div>
               {index < steps.length - 1 && (

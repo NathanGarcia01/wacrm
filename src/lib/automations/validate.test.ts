@@ -109,11 +109,11 @@ describe("validateStepsForActivation", () => {
     ]);
   });
 
-  it("flags create_deal when title is missing", () => {
+  it("allows create_deal with a blank title (falls back to the contact's name at execution time)", () => {
     const issues = validateStepsForActivation([
       { step_type: "create_deal", step_config: {} },
     ]);
-    expect(issues.map((i) => i.path).sort()).toEqual(["steps[0].title"]);
+    expect(issues).toEqual([]);
   });
 
   it("allows create_deal with blank pipeline_id/stage_id (resolved dynamically)", () => {

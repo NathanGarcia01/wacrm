@@ -54,6 +54,37 @@ export function derivePresence(
   return stored;
 }
 
+/** Translator shape accepted by `formatLastSeen`/`presenceLabel` — matches next-intl's `useTranslations` return type. */
+export type PresenceT = (
+  key: string,
+  values?: Record<string, string | number | Date>,
+) => string;
+
+/** English fallback used when no translator is supplied (keeps this module's own unit tests locale-independent). */
+function defaultPresenceT(key: string, values?: Record<string, string | number | Date>): string {
+  const count = typeof values?.count === "number" ? values.count : undefined;
+  switch (key) {
+    case "aWhileAgo":
+      return "a while ago";
+    case "justNow":
+      return "just now";
+    case "minutesAgo":
+      return count === 1 ? "1 minute ago" : `${count} minutes ago`;
+    case "hoursAgo":
+      return count === 1 ? "1 hour ago" : `${count} hours ago`;
+    case "daysAgo":
+      return count === 1 ? "1 day ago" : `${count} days ago`;
+    case "onlineLabel":
+      return "Online — active now";
+    case "awayLabel":
+      return "Away — idle";
+    case "offlineLabel":
+      return `Offline — last seen ${values?.time}`;
+    default:
+      return "";
+  }
+}
+
 /**
  * Relative "last seen" string for tooltips. Coarse on purpose — the
  * issue calls for relative time only, never a precise timestamp.
@@ -68,24 +99,22 @@ export function derivePresence(
 export function formatLastSeen(
   lastSeenAt: string | null | undefined,
   now: number,
+  t: PresenceT = defaultPresenceT,
 ): string {
-  if (!lastSeenAt) return "a while ago";
+  if (!lastSeenAt) return t("aWhileAgo");
   const last = new Date(lastSeenAt).getTime();
-  if (Number.isNaN(last)) return "a while ago";
+  if (Number.isNaN(last)) return t("aWhileAgo");
 
   const diff = Math.max(0, now - last);
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins === 1) return "1 minute ago";
-  if (mins < 60) return `${mins} minutes ago`;
+  if (mins < 1) return t("justNow");
+  if (mins < 60) return t("minutesAgo", { count: mins });
 
   const hours = Math.floor(mins / 60);
-  if (hours === 1) return "1 hour ago";
-  if (hours < 24) return `${hours} hours ago`;
+  if (hours < 24) return t("hoursAgo", { count: hours });
 
   const days = Math.floor(hours / 24);
-  if (days === 1) return "1 day ago";
-  return `${days} days ago`;
+  return t("daysAgo", { count: days });
 }
 
 /**
@@ -98,14 +127,15 @@ export function presenceLabel(
   status: PresenceStatus,
   lastSeenAt: string | null | undefined,
   now: number,
+  t: PresenceT = defaultPresenceT,
 ): string {
   switch (status) {
     case "online":
-      return "Online — active now";
+      return t("onlineLabel");
     case "away":
-      return "Away — idle";
+      return t("awayLabel");
     case "offline":
-      return `Offline — last seen ${formatLastSeen(lastSeenAt, now)}`;
+      return t("offlineLabel", { time: formatLastSeen(lastSeenAt, now, t) });
   }
 }
 

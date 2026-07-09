@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Contact, Conversation, ConversationStatus, Profile } from "@/types";
@@ -479,6 +480,7 @@ function ConversationItem({
   onToggleSelect,
 }: ConversationItemProps) {
   const t = useTranslations("inbox.list");
+  const locale = useLocale() as Locale;
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || t("unknownContact");
   const initials = displayName.charAt(0).toUpperCase();
@@ -494,6 +496,7 @@ function ConversationItem({
   const timeAgo = conversation.last_message_at
     ? formatDistanceToNow(new Date(conversation.last_message_at), {
         addSuffix: false,
+        locale: localeToDateFns(locale),
       })
     : "";
 
