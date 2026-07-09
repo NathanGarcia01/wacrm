@@ -14,6 +14,7 @@
  */
 
 export const THEME_IDS = [
+  "funil",
   "violet",
   "emerald",
   "cobalt",
@@ -23,7 +24,7 @@ export const THEME_IDS = [
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = "violet";
+export const DEFAULT_THEME: ThemeId = "funil";
 
 export const STORAGE_KEY = "wacrm.theme";
 
@@ -67,6 +68,12 @@ export interface ThemeMeta {
 }
 
 export const THEMES: ReadonlyArray<ThemeMeta> = [
+  {
+    id: "funil",
+    name: "Funil",
+    tagline: "Funilly's new identity — emerald + gold, approved in the mockup review.",
+    swatch: "oklch(0.58 0.15 158)",
+  },
   {
     id: "violet",
     name: "Violet",
