@@ -401,6 +401,30 @@ export function MessageComposer({
     [stageUpload],
   );
 
+  // Ctrl+V an image (screenshot, copied from a browser/image editor) —
+  // same destination as the file-picker path (stageUpload → the existing
+  // MediaDraftPreview thumbnail + send flow), just without opening a
+  // file dialog first. Only intercepts when the clipboard actually
+  // carries an image; a normal text paste falls through untouched.
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (inputsDisabled || busy) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            void stageUpload("image", file);
+          }
+          return;
+        }
+      }
+    },
+    [inputsDisabled, busy, stageUpload],
+  );
+
   // ---- Voice recording (client-side Ogg/Opus, no server transcode) ---
 
   // The encoded Ogg/Opus file from opus-recorder → upload as an audio
@@ -725,6 +749,7 @@ export function MessageComposer({
               value={text}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={
                 readOnly
                   ? t("readOnlyPlaceholder")

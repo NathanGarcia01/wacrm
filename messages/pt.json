@@ -304,7 +304,9 @@
       "waitForMessageToSend": "Aguarde a mensagem terminar de ser enviada",
       "failedToUpdateAssignment": "Falha ao atualizar atribuição",
       "noMessagesYet": "Nenhuma mensagem ainda",
-      "sendTemplateToStart": "Envie um template para iniciar a conversa"
+      "sendTemplateToStart": "Envie um template para iniciar a conversa",
+      "editFailed": "Falha ao editar mensagem",
+      "deleteFailed": "Falha ao apagar mensagem"
     },
     "tagPicker": {
       "addFailed": "Falha ao adicionar tag",
@@ -344,7 +346,11 @@
       "reactAria": "Reagir",
       "reactWithAria": "Reagir com {emoji}",
       "replyAria": "Responder",
-      "copyAria": "Copiar"
+      "copyAria": "Copiar",
+      "moreAria": "Mais opções",
+      "editMessage": "Editar mensagem",
+      "deleteMessage": "Apagar mensagem",
+      "deleteConfirm": "Apagar esta mensagem? Isso remove apenas da sua visualização aqui no CRM — o cliente continua vendo a mensagem original no WhatsApp dele."
     },
     "bubble": {
       "unavailableSuffix": "indisponível",
@@ -360,7 +366,13 @@
       "locationShared": "Localização compartilhada",
       "buttonReply": "Resposta por botão",
       "interactiveReplyFallback": "[Resposta interativa]",
-      "unsupportedMessageType": "[Tipo de mensagem não suportado]"
+      "unsupportedMessageType": "[Tipo de mensagem não suportado]",
+      "deletedPlaceholder": "Mensagem apagada",
+      "editedTag": "editado",
+      "editLocalOnlyHint": "Edita só aqui no CRM — não altera a mensagem no WhatsApp do cliente.",
+      "cancelEdit": "Cancelar",
+      "saveEdit": "Salvar",
+      "savingEdit": "Salvando…"
     }
   },
   "contacts": {

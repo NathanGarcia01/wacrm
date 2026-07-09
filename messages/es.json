@@ -304,7 +304,9 @@
       "waitForMessageToSend": "Espera a que el mensaje termine de enviarse",
       "failedToUpdateAssignment": "Error al actualizar la asignación",
       "noMessagesYet": "Aún no hay mensajes",
-      "sendTemplateToStart": "Envía un template para iniciar la conversación"
+      "sendTemplateToStart": "Envía un template para iniciar la conversación",
+      "editFailed": "Error al editar el mensaje",
+      "deleteFailed": "Error al eliminar el mensaje"
     },
     "tagPicker": {
       "addFailed": "Error al agregar el tag",
@@ -344,7 +346,11 @@
       "reactAria": "Reaccionar",
       "reactWithAria": "Reaccionar con {emoji}",
       "replyAria": "Responder",
-      "copyAria": "Copiar"
+      "copyAria": "Copiar",
+      "moreAria": "Más opciones",
+      "editMessage": "Editar mensaje",
+      "deleteMessage": "Eliminar mensaje",
+      "deleteConfirm": "¿Eliminar este mensaje? Esto solo lo quita de tu vista aquí en el CRM — el cliente sigue viendo el mensaje original en su WhatsApp."
     },
     "bubble": {
       "unavailableSuffix": "no disponible",
@@ -360,7 +366,13 @@
       "locationShared": "Ubicación compartida",
       "buttonReply": "Respuesta por botón",
       "interactiveReplyFallback": "[Respuesta interactiva]",
-      "unsupportedMessageType": "[Tipo de mensaje no compatible]"
+      "unsupportedMessageType": "[Tipo de mensaje no compatible]",
+      "deletedPlaceholder": "Mensaje eliminado",
+      "editedTag": "editado",
+      "editLocalOnlyHint": "Edita solo aquí en el CRM — no cambia el mensaje en el WhatsApp del cliente.",
+      "cancelEdit": "Cancelar",
+      "saveEdit": "Guardar",
+      "savingEdit": "Guardando…"
     }
   },
   "contacts": {

@@ -230,6 +230,11 @@ export function MessageThread({
     }, 700);
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  // CRM-local message edit (see Message.edited_at) — one message editable
+  // at a time, mirroring how replyTo above works.
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
   // see — today that's just the current user, but the dropdown keeps the
@@ -889,6 +894,69 @@ export function MessageThread({
     [conversation, onAssignChange],
   );
 
+  // ---- CRM-local message edit/delete ----
+  // Neither has a WhatsApp Cloud API equivalent (no edit/delete endpoint
+  // for a sent message exists) — both are DB-only, with the UI making
+  // that limitation explicit (see MessageBubble's "edited" tag / deleted
+  // placeholder and message-actions.tsx's delete confirm copy).
+
+  const handleStartEdit = useCallback((msg: Message) => {
+    setEditingMessageId(msg.id);
+    setEditDraft(msg.content_text ?? "");
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditDraft("");
+  }, []);
+
+  const handleSaveEdit = useCallback(
+    async (messageId: string) => {
+      const text = editDraft.trim();
+      if (!text) return;
+
+      setEditSaving(true);
+      const supabase = createClient();
+      const editedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from("messages")
+        .update({ content_text: text, edited_at: editedAt })
+        .eq("id", messageId);
+      setEditSaving(false);
+
+      if (error) {
+        console.error("Failed to edit message:", error);
+        toast.error(t("editFailed"));
+        return;
+      }
+
+      onUpdateMessage(messageId, { content_text: text, edited_at: editedAt });
+      setEditingMessageId(null);
+      setEditDraft("");
+    },
+    [editDraft, onUpdateMessage],
+  );
+
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      const supabase = createClient();
+      const deletedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from("messages")
+        .update({ deleted_at: deletedAt })
+        .eq("id", messageId);
+
+      if (error) {
+        console.error("Failed to delete message:", error);
+        toast.error(t("deleteFailed"));
+        return;
+      }
+
+      onUpdateMessage(messageId, { deleted_at: deletedAt });
+    },
+    [onUpdateMessage],
+  );
+
   // Empty state — same WhatsApp-style doodle background as the active
   // thread below, so swapping between empty/selected doesn't change the
   // pattern under the user's eye.
@@ -1175,6 +1243,7 @@ export function MessageThread({
                       const next = own?.emoji === emoji ? "" : emoji;
                       void postReaction(msg.id, next);
                     };
+                    const isEditingThis = editingMessageId === msg.id;
                     return (
                       <MessageActions
                         key={msg.id}
@@ -1183,6 +1252,8 @@ export function MessageThread({
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
+                        onEdit={() => handleStartEdit(msg)}
+                        onDelete={() => void handleDeleteMessage(msg.id)}
                       >
                         <MessageBubble
                           message={msg}
@@ -1190,6 +1261,12 @@ export function MessageThread({
                           reactions={msgReactions}
                           currentUserId={user?.id}
                           onToggleReaction={handlePillToggle}
+                          isEditing={isEditingThis}
+                          editValue={isEditingThis ? editDraft : undefined}
+                          onEditValueChange={setEditDraft}
+                          onSaveEdit={() => void handleSaveEdit(msg.id)}
+                          onCancelEdit={handleCancelEdit}
+                          editSaving={isEditingThis && editSaving}
                         />
                       </MessageActions>
                     );

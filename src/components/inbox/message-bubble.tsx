@@ -15,6 +15,8 @@ import {
   ImageOff,
   CornerDownLeft,
   Download,
+  Ban,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
@@ -28,6 +30,14 @@ interface MessageBubbleProps {
   reactions?: MessageReaction[];
   currentUserId?: string;
   onToggleReaction?: (emoji: string) => void;
+  /** CRM-local inline edit (see Message.edited_at) — all optional so
+   *  callers that don't support editing don't need to wire it up. */
+  isEditing?: boolean;
+  editValue?: string;
+  onEditValueChange?: (value: string) => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
+  editSaving?: boolean;
 }
 
 function StatusIcon({ status }: { status: Message["status"] }) {
@@ -171,8 +181,27 @@ function MediaImage({ url, alt, filename }: { url: string; alt: string; filename
   );
 }
 
-function MessageContent({ message }: { message: Message }) {
+function MessageContent({ message, isAgent }: { message: Message; isAgent: boolean }) {
   const t = useTranslations("inbox.bubble");
+
+  if (message.deleted_at) {
+    return (
+      <p
+        className={cn(
+          "flex items-center gap-1.5 text-sm italic",
+          // Deleted messages only ever appear on agent-sent (primary-tinted)
+          // bubbles today — see MessageActions, only agent messages get the
+          // delete action — so this branch doesn't need the customer case,
+          // but stays defensive in case that ever changes.
+          isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
+        )}
+      >
+        <Ban className="h-3.5 w-3.5 shrink-0" />
+        {t("deletedPlaceholder")}
+      </p>
+    );
+  }
+
   switch (message.content_type) {
     case "text":
       return (
@@ -315,15 +344,102 @@ function MessageContent({ message }: { message: Message }) {
   }
 }
 
+/** Inline replacement for <MessageContent> while an agent message is
+ *  being edited — see MessageBubble's `isEditing` prop. */
+function EditMessageForm({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  isAgent,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving?: boolean;
+  isAgent: boolean;
+}) {
+  const t = useTranslations("inbox.bubble");
+  return (
+    <div className="flex min-w-[200px] flex-col gap-1.5">
+      <textarea
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSave();
+          } else if (e.key === "Escape") {
+            onCancel();
+          }
+        }}
+        rows={2}
+        className={cn(
+          "w-full resize-none rounded-lg border bg-transparent px-2 py-1.5 text-sm outline-none",
+          isAgent
+            ? "border-primary-foreground/30 placeholder:text-primary-foreground/50"
+            : "border-border placeholder:text-muted-foreground",
+        )}
+      />
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "text-[10px]",
+            isAgent ? "text-primary-foreground/60" : "text-muted-foreground",
+          )}
+        >
+          {t("editLocalOnlyHint")}
+        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={onCancel}
+            className={cn(
+              "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+              isAgent ? "hover:bg-primary-foreground/10" : "hover:bg-muted",
+            )}
+          >
+            {t("cancelEdit")}
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !value.trim()}
+            className={cn(
+              "rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+              isAgent
+                ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
+                : "bg-primary/10 text-primary hover:bg-primary/20",
+            )}
+          >
+            {saving ? t("savingEdit") : t("saveEdit")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MessageBubble({
   message,
   reply,
   reactions,
   currentUserId,
   onToggleReaction,
+  isEditing,
+  editValue,
+  onEditValueChange,
+  onSaveEdit,
+  onCancelEdit,
+  editSaving,
 }: MessageBubbleProps) {
+  const t = useTranslations("inbox.bubble");
   const isAgent = message.sender_type === "agent" || message.sender_type === "bot";
   const time = format(new Date(message.created_at), "HH:mm");
+  const editedTag = t("editedTag");
 
   // Row alignment + width cap are owned by <MessageActions> so its hover
   // group matches the bubble's content area, not the full row.
@@ -349,13 +465,34 @@ export function MessageBubble({
             onPrimary={isAgent}
           />
         )}
-        <MessageContent message={message} />
+        {isEditing ? (
+          <EditMessageForm
+            value={editValue ?? ""}
+            onChange={onEditValueChange ?? (() => {})}
+            onSave={onSaveEdit ?? (() => {})}
+            onCancel={onCancelEdit ?? (() => {})}
+            saving={editSaving}
+            isAgent={isAgent}
+          />
+        ) : (
+          <MessageContent message={message} isAgent={isAgent} />
+        )}
         <div
           className={cn(
             "mt-1 flex items-center gap-1",
             isAgent ? "justify-end" : "justify-start",
           )}
         >
+          {message.edited_at && !message.deleted_at && (
+            <span
+              className={cn(
+                "text-[10px] italic",
+                isAgent ? "text-primary-foreground/60" : "text-muted-foreground/80",
+              )}
+            >
+              {editedTag}
+            </span>
+          )}
           <span
             className={cn(
               "text-[10px]",

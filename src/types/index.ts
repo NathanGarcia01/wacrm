@@ -194,6 +194,15 @@ export interface Message {
    * cue (renders with a "↩ button reply" affordance).
    */
   interactive_reply_id?: string;
+  /**
+   * CRM-local edit/delete — the WhatsApp Cloud API has no endpoint for
+   * either, so both are UI-only: `edited_at` rewrites `content_text`
+   * in place and shows an "edited" tag; `deleted_at` hides the content
+   * behind a "[Message deleted]" placeholder. The customer's own
+   * WhatsApp still shows the original message in both cases.
+   */
+  edited_at?: string;
+  deleted_at?: string;
 }
 
 export type ReactionActor = 'customer' | 'agent';
