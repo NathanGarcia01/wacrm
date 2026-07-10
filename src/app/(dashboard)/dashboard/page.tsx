@@ -33,6 +33,7 @@ import { SkeletonCard } from '@/components/dashboard/skeleton'
 import { QuickActions } from '@/components/dashboard/quick-actions'
 import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
+import { ConversionFunnelChart } from '@/components/dashboard/conversion-funnel-chart'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 
@@ -40,7 +41,7 @@ type RangeDays = 7 | 30 | 90
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard')
-  const { defaultCurrency } = useAuth()
+  const { defaultCurrency, profile } = useAuth()
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
@@ -121,11 +122,24 @@ export default function DashboardPage() {
     [series],
   )
 
+  const firstName = profile?.full_name?.split(' ')[0]
+  const greeting = t(greetingKeyForHour(new Date().getHours()))
+
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header — font-display is reserved for exactly this kind of
+          one-off, high-visibility moment; the rest of the dashboard
+          (KPI labels, chart headers, activity rows) stays font-sans. */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
+        <h1 className="font-display text-3xl text-foreground">
+          {greeting}
+          {firstName && (
+            <>
+              {', '}
+              <span className="text-primary">{firstName}</span>
+            </>
+          )}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
 
@@ -201,6 +215,10 @@ export default function DashboardPage() {
       {/* Quick actions */}
       <QuickActions />
 
+      {/* Conversion funnel — the redesign's signature piece, full width
+          and above the rest of the charts so it reads first. */}
+      <ConversionFunnelChart data={pipeline} loading={pipelineLoading} />
+
       {/* Charts row */}
       {/* items-stretch (the grid default) stretches the two columns to
           match the tallest sibling; adding h-full on each wrapper and
@@ -236,6 +254,12 @@ export default function DashboardPage() {
 }
 
 // ------------------------------------------------------------
+
+function greetingKeyForHour(hour: number): 'greetingMorning' | 'greetingAfternoon' | 'greetingEvening' {
+  if (hour < 12) return 'greetingMorning'
+  if (hour < 18) return 'greetingAfternoon'
+  return 'greetingEvening'
+}
 
 function deltaLabel(
   t: (key: string, values?: Record<string, string | number>) => string,

@@ -30,7 +30,7 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle }: Metric
           <Icon className="h-4 w-4" />
         </div>
       </div>
-      <p className="mt-3 text-[28px] leading-none font-bold tabular-nums text-foreground">
+      <p className="mt-3 font-mono text-[28px] leading-none font-bold tabular-nums text-foreground">
         {value}
       </p>
       {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (
@@ -45,13 +45,13 @@ function DeltaRow({ sign, label }: { sign: number; label: string }) {
     sign > 0
       ? 'text-primary'
       : sign < 0
-      ? 'text-red-400'
+      ? 'text-destructive'
       : 'text-muted-foreground'
   const Arrow = sign > 0 ? ArrowUp : sign < 0 ? ArrowDown : Minus
   return (
     <div className={cn('mt-2 flex items-center gap-1 text-sm', tone)}>
       <Arrow className="h-4 w-4" aria-hidden />
-      <span className="tabular-nums">{label}</span>
+      <span className="font-mono tabular-nums">{label}</span>
     </div>
   )
 }

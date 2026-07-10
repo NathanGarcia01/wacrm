@@ -221,7 +221,7 @@ function LineSvg({
                 y={y}
                 textAnchor="end"
                 dominantBaseline="middle"
-                className="fill-muted-foreground text-[10px]"
+                className="fill-muted-foreground font-mono text-[10px]"
               >
                 {t}
               </text>
@@ -293,11 +293,11 @@ function LineSvg({
           <div className="mt-1 flex flex-col gap-0.5">
             <span className="flex items-center gap-1.5 text-blue-300">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
-              {hovered.incoming} {incomingLabel.toLowerCase()}
+              <span className="font-mono">{hovered.incoming}</span> {incomingLabel.toLowerCase()}
             </span>
             <span className="flex items-center gap-1.5 text-primary">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-              {hovered.outgoing} {outgoingLabel.toLowerCase()}
+              <span className="font-mono">{hovered.outgoing}</span> {outgoingLabel.toLowerCase()}
             </span>
           </div>
         </div>

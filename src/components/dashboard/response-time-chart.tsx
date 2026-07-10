@@ -58,7 +58,7 @@ export function ResponseTimeChart({
         </div>
         <div className="flex items-center gap-3 text-right text-xs">
           {thresholdMinutes > 0 && (
-            <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-medium text-rose-300 tabular-nums">
+            <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-mono font-medium text-rose-300 tabular-nums">
               {t('targetMinutes', { minutes: thresholdMinutes })}
             </span>
           )}
@@ -66,13 +66,13 @@ export function ResponseTimeChart({
             <div>
               <div className="text-muted-foreground">
                 {t('thisWeek')}{' '}
-                <span className="font-medium text-foreground tabular-nums">
+                <span className="font-mono font-medium text-foreground tabular-nums">
                   {fmt(data.thisWeekAvg)}
                 </span>
               </div>
               <div className="text-muted-foreground">
                 {t('lastWeek')}{' '}
-                <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
+                <span className="font-mono tabular-nums">{fmt(data.lastWeekAvg)}</span>
               </div>
             </div>
           )}
