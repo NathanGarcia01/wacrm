@@ -533,7 +533,12 @@ function ConversationItem({
         className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left"
       >
       {/* Avatar */}
-      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+      <div
+        className={cn(
+          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-mono text-sm font-medium",
+          isActive ? "bg-primary-soft text-primary" : "bg-card-2 text-foreground",
+        )}
+      >
         {contact?.avatar_url ? (
           <img
             src={contact.avatar_url}
@@ -562,7 +567,7 @@ function ConversationItem({
           >
             {displayName}
           </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
+          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p
@@ -575,7 +580,7 @@ function ConversationItem({
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
                 {conversation.unread_count}
               </span>
             )}

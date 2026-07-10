@@ -1013,7 +1013,7 @@ export function MessageThread({
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-card-2 font-mono text-sm font-medium text-foreground">
             {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
@@ -1025,8 +1025,10 @@ export function MessageThread({
           <Badge
             variant="outline"
             className={cn(
-              "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-400" : "text-primary"
+              "ml-1 hidden gap-1 text-[10px] font-mono sm:inline-flex sm:ml-2",
+              sessionInfo.expired
+                ? "border-destructive/30 text-destructive"
+                : "border-transparent bg-gold-soft text-gold",
             )}
           >
             <Clock className="h-3 w-3" />

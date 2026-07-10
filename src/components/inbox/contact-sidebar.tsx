@@ -369,7 +369,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         <div className="p-4">
           {/* Contact Info */}
           <div className="flex flex-col items-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted text-lg font-semibold text-foreground">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-card-2 font-mono text-lg font-semibold text-foreground">
               {contact.avatar_url ? (
                 <img
                   src={contact.avatar_url}
@@ -521,10 +521,12 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                       </div>
                       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                         <span className="flex items-center gap-1.5">
-                          <span>{formatCurrency(deal.value, deal.currency)}</span>
+                          <span className="font-mono font-semibold text-foreground">
+                            {formatCurrency(deal.value, deal.currency)}
+                          </span>
                           {dealCommissionTotal > 0 && (
                             <span
-                              className="font-medium text-green-500"
+                              className="font-mono text-xs font-medium text-gold"
                               title={t("dealCommissionTotal")}
                             >
                               +{formatCurrency(dealCommissionTotal, deal.currency)}

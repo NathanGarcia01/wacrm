@@ -181,21 +181,12 @@ function MediaImage({ url, alt, filename }: { url: string; alt: string; filename
   );
 }
 
-function MessageContent({ message, isAgent }: { message: Message; isAgent: boolean }) {
+function MessageContent({ message }: { message: Message }) {
   const t = useTranslations("inbox.bubble");
 
   if (message.deleted_at) {
     return (
-      <p
-        className={cn(
-          "flex items-center gap-1.5 text-sm italic",
-          // Deleted messages only ever appear on agent-sent (primary-tinted)
-          // bubbles today — see MessageActions, only agent messages get the
-          // delete action — so this branch doesn't need the customer case,
-          // but stays defensive in case that ever changes.
-          isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
-        )}
-      >
+      <p className="flex items-center gap-1.5 text-sm italic text-muted-foreground">
         <Ban className="h-3.5 w-3.5 shrink-0" />
         {t("deletedPlaceholder")}
       </p>
@@ -352,14 +343,12 @@ function EditMessageForm({
   onSave,
   onCancel,
   saving,
-  isAgent,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSave: () => void;
   onCancel: () => void;
   saving?: boolean;
-  isAgent: boolean;
 }) {
   const t = useTranslations("inbox.bubble");
   return (
@@ -377,30 +366,17 @@ function EditMessageForm({
           }
         }}
         rows={2}
-        className={cn(
-          "w-full resize-none rounded-lg border bg-transparent px-2 py-1.5 text-sm outline-none",
-          isAgent
-            ? "border-primary-foreground/30 placeholder:text-primary-foreground/50"
-            : "border-border placeholder:text-muted-foreground",
-        )}
+        className="w-full resize-none rounded-lg border border-border bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted-foreground"
       />
       <div className="flex items-center justify-between gap-2">
-        <span
-          className={cn(
-            "text-[10px]",
-            isAgent ? "text-primary-foreground/60" : "text-muted-foreground",
-          )}
-        >
+        <span className="text-[10px] text-muted-foreground">
           {t("editLocalOnlyHint")}
         </span>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={onCancel}
-            className={cn(
-              "rounded px-2 py-0.5 text-xs font-medium transition-colors",
-              isAgent ? "hover:bg-primary-foreground/10" : "hover:bg-muted",
-            )}
+            className="rounded px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
           >
             {t("cancelEdit")}
           </button>
@@ -408,12 +384,7 @@ function EditMessageForm({
             type="button"
             onClick={onSave}
             disabled={saving || !value.trim()}
-            className={cn(
-              "rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-              isAgent
-                ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
-                : "bg-primary/10 text-primary hover:bg-primary/20",
-            )}
+            className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? t("savingEdit") : t("saveEdit")}
           </button>
@@ -452,17 +423,23 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          "relative rounded-2xl px-3 py-2",
+          "relative rounded-2xl border px-3 py-2 text-foreground",
+          // Neither bubble is a solid fill anymore — outbound reads as a
+          // soft primary-tinted wash (not a saturated WhatsApp-green
+          // block), inbound as a plain card surface. Both sit close
+          // enough in lightness that sub-elements (timestamp, edited
+          // tag, status icon) no longer need a separate onPrimary/
+          // isAgent contrast branch — see reply-quote.tsx's history for
+          // the same simplification.
           isAgent
-            ? "rounded-br-md bg-primary text-primary-foreground"
-            : "rounded-bl-md bg-muted text-foreground",
+            ? "rounded-br-md border-primary/30 bg-primary-soft-2"
+            : "rounded-bl-md border-border bg-card",
         )}
       >
         {reply && (
           <ReplyQuote
             authorLabel={reply.authorLabel}
             preview={reply.preview}
-            onPrimary={isAgent}
           />
         )}
         {isEditing ? (
@@ -472,10 +449,9 @@ export function MessageBubble({
             onSave={onSaveEdit ?? (() => {})}
             onCancel={onCancelEdit ?? (() => {})}
             saving={editSaving}
-            isAgent={isAgent}
           />
         ) : (
-          <MessageContent message={message} isAgent={isAgent} />
+          <MessageContent message={message} />
         )}
         <div
           className={cn(
@@ -484,25 +460,11 @@ export function MessageBubble({
           )}
         >
           {message.edited_at && !message.deleted_at && (
-            <span
-              className={cn(
-                "text-[10px] italic",
-                isAgent ? "text-primary-foreground/60" : "text-muted-foreground/80",
-              )}
-            >
+            <span className="text-[10px] italic text-muted-foreground/80">
               {editedTag}
             </span>
           )}
-          <span
-            className={cn(
-              "text-[10px]",
-              // Outbound bubbles sit on the primary fill, so the
-              // timestamp must read against that (not the neutral
-              // foreground) — otherwise it goes low-contrast in light
-              // mode. Inbound bubbles use the muted surface.
-              isAgent ? "text-primary-foreground/70" : "text-muted-foreground",
-            )}
-          >
+          <span className="font-mono text-[10px] text-muted-foreground">
             {time}
           </span>
           {isAgent && <StatusIcon status={message.status} />}
