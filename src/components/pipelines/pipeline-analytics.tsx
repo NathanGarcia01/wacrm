@@ -11,6 +11,7 @@ import {
   Trophy,
   XCircle,
   Info,
+  Coins,
 } from "lucide-react";
 import {
   Tooltip,
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 
 interface PipelineAnalyticsProps {
   stages: PipelineStage[];
@@ -70,6 +72,14 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
       return sum + Number(d.value || 0) * prob;
     }, 0);
 
+    // Reuses deal.products (already joined by the page's loadDeals query
+    // for the deal-card commission badge) — no extra fetch needed.
+    const projectedCommission = active.reduce(
+      (sum, d) =>
+        sum + (d.products ?? []).reduce((s, p) => s + (p.commission_value ?? 0), 0),
+      0,
+    )
+
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const thisMonth = (d: Deal) => {
@@ -88,6 +98,7 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
       totalValue,
       avgValue,
       weightedValue,
+      projectedCommission,
       wonThisMonth,
       lostThisMonth,
     };
@@ -95,42 +106,56 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
 
   return (
     <TooltipProvider>
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card/60 p-4 sm:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card/60 p-4 sm:grid-cols-3 xl:grid-cols-7">
         <Metric
           icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />}
           label={t("totalDeals")}
           value={String(stats.totalCount)}
           tooltip={t("totalDealsTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("totalDeals") })}
         />
         <Metric
           icon={<DollarSign className="h-4 w-4 text-primary" />}
           label={t("pipelineValue")}
           value={formatCurrency(stats.totalValue, defaultCurrency)}
           tooltip={t("pipelineValueTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("pipelineValue") })}
         />
         <Metric
           icon={<Target className="h-4 w-4 text-blue-400" />}
           label={t("avgDealSize")}
           value={formatCurrency(stats.avgValue, defaultCurrency)}
           tooltip={t("avgDealSizeTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("avgDealSize") })}
         />
         <Metric
           icon={<TrendingUp className="h-4 w-4 text-purple-400" />}
           label={t("weightedValue")}
           value={formatCurrency(stats.weightedValue, defaultCurrency)}
           tooltip={t("weightedValueTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("weightedValue") })}
+        />
+        <Metric
+          icon={<Coins className="h-4 w-4 text-gold" />}
+          label={t("projectedCommission")}
+          value={formatCurrency(stats.projectedCommission, defaultCurrency)}
+          tooltip={t("projectedCommissionTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("projectedCommission") })}
+          tone="gold"
         />
         <Metric
           icon={<Trophy className="h-4 w-4 text-primary" />}
           label={t("wonThisMonth")}
           value={String(stats.wonThisMonth)}
           tooltip={t("wonThisMonthTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("wonThisMonth") })}
         />
         <Metric
           icon={<XCircle className="h-4 w-4 text-red-400" />}
           label={t("lostThisMonth")}
           value={String(stats.lostThisMonth)}
           tooltip={t("lostThisMonthTooltip")}
+          tooltipAria={t("howCalculatedAria", { label: t("lostThisMonth") })}
         />
       </div>
     </TooltipProvider>
@@ -142,11 +167,17 @@ function Metric({
   label,
   value,
   tooltip,
+  tooltipAria,
+  tone,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   tooltip: string;
+  tooltipAria: string;
+  /** Numbers that represent money-in/conversion get the fixed gold
+   *  accent regardless of the chosen theme (see globals.css --gold). */
+  tone?: "gold";
 }) {
   return (
     <div className="rounded-lg bg-muted/50 p-3">
@@ -158,7 +189,7 @@ function Metric({
             render={
               <button
                 type="button"
-                aria-label={`How ${label} is calculated`}
+                aria-label={tooltipAria}
                 className="ml-auto text-muted-foreground hover:text-foreground focus:outline-none"
               />
             }
@@ -170,7 +201,14 @@ function Metric({
           </TooltipContent>
         </Tooltip>
       </div>
-      <p className="mt-1 text-base font-semibold text-foreground">{value}</p>
+      <p
+        className={cn(
+          "mt-1 font-mono text-base font-semibold",
+          tone === "gold" ? "text-gold" : "text-foreground",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }

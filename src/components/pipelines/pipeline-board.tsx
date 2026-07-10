@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   DndContext,
@@ -18,9 +18,31 @@ import {
 import type { Deal, PipelineStage } from "@/types";
 import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Filter } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
+import { cn } from "@/lib/utils";
+
+// Best-effort, name-based heuristic — deal.status='lost' doesn't imply
+// anything about which stage the deal sits in (marking a deal Lost only
+// touches status/lost_reason, never stage_id — see deal-form.tsx), and
+// stages carry no "this is the loss bucket" flag in the schema. So there
+// is no fully reliable, generic way to identify "the Lost stage" from
+// data alone. This catches the common convention (a stage literally
+// named "Perdido"/"Lost"/"Perdida"); an account that calls its loss
+// stage something else (e.g. "Sem margem") won't be caught — known
+// limitation, flagged rather than guessed around with fragile matching.
+const LOST_STAGE_KEYWORDS = ["perdido", "perdida", "lost"];
+function isLostLikeStage(stageName: string): boolean {
+  const normalized = stageName.trim().toLowerCase();
+  return LOST_STAGE_KEYWORDS.some((k) => normalized === k);
+}
+
+const FUNNEL_EFFECT_STORAGE_KEY = "wacrm.pipelineFunnelEffect";
+const FUNNEL_WIDTH_MAX = 260;
+const FUNNEL_WIDTH_STEP = 30;
+const FUNNEL_WIDTH_MIN = 150;
 
 interface PipelineBoardProps {
   stages: PipelineStage[];
@@ -37,12 +59,38 @@ export function PipelineBoard({
   onAddDeal,
   onEditDeal,
 }: PipelineBoardProps) {
+  const t = useTranslations("pipelines");
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+
+  // Defaults on (the redesign's signature look); remembered per browser
+  // like the theme/mode pickers, for accounts with many deals per stage
+  // that prefer a plain kanban.
+  const [funnelEffect, setFunnelEffect] = useState(true);
+  useEffect(() => {
+    const saved = localStorage.getItem(FUNNEL_EFFECT_STORAGE_KEY);
+    if (saved !== null) setFunnelEffect(saved === "true");
+  }, []);
+  const toggleFunnelEffect = (checked: boolean) => {
+    setFunnelEffect(checked);
+    localStorage.setItem(FUNNEL_EFFECT_STORAGE_KEY, String(checked));
+  };
 
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
     [stages],
+  );
+
+  // Lost-like stages are excluded from the narrowing sequence (and its
+  // width index) — they render after it, at a fixed width, visually
+  // split off so they never look like "the next funnel step".
+  const funnelStages = useMemo(
+    () => sortedStages.filter((s) => !isLostLikeStage(s.name)),
+    [sortedStages],
+  );
+  const lostStages = useMemo(
+    () => sortedStages.filter((s) => isLostLikeStage(s.name)),
+    [sortedStages],
   );
 
   const dealsByStage = useMemo(() => {
@@ -97,6 +145,12 @@ export function PipelineBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <Filter className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+        <span className="text-xs text-muted-foreground">{t("funnelEffectLabel")}</span>
+        <Switch checked={funnelEffect} onCheckedChange={toggleFunnelEffect} />
+      </div>
+
       {/* snap-x + snap-mandatory on mobile so swipes land the next
           stage cleanly at the viewport edge instead of mid-column.
           Disabled on lg+ where snapping would interfere with the
@@ -104,7 +158,29 @@ export function PipelineBoard({
           lg+ once a pipeline has many stages (columns keep a 260px
           min-width), so a thin scrollbar stays visible on desktop. */}
       <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
-        {sortedStages.map((stage) => {
+        {funnelStages.map((stage, i) => {
+          const stageDeals = dealsByStage.get(stage.id) ?? [];
+          const totalValue = stageDeals.reduce(
+            (s, d) => s + Number(d.value || 0),
+            0,
+          );
+          const width = funnelEffect
+            ? Math.max(FUNNEL_WIDTH_MIN, FUNNEL_WIDTH_MAX - i * FUNNEL_WIDTH_STEP)
+            : null;
+          return (
+            <StageColumn
+              key={stage.id}
+              stage={stage}
+              deals={stageDeals}
+              totalValue={totalValue}
+              currency={defaultCurrency}
+              onAddDeal={onAddDeal}
+              onEditDeal={onEditDeal}
+              widthPx={width}
+            />
+          );
+        })}
+        {lostStages.map((stage) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const totalValue = stageDeals.reduce(
             (s, d) => s + Number(d.value || 0),
@@ -119,6 +195,8 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              widthPx={funnelEffect ? FUNNEL_WIDTH_MAX : null}
+              isLostLike={funnelEffect}
             />
           );
         })}
@@ -193,6 +271,8 @@ function StageColumn({
   currency,
   onAddDeal,
   onEditDeal,
+  widthPx,
+  isLostLike,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -200,22 +280,47 @@ function StageColumn({
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  /** Explicit desktop width in px when the funnel effect is on; null
+   *  restores the equal-share flex-1 kanban layout. Mobile ignores
+   *  this entirely — it always uses its own peek-preview sizing. */
+  widthPx?: number | null;
+  /** Visually splits this column off from the narrowing sequence — see
+   *  isLostLikeStage's caveats in the parent for how this is detected. */
+  isLostLike?: boolean;
 }) {
   const t = useTranslations("pipelines");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
+  const style = widthPx
+    ? ({ "--stage-width": `${widthPx}px` } as React.CSSProperties)
+    : undefined;
 
   return (
     // On mobile each column is `w-[85vw]` (with a reasonable min/max)
     // so the next column's edge peeks in — a "there's more here" hint.
-    // snap-start lands each column cleanly when swiping. On lg+ we
-    // restore the flex-1 share-the-row behavior. The droppable ref is
+    // snap-start lands each column cleanly when swiping. On lg+, either
+    // an explicit --stage-width (funnel effect) or the equal-share
+    // flex-1 kanban layout, set by the caller. The droppable ref is
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
-    <div className="flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[260px] lg:shrink lg:snap-none">
-      {/* 3px colored top border — sits above the column's padding */}
+    <div
+      style={style}
+      className={cn(
+        "flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:max-w-none lg:shrink lg:snap-none",
+        widthPx
+          ? "lg:w-[var(--stage-width)] lg:flex-none lg:basis-[var(--stage-width)]"
+          : "lg:w-auto lg:flex-1 lg:basis-[260px]",
+        // The left border + gap read as "this column split off from the
+        // sequence" — border-only (no stage.color accent) is a deliberate
+        // second signal alongside the destructive top border below.
+        isLostLike && "lg:ml-3 lg:border-l-2 lg:border-l-destructive/40 lg:pl-[calc(1rem-2px)]",
+      )}
+    >
+      {/* 3px colored top border — destructive for the lost-like column
+          (see isLostLikeStage) instead of the stage's own color, so it
+          never reads as just another funnel step. */}
       <div
         className="-mx-4 -mt-4 h-[3px] rounded-t-xl"
-        style={{ backgroundColor: stage.color }}
+        style={{ backgroundColor: isLostLike ? "var(--destructive)" : stage.color }}
       />
       <div className="flex items-center justify-between pt-3">
         <h3 className="truncate text-sm font-semibold text-foreground">

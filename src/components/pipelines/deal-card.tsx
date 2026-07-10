@@ -65,20 +65,20 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         {deal.status === "won" && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
             <Check className="h-3 w-3" />
-            Won
+            {t("won")}
           </span>
         )}
         {deal.status === "lost" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-semibold text-red-400">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold text-destructive">
             <X className="h-3 w-3" />
-            Lost
+            {t("lost")}
           </span>
         )}
       </div>
 
       {/* Contact row */}
       <div className="mt-2 flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-card-2 font-mono text-[10px] font-semibold text-foreground">
           {initials(deal.contact?.name, deal.contact?.phone)}
         </span>
         <span className="truncate text-xs text-muted-foreground">{contactLabel}</span>
@@ -86,11 +86,11 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
 
       <div className="mt-2 flex items-center justify-between">
         <span className="flex items-center gap-1.5">
-          <span className="text-sm font-bold text-primary">
+          <span className="font-mono text-sm font-semibold text-primary">
             {formatCurrency(deal.value, deal.currency)}
           </span>
           {commissionTotal > 0 && (
-            <span className="text-[11px] font-semibold text-green-500" title={t("commissionTotal")}>
+            <span className="font-mono text-[11px] font-semibold text-gold" title={t("commissionTotal")}>
               +{formatCurrency(commissionTotal, deal.currency)}
             </span>
           )}
@@ -107,7 +107,7 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <div className="mt-2 flex items-center justify-end">
           <span
             title={assigneeLabel}
-            className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary"
+            className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-soft font-mono text-[10px] font-semibold text-primary"
           >
             {initials(assigneeLabel)}
           </span>

@@ -522,6 +522,7 @@
     "addPipeline": "Add Pipeline",
     "addDeal": "Add Deal",
     "dropDealHere": "Drop a deal here",
+    "funnelEffectLabel": "Funnel effect",
     "createPipelineHint": "Create a pipeline to start tracking deals",
     "createPipeline": "Create Pipeline",
     "newPipeline": "New Pipeline",
@@ -559,14 +560,19 @@
       "avgDealSizeTooltip": "Pipeline Value divided by Total Deals — the average value of a single non-lost deal.",
       "weightedValue": "Weighted Value",
       "weightedValueTooltip": "Expected revenue: each open deal's value × its stage probability. First stage ≈ 10%, stages progress up to 90%, Won = 100%. Lost deals are excluded.",
+      "projectedCommission": "Projected Commission",
+      "projectedCommissionTooltip": "Sum of the commission on every product across deals that aren't marked as Lost.",
       "wonThisMonth": "Won This Month",
       "wonThisMonthTooltip": "Deals marked as Won since the first day of the current month.",
       "lostThisMonth": "Lost This Month",
-      "lostThisMonthTooltip": "Deals marked as Lost since the first day of the current month."
+      "lostThisMonthTooltip": "Deals marked as Lost since the first day of the current month.",
+      "howCalculatedAria": "How {label} is calculated"
     },
     "dealCard": {
       "noContact": "No contact",
-      "commissionTotal": "Total product commission"
+      "commissionTotal": "Total product commission",
+      "won": "Won",
+      "lost": "Lost"
     },
     "settings": {
       "managePipeline": "Manage Pipeline",

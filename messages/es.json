@@ -522,6 +522,7 @@
     "addPipeline": "Agregar Pipeline",
     "addDeal": "Agregar Negocio",
     "dropDealHere": "Suelta un negocio aquí",
+    "funnelEffectLabel": "Efecto embudo",
     "createPipelineHint": "Crea un pipeline para empezar a rastrear negocios",
     "createPipeline": "Crear Pipeline",
     "newPipeline": "Nuevo Pipeline",
@@ -559,14 +560,19 @@
       "avgDealSizeTooltip": "Valor del Pipeline dividido por Total de Negocios — el valor promedio de un solo negocio no perdido.",
       "weightedValue": "Valor Ponderado",
       "weightedValueTooltip": "Ingreso esperado: el valor de cada negocio abierto × la probabilidad de su etapa. Primera etapa ≈ 10%, las etapas progresan hasta 90%, Ganado = 100%. Los negocios perdidos están excluidos.",
+      "projectedCommission": "Comisión Proyectada",
+      "projectedCommissionTooltip": "Suma de la comisión de todos los productos de negocios que no están marcados como Perdido.",
       "wonThisMonth": "Ganados Este Mes",
       "wonThisMonthTooltip": "Negocios marcados como Ganado desde el primer día del mes actual.",
       "lostThisMonth": "Perdidos Este Mes",
-      "lostThisMonthTooltip": "Negocios marcados como Perdido desde el primer día del mes actual."
+      "lostThisMonthTooltip": "Negocios marcados como Perdido desde el primer día del mes actual.",
+      "howCalculatedAria": "Cómo se calcula {label}"
     },
     "dealCard": {
       "noContact": "Sin contacto",
-      "commissionTotal": "Total de comisión de los productos"
+      "commissionTotal": "Total de comisión de los productos",
+      "won": "Ganado",
+      "lost": "Perdido"
     },
     "settings": {
       "managePipeline": "Gestionar Pipeline",
