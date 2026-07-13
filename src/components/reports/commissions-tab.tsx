@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -55,10 +55,27 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
     }
   }, [period, statusFilter, stageId, t])
 
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, the trigger shows
+  // the raw value ("all") until the user opens it once.
+  const statusItems = useMemo(
+    () =>
+      Object.fromEntries(
+        STATUS_OPTIONS.map((o) => [o, o === "all" ? t("statusAll") : tDealStatus(o)]),
+      ),
+    [t, tDealStatus],
+  )
+  const stageItems = useMemo(() => {
+    const items: Record<string, string> = { all: t("allStages") }
+    for (const s of bundle?.stages ?? []) items[s.id] = s.name
+    return items
+  }, [t, bundle?.stages])
+
   return (
     <div className="space-y-5">
       {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -66,7 +83,11 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground">{t("dealStatusLabel")}</label>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as CommissionStatusFilter)}>
+          <Select
+            items={statusItems}
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as CommissionStatusFilter)}
+          >
             <SelectTrigger className="w-44 bg-card">
               <SelectValue />
             </SelectTrigger>
@@ -83,6 +104,7 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-medium text-muted-foreground">{t("stageLabel")}</label>
           <Select
+            items={stageItems}
             value={stageId ?? "all"}
             onValueChange={(v) => setStageId(v === "all" ? null : v)}
           >

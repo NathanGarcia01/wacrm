@@ -108,7 +108,7 @@ export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading
               <TableRow key={deal.id}>
                 <TableCell className="font-medium text-foreground">{deal.title}</TableCell>
                 <TableCell>{deal.contactName ?? "—"}</TableCell>
-                <TableCell className="tabular-nums">{formatCurrency(deal.value, deal.currency)}</TableCell>
+                <TableCell className="font-mono tabular-nums">{formatCurrency(deal.value, deal.currency)}</TableCell>
                 <TableCell>
                   {deal.stageName ? (
                     <span className="inline-flex items-center gap-1.5">
@@ -124,8 +124,8 @@ export function DealsTable({ deals, loading }: { deals: DealReportRow[]; loading
                   )}
                 </TableCell>
                 <TableCell>{deal.assigneeName ?? "—"}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(deal.createdAt, locale)}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(deal.closedAt, locale)}</TableCell>
+                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(deal.createdAt, locale)}</TableCell>
+                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(deal.closedAt, locale)}</TableCell>
                 <TableCell>
                   {deal.status === "open" || deal.status === "won" || deal.status === "lost"
                     ? tDealStatus(deal.status)

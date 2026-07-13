@@ -53,8 +53,8 @@ export function CommissionAgentRankingTable({
             rows.map((row) => (
               <TableRow key={row.profileId}>
                 <TableCell className="font-medium text-foreground">{row.name}</TableCell>
-                <TableCell className="tabular-nums">{row.dealsWon.toLocaleString()}</TableCell>
-                <TableCell className="font-medium tabular-nums text-green-500">
+                <TableCell className="font-mono tabular-nums">{row.dealsWon.toLocaleString()}</TableCell>
+                <TableCell className="font-mono font-medium tabular-nums text-gold">
                   {formatCurrency(row.commissionWon, currency)}
                 </TableCell>
               </TableRow>

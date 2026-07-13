@@ -104,12 +104,12 @@ export function UserRankingTable({
             sorted.map((row) => (
               <TableRow key={row.profileId}>
                 <TableCell className="font-medium text-foreground">{row.name}</TableCell>
-                <TableCell className="tabular-nums">{row.messagesSent.toLocaleString()}</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className="font-mono tabular-nums">{row.messagesSent.toLocaleString()}</TableCell>
+                <TableCell className="font-mono tabular-nums">
                   {row.conversationsHandled.toLocaleString()}
                 </TableCell>
-                <TableCell className="tabular-nums">{row.dealsWon.toLocaleString()}</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className="font-mono tabular-nums">{row.dealsWon.toLocaleString()}</TableCell>
+                <TableCell className="font-mono tabular-nums">
                   {formatCurrency(row.valueWon, currency)}
                 </TableCell>
                 <TableCell

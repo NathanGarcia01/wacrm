@@ -109,11 +109,11 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                     {b.name}
                   </Link>
                 </TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(b.createdAt, locale)}</TableCell>
-                <TableCell className="tabular-nums">{b.totalRecipients.toLocaleString()}</TableCell>
-                <TableCell className="tabular-nums">{b.deliveredCount.toLocaleString()}</TableCell>
-                <TableCell className="tabular-nums">{b.failedCount.toLocaleString()}</TableCell>
-                <TableCell className="tabular-nums">{fmtPct(b.replyRatePct)}</TableCell>
+                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(b.createdAt, locale)}</TableCell>
+                <TableCell className="font-mono tabular-nums">{b.totalRecipients.toLocaleString()}</TableCell>
+                <TableCell className="font-mono tabular-nums">{b.deliveredCount.toLocaleString()}</TableCell>
+                <TableCell className="font-mono tabular-nums">{b.failedCount.toLocaleString()}</TableCell>
+                <TableCell className="font-mono tabular-nums">{fmtPct(b.replyRatePct)}</TableCell>
               </TableRow>
             ))
           )}

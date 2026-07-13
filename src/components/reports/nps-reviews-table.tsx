@@ -28,7 +28,7 @@ function Stars({ rating, awaitingLabel }: { rating: number | null; awaitingLabel
           key={i}
           className={
             i < rating
-              ? "h-3.5 w-3.5 fill-amber-400 text-amber-400"
+              ? "h-3.5 w-3.5 fill-gold text-gold"
               : "h-3.5 w-3.5 text-muted-foreground/30"
           }
         />
@@ -80,7 +80,7 @@ export function NpsReviewsTable({ reviews, loading }: { reviews: NpsReviewRow[];
                   {r.comment ?? "—"}
                 </TableCell>
                 <TableCell>{r.agentName ?? "—"}</TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(r.sentAt, locale)}</TableCell>
+                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(r.sentAt, locale)}</TableCell>
               </TableRow>
             ))
           )}

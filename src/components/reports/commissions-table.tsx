@@ -59,10 +59,10 @@ export function CommissionsTable({ rows, loading }: { rows: CommissionRow[]; loa
                 <TableCell className="font-medium text-foreground">{row.dealTitle}</TableCell>
                 <TableCell>{row.contactName ?? "—"}</TableCell>
                 <TableCell>{row.productName}</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className="font-mono tabular-nums">
                   {formatCurrency(row.value * row.quantity, row.currency)}
                 </TableCell>
-                <TableCell className="tabular-nums font-medium text-green-500">
+                <TableCell className="font-mono tabular-nums font-medium text-gold">
                   {formatCurrency(row.commissionValue, row.currency)}
                   {row.commissionRate != null && (
                     <span className="ml-1 text-xs font-normal text-muted-foreground">
@@ -76,7 +76,7 @@ export function CommissionsTable({ rows, loading }: { rows: CommissionRow[]; loa
                     ? tDealStatus(row.status)
                     : row.status}
                 </TableCell>
-                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(row.date, locale)}</TableCell>
+                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(row.date, locale)}</TableCell>
               </TableRow>
             ))
           )}

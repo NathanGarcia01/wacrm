@@ -52,12 +52,12 @@ export function NpsAgentRankingTable({
               <TableRow key={row.userId}>
                 <TableCell className="font-medium text-foreground">{row.name}</TableCell>
                 <TableCell>
-                  <span className="inline-flex items-center gap-1 tabular-nums">
-                    <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                  <span className="inline-flex items-center gap-1 font-mono tabular-nums">
+                    <Star className="h-3.5 w-3.5 fill-gold text-gold" />
                     {row.avgRating == null ? "—" : row.avgRating.toFixed(1)}
                   </span>
                 </TableCell>
-                <TableCell className="tabular-nums">{row.totalResponses.toLocaleString()}</TableCell>
+                <TableCell className="font-mono tabular-nums">{row.totalResponses.toLocaleString()}</TableCell>
               </TableRow>
             ))
           )}

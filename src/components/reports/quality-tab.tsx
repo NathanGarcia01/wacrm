@@ -39,8 +39,8 @@ const QUALITY_ICON: Record<QualityRating, React.ReactNode> = {
 
 const QUALITY_CLASSES: Record<QualityRating, string> = {
   GREEN: "border-primary/30 bg-primary/10 text-primary",
-  YELLOW: "border-amber-500/30 bg-amber-500/10 text-amber-400",
-  RED: "border-red-500/30 bg-red-500/10 text-red-400",
+  YELLOW: "border-gold/30 bg-gold-soft text-gold",
+  RED: "border-destructive/30 bg-destructive/10 text-destructive",
   UNKNOWN: "border-border bg-card/50 text-muted-foreground",
 }
 
@@ -105,7 +105,7 @@ export function QualityTab() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+        <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -143,7 +143,7 @@ export function QualityTab() {
             <div className="mt-3 h-16 animate-pulse rounded-lg bg-muted" />
           ) : (
             <div className="mt-3 space-y-1">
-              <p className="text-[28px] leading-none font-bold text-foreground">{tierLabel ?? "—"}</p>
+              <p className="font-mono text-[28px] leading-none font-bold text-foreground">{tierLabel ?? "—"}</p>
               <p className="text-xs text-muted-foreground">
                 {t("conversationsPerDayHint", { tier: data?.messaging_limit_tier ?? t("unknown") })}
               </p>

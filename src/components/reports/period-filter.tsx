@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
   Select,
@@ -34,11 +34,21 @@ export function PeriodFilter({
   const [draftFrom, setDraftFrom] = useState(period.fromDate)
   const [draftTo, setDraftTo] = useState(period.toDate)
 
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, the trigger shows
+  // the raw value ("today") until the user opens it once.
+  const periodItems = useMemo(
+    () => Object.fromEntries(OPTIONS.map((o) => [o.value, t(o.labelKey)])),
+    [t],
+  )
+
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">{t("label")}</label>
         <Select
+          items={periodItems}
           value={period.key}
           onValueChange={(v) => {
             const key = v as PeriodKey
