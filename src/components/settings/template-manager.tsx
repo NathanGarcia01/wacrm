@@ -60,7 +60,7 @@ const HEADER_FORMATS: HeaderFormat[] = ['none', 'text', 'image', 'video', 'docum
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-600/20 text-purple-400 border-purple-600/30',
   Utility: 'bg-blue-600/20 text-blue-400 border-blue-600/30',
-  Authentication: 'bg-amber-600/20 text-amber-400 border-amber-600/30',
+  Authentication: 'bg-gold-soft text-gold border-gold/30',
 };
 
 interface TemplateFormData {
@@ -135,6 +135,29 @@ export function TemplateManager() {
   const { user, loading: authLoading } = useAuth();
   const t = useTranslations('settings.templates');
   const tCommon = useTranslations('common');
+
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, a freshly opened
+  // dialog briefly shows the raw value ("Marketing", "none") instead of
+  // the translated label.
+  const categoryItems = useMemo(
+    () => Object.fromEntries(CATEGORIES.map((cat) => [cat, t(`categories.${CATEGORY_KEY[cat]}`)])),
+    [t],
+  );
+  const headerFormatItems = useMemo(
+    () => Object.fromEntries(HEADER_FORMATS.map((fmt) => [fmt, t(`headerFormats.${fmt}`)])),
+    [t],
+  );
+  const buttonTypeItems = useMemo(
+    () => ({
+      QUICK_REPLY: t('buttonTypeQuickReply'),
+      URL: t('buttonTypeUrl'),
+      PHONE_NUMBER: t('buttonTypePhone'),
+      COPY_CODE: t('buttonTypeCopyCode'),
+    }),
+    [t],
+  );
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -551,10 +574,10 @@ export function TemplateManager() {
                         <span
                           className={`text-[10px] uppercase font-medium ${
                             template.quality_score === 'GREEN'
-                              ? 'text-emerald-400'
+                              ? 'text-primary'
                               : template.quality_score === 'YELLOW'
-                                ? 'text-yellow-400'
-                                : 'text-red-400'
+                                ? 'text-gold'
+                                : 'text-destructive'
                           }`}
                           title="Meta quality score"
                         >
@@ -571,7 +594,7 @@ export function TemplateManager() {
                       </p>
                     )}
                     {(template.rejection_reason || template.submission_error) && (
-                      <div className="flex items-start gap-1.5 text-xs text-red-400 bg-red-950/20 border border-red-900/40 rounded px-2 py-1.5">
+                      <div className="flex items-start gap-1.5 text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1.5">
                         <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
                         <span>
                           {template.rejection_reason || template.submission_error}
@@ -621,7 +644,7 @@ export function TemplateManager() {
                           ? t('deleteFromMetaTitle')
                           : t('deleteLocalTitle')
                       }
-                      className="text-muted-foreground hover:text-red-400 hover:bg-red-950/30 h-8 w-8"
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
                     >
                       {deletingId === template.id ? (
                         <Loader2 className="size-4 animate-spin" />
@@ -658,7 +681,7 @@ export function TemplateManager() {
           </DialogHeader>
 
           {form.category === 'Authentication' && (
-            <div className="flex items-start gap-2 rounded border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+            <div className="flex items-start gap-2 rounded border border-gold/40 bg-gold-soft px-3 py-2 text-xs text-gold">
               <AlertCircle className="size-4 mt-0.5 shrink-0" />
               <p>
                 {t('authWarningPart1')} <strong>{t('syncFromMeta')}</strong>{' '}
@@ -686,6 +709,7 @@ export function TemplateManager() {
               <div className="space-y-2">
                 <Label className="text-muted-foreground">{t('categoryLabel')}</Label>
                 <Select
+                  items={categoryItems}
                   value={form.category}
                   onValueChange={(val) =>
                     setForm({
@@ -745,6 +769,7 @@ export function TemplateManager() {
             <div className="space-y-2">
               <Label className="text-muted-foreground">{t('headerLabel')}</Label>
               <Select
+                items={headerFormatItems}
                 value={form.header_format}
                 onValueChange={(val) =>
                   // Preserve header_content, header_media_url, and
@@ -950,6 +975,7 @@ export function TemplateManager() {
                     >
                       <div className="flex items-center gap-2">
                         <Select
+                          items={buttonTypeItems}
                           value={btn.type}
                           onValueChange={(val) => {
                             // Same null guard as the Header Select
@@ -1003,7 +1029,7 @@ export function TemplateManager() {
                           variant="ghost"
                           size="icon"
                           onClick={() => removeButton(i)}
-                          className="text-muted-foreground hover:text-red-400 hover:bg-red-950/30 size-7"
+                          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 size-7"
                         >
                           <X className="size-3.5" />
                         </Button>
@@ -1113,9 +1139,9 @@ export function TemplateManager() {
               {tCommon('cancel')}
             </Button>
             <Button
+              variant="destructive"
               onClick={confirmDelete}
               disabled={deletingId !== null}
-              className="bg-red-600 hover:bg-red-700 text-white"
             >
               {deletingId !== null ? (
                 <>

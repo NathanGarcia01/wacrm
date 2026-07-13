@@ -57,7 +57,7 @@ const EMPTY_DRAFT = {
  */
 export function ProductCatalogSettings() {
   const supabase = createClient();
-  const { accountId, canEditSettings } = useAuth();
+  const { accountId, canEditSettings, defaultCurrency } = useAuth();
   const t = useTranslations('settings.productCatalog');
   const tCommon = useTranslations('common');
 
@@ -224,10 +224,10 @@ export function ProductCatalogSettings() {
                       <TableCell className="text-sm font-medium text-foreground">
                         {product.name}
                       </TableCell>
-                      <TableCell className="text-sm text-foreground">
-                        {formatCurrency(product.default_value)}
+                      <TableCell className="font-mono text-sm text-foreground">
+                        {formatCurrency(product.default_value, defaultCurrency)}
                       </TableCell>
-                      <TableCell className="text-sm text-foreground">
+                      <TableCell className="font-mono text-sm text-gold">
                         {product.default_commission_rate ? `${product.default_commission_rate}%` : '—'}
                       </TableCell>
                       <TableCell>
@@ -254,7 +254,7 @@ export function ProductCatalogSettings() {
                               onClick={() => handleDelete(product)}
                               disabled={busyId === product.id}
                               aria-label={`${tCommon('delete')} ${product.name}`}
-                              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-400 disabled:opacity-50"
+                              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
                             >
                               {busyId === product.id ? (
                                 <Loader2 className="size-3.5 animate-spin" />

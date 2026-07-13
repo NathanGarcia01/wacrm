@@ -1173,6 +1173,21 @@
     }
   },
   "settings": {
+    "title": "Configuración",
+    "subtitle": "Todo en un solo lugar — tu cuenta y tu workspace. Elige una sección para gestionarla.",
+    "appearance": {
+      "title": "Apariencia",
+      "description": "Define el modo y el color de acento usados en toda la app. Guardado en este dispositivo — pruébalo, cambia en vivo.",
+      "mode": "Modo",
+      "modeAriaLabel": "Modo de color",
+      "modeLight": "Claro",
+      "modeDark": "Oscuro",
+      "useModeAria": "Usar modo {mode}",
+      "accentColor": "Color de acento",
+      "active": "Activo",
+      "useThemeAria": "Usar tema {name}",
+      "themeIdLabel": "ID del tema: {id}"
+    },
     "preferences": {
       "navLabel": "Preferencias",
       "title": "Preferencias",

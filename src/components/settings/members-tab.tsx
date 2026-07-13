@@ -21,7 +21,7 @@
 //   the role anyway.
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
@@ -133,6 +133,15 @@ export function MembersTab() {
   const { getPresence, getRow, now } = usePresence();
   const t = useTranslations('settings.members');
   const tCommon = useTranslations('common');
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, the role dropdown
+  // shows the raw value ("admin", "agent"...) on the very first render
+  // of each roster row, since `member.role` always starts non-empty.
+  const roleItems = useMemo(
+    () => Object.fromEntries(EDITABLE_ROLES.map((r) => [r.value, tCommon(`roles.${r.value}`)])),
+    [tCommon],
+  );
   const tPresence = useTranslations('presence');
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -373,7 +382,7 @@ export function MembersTab() {
                                 alt={member.full_name || 'Member'}
                               />
                             ) : null}
-                            <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                            <AvatarFallback className="bg-primary/10 font-mono text-sm font-medium text-primary">
                               {(member.full_name || member.email || 'U')
                                 .charAt(0)
                                 .toUpperCase()}
@@ -428,6 +437,7 @@ export function MembersTab() {
                         changes go through transfer, which lands later). */}
                     {canManageMembers && !isOwnerRow && !isSelf ? (
                       <Select
+                        items={roleItems}
                         value={member.role}
                         onValueChange={(v) =>
                           // Base UI Select can emit null on clear. We
@@ -473,7 +483,7 @@ export function MembersTab() {
                         size="sm"
                         onClick={() => setRemovingMember(member)}
                         disabled={isBusy}
-                        className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
+                        className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/60"
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -563,7 +573,7 @@ export function MembersTab() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleRevoke(inv)}
-                        className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
+                        className="border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/60"
                       >
                         <MailX className="size-4" />
                         {t('revoke')}
@@ -593,7 +603,7 @@ export function MembersTab() {
         <DialogContent className="bg-popover border-border sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-popover-foreground">
-              <AlertTriangle className="size-4 text-amber-400" />
+              <AlertTriangle className="size-4 text-gold" />
               {t('removeMemberTitle')}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
@@ -613,9 +623,9 @@ export function MembersTab() {
               {tCommon('cancel')}
             </Button>
             <Button
+              variant="destructive"
               onClick={handleRemove}
               disabled={!!pendingMemberAction}
-              className="bg-red-600 hover:bg-red-700 text-white"
             >
               {pendingMemberAction ? (
                 <>

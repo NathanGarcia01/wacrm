@@ -217,7 +217,7 @@ export function QuickRepliesSettings() {
                             onClick={() => handleDelete(reply)}
                             disabled={busyId === reply.id}
                             aria-label={`Excluir ${reply.title}`}
-                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-red-400 disabled:opacity-50"
+                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
                           >
                             {busyId === reply.id ? (
                               <Loader2 className="size-3.5 animate-spin" />

@@ -6,18 +6,18 @@ import { cn } from '@/lib/utils';
  * Small status / role pill used across the settings redesign
  * (Overview tiles, WhatsApp banner, the "Active" appearance markers).
  *
- * Status colours (emerald = good, amber = attention) follow the same
- * Tailwind palette the members tab already uses for role chips — they
- * are semantic accents, not neutrals, so they're intentionally not
- * tokenized. Neutrals stay on design tokens.
+ * Status colours ride the design-system tokens: `primary` for good/ok
+ * (matches the "Won" chip elsewhere), `gold` for owner/attention —
+ * same mapping the Contacts/Reports/Pipeline redesigns use for
+ * amber-ish accents. Neutrals stay on design tokens too.
  */
 export type ChipVariant = 'owner' | 'admin' | 'ok' | 'warn' | 'muted';
 
 const VARIANTS: Record<ChipVariant, string> = {
-  owner: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+  owner: 'border-gold/40 bg-gold-soft text-gold',
   admin: 'border-primary-soft-2 bg-primary-soft text-primary',
-  ok: 'border-emerald-500/35 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
-  warn: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300',
+  ok: 'border-primary/35 bg-primary/10 text-primary',
+  warn: 'border-gold/40 bg-gold-soft text-gold',
   muted: 'border-border bg-muted text-muted-foreground',
 };
 
@@ -56,7 +56,7 @@ export function StatusDot({
       aria-hidden
       className={cn(
         'inline-block size-1.5 shrink-0 rounded-full',
-        tone === 'ok' ? 'bg-emerald-500' : 'bg-muted-foreground',
+        tone === 'ok' ? 'bg-primary' : 'bg-muted-foreground',
         className,
       )}
     />

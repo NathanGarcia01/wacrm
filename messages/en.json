@@ -1173,6 +1173,21 @@
     }
   },
   "settings": {
+    "title": "Settings",
+    "subtitle": "Everything in one place — your account and your workspace. Pick a section to manage it.",
+    "appearance": {
+      "title": "Appearance",
+      "description": "Set the mode and accent colour used across the app. Saved to this device — try it, it changes live.",
+      "mode": "Mode",
+      "modeAriaLabel": "Color mode",
+      "modeLight": "Light",
+      "modeDark": "Dark",
+      "useModeAria": "Use {mode} mode",
+      "accentColor": "Accent color",
+      "active": "Active",
+      "useThemeAria": "Use {name} theme",
+      "themeIdLabel": "Theme id: {id}"
+    },
     "preferences": {
       "navLabel": "Preferences",
       "title": "Preferences",

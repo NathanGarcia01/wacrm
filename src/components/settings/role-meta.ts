@@ -29,7 +29,7 @@ export const ROLE_META: Record<
   owner: {
     icon: Crown,
     variant: 'owner',
-    className: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    className: 'border-gold/40 bg-gold-soft text-gold',
   },
   admin: {
     icon: Shield,

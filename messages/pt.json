@@ -1173,6 +1173,21 @@
     }
   },
   "settings": {
+    "title": "Configurações",
+    "subtitle": "Tudo em um só lugar — sua conta e seu workspace. Escolha uma seção para gerenciar.",
+    "appearance": {
+      "title": "Aparência",
+      "description": "Defina o modo e a cor de destaque usados em todo o app. Salvo neste dispositivo — experimente, muda em tempo real.",
+      "mode": "Modo",
+      "modeAriaLabel": "Modo de cor",
+      "modeLight": "Claro",
+      "modeDark": "Escuro",
+      "useModeAria": "Usar modo {mode}",
+      "accentColor": "Cor de destaque",
+      "active": "Ativo",
+      "useThemeAria": "Usar tema {name}",
+      "themeIdLabel": "ID do tema: {id}"
+    },
     "preferences": {
       "navLabel": "Preferências",
       "title": "Preferências",

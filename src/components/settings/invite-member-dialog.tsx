@@ -14,7 +14,7 @@
 // shouts this in copy.
 // ============================================================
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Copy, Loader2, MessageCircle, Sparkles } from 'lucide-react';
@@ -88,6 +88,23 @@ export function InviteMemberDialog({
   const tCommon = useTranslations('common');
   const [role, setRole] = useState<InviteRole>('agent');
   const [expiry, setExpiry] = useState<string>('7');
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, a freshly opened
+  // dialog briefly shows the raw value ("agent", "7") instead of the
+  // translated label.
+  const roleItems = useMemo(
+    () => ({
+      admin: tCommon('roles.admin'),
+      agent: tCommon('roles.agent'),
+      viewer: tCommon('roles.viewer'),
+    }),
+    [tCommon],
+  );
+  const expiryItems = useMemo(
+    () => Object.fromEntries(EXPIRY_OPTIONS.map((opt) => [opt.value, t(opt.labelKey)])),
+    [t],
+  );
   const [label, setLabel] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<CreatedInvite | null>(null);
@@ -287,6 +304,7 @@ export function InviteMemberDialog({
               <div className="space-y-2">
                 <Label className="text-muted-foreground">{t('roleLabel')}</Label>
                 <Select
+                  items={roleItems}
                   value={role}
                   onValueChange={(v) => v && setRole(v as InviteRole)}
                 >
@@ -307,6 +325,7 @@ export function InviteMemberDialog({
               <div className="space-y-2">
                 <Label className="text-muted-foreground">{t('linkValidFor')}</Label>
                 <Select
+                  items={expiryItems}
                   value={expiry}
                   onValueChange={(v) => v && setExpiry(v)}
                 >

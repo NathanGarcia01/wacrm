@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Check, Moon, Palette, SunMoon, Sun } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
@@ -18,25 +19,26 @@ import { SettingsPanelHead } from "./settings-panel-head";
  * Persistence: localStorage only (device-scoped). The boot script in
  * layout.tsx replays both choices before first paint on subsequent
  * loads.
+ *
+ * Keep every visible string on t(...) here — this panel has shipped
+ * with hardcoded English before ("Mode", "Accent color", "Active").
  */
 export function AppearancePanel() {
+  const t = useTranslations("settings.appearance");
   const { theme, setTheme, mode, setMode } = useTheme();
   return (
     <section className="max-w-3xl animate-in fade-in-50 duration-200">
-      <SettingsPanelHead
-        title="Appearance"
-        description="Set the mode and accent colour used across the app. Saved to this device — try it, it changes live."
-      />
+      <SettingsPanelHead title={t("title")} description={t("description")} />
 
       <div className="space-y-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <SunMoon className="size-4 text-muted-foreground" />
-          Mode
+          {t("mode")}
         </h3>
 
         <div
           role="radiogroup"
-          aria-label="Color mode"
+          aria-label={t("modeAriaLabel")}
           className="grid max-w-md grid-cols-2 gap-3"
         >
           {MODES.map((m) => (
@@ -53,19 +55,19 @@ export function AppearancePanel() {
       <div className="mt-8 space-y-4">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Palette className="size-4 text-muted-foreground" />
-          Accent color
+          {t("accentColor")}
         </h3>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {THEMES.map((t) => (
+          {THEMES.map((theme_) => (
             <ThemeCard
-              key={t.id}
-              id={t.id}
-              name={t.name}
-              tagline={t.tagline}
-              swatch={t.swatch}
-              isActive={t.id === theme}
-              onPick={() => setTheme(t.id)}
+              key={theme_.id}
+              id={theme_.id}
+              name={theme_.name}
+              tagline={theme_.tagline}
+              swatch={theme_.swatch}
+              isActive={theme_.id === theme}
+              onPick={() => setTheme(theme_.id)}
             />
           ))}
         </div>
@@ -83,15 +85,17 @@ function ModeCard({
   isActive: boolean;
   onPick: () => void;
 }) {
+  const t = useTranslations("settings.appearance");
   const isLight = mode === "light";
   const Icon = isLight ? Sun : Moon;
+  const label = isLight ? t("modeLight") : t("modeDark");
   return (
     <button
       type="button"
       role="radio"
       onClick={onPick}
       aria-checked={isActive}
-      aria-label={`Use ${mode} mode`}
+      aria-label={t("useModeAria", { mode: label })}
       className={cn(
         "flex items-center gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
         isActive
@@ -105,13 +109,13 @@ function ModeCard({
       >
         <Icon className="h-4 w-4" />
       </span>
-      <span className="flex-1 text-sm font-semibold capitalize text-foreground">
-        {mode}
+      <span className="flex-1 text-sm font-semibold text-foreground">
+        {label}
       </span>
       {isActive && (
         <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
           <Check className="h-3 w-3" />
-          Active
+          {t("active")}
         </span>
       )}
     </button>
@@ -133,12 +137,13 @@ function ThemeCard({
   isActive: boolean;
   onPick: () => void;
 }) {
+  const t = useTranslations("settings.appearance");
   return (
     <button
       type="button"
       onClick={onPick}
       aria-pressed={isActive}
-      aria-label={`Use ${name} theme`}
+      aria-label={t("useThemeAria", { name })}
       className={cn(
         "flex flex-col gap-3 rounded-lg border bg-card p-4 text-left transition-colors",
         isActive
@@ -158,7 +163,7 @@ function ThemeCard({
         {isActive && (
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary">
             <Check className="h-3 w-3" />
-            Active
+            {t("active")}
           </span>
         )}
       </div>
@@ -177,7 +182,7 @@ function ThemeCard({
         <span className="w-3 bg-muted" />
         <span className="w-3 bg-card" />
       </div>
-      <span className="sr-only">Theme id: {id}</span>
+      <span className="sr-only">{t("themeIdLabel", { id })}</span>
     </button>
   );
 }

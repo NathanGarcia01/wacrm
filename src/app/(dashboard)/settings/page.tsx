@@ -2,6 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
@@ -26,6 +27,7 @@ import {
 } from '@/components/settings/settings-sections';
 
 export default function SettingsPage() {
+  const t = useTranslations('settings');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { defaultCurrency } = useAuth();
@@ -48,10 +50,10 @@ export default function SettingsPage() {
   // already in context.
   const hints: Partial<Record<SettingsSection, ReactNode>> = useMemo(
     () => ({
-      appearance: mode.charAt(0).toUpperCase() + mode.slice(1),
+      appearance: mode === 'light' ? t('appearance.modeLight') : t('appearance.modeDark'),
       deals: defaultCurrency,
     }),
-    [mode, defaultCurrency],
+    [mode, defaultCurrency, t],
   );
 
   const panel: Record<SettingsSection, ReactNode> = {
@@ -73,13 +75,14 @@ export default function SettingsPage() {
 
   return (
     <div>
+      {/* Keep this on t('title')/t('subtitle') — a hardcoded English
+          header has slipped back in here before. */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Settings
+          {t('title')}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Everything in one place — your account and your workspace. Pick a
-          section to manage it.
+          {t('subtitle')}
         </p>
       </div>
 

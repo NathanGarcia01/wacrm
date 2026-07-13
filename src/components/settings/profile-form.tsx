@@ -218,7 +218,7 @@ export function ProfileForm() {
               {currentAvatar ? (
                 <AvatarImage src={currentAvatar} alt={fullName || 'Avatar'} />
               ) : null}
-              <AvatarFallback className="bg-primary/10 text-base text-primary">
+              <AvatarFallback className="bg-primary/10 font-mono text-base text-primary">
                 {initial}
               </AvatarFallback>
             </Avatar>
@@ -288,7 +288,7 @@ export function ProfileForm() {
               required
             />
             {emailChangePending && (
-              <p className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <p className="flex items-start gap-2 rounded-md border border-gold/30 bg-gold-soft px-3 py-2 text-xs text-gold">
                 <Mail className="mt-0.5 size-3.5 shrink-0" />
                 <span>
                   {t('emailChangePendingPart1')} <strong>{profile?.email}</strong>{' '}
