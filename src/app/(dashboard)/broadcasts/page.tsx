@@ -44,7 +44,7 @@ function RateCell({
   const pct = percent(value, total);
   return (
     <div className="flex items-center gap-2">
-      <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
+      <span className="w-10 text-right font-mono text-xs tabular-nums text-muted-foreground">
         {pct}%
       </span>
       <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
@@ -142,7 +142,7 @@ export default function BroadcastsPage() {
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
           {t('retry')}
         </Button>
@@ -246,7 +246,7 @@ export default function BroadcastsPage() {
                     <TableCell className="hidden text-muted-foreground md:table-cell">
                       {broadcast.template_name}
                     </TableCell>
-                    <TableCell className="hidden text-right text-muted-foreground tabular-nums sm:table-cell">
+                    <TableCell className="hidden text-right font-mono text-muted-foreground tabular-nums sm:table-cell">
                       {broadcast.total_recipients}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
@@ -269,8 +269,8 @@ export default function BroadcastsPage() {
                       >
                         {status.pulse && (
                           <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-yellow-400 opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-yellow-400" />
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-75" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold" />
                           </span>
                         )}
                         {tStatus(status.labelKey)}
@@ -284,7 +284,7 @@ export default function BroadcastsPage() {
                         </p>
                       )}
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">
+                    <TableCell className="hidden font-mono text-muted-foreground sm:table-cell">
                       {new Date(broadcast.created_at).toLocaleDateString()}
                     </TableCell>
                   </TableRow>

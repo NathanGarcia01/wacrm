@@ -65,9 +65,9 @@ function StatCard({ label, value, total, icon, color }: StatCardProps) {
         <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${color}`}>
           {icon}
         </div>
-        <span className="text-xs text-muted-foreground">{pct}%</span>
+        <span className="font-mono text-xs text-muted-foreground">{pct}%</span>
       </div>
-      <p className="mt-3 text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
+      <p className="mt-3 font-mono text-2xl font-bold text-foreground">{value.toLocaleString()}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
   );
@@ -107,7 +107,7 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
                   className={`h-7 rounded-full ${step.color} transition-[width] duration-500`}
                   style={{ width: `${pctOfMax}%` }}
                 />
-                <span className="absolute inset-0 flex items-center px-3 text-xs font-medium text-foreground">
+                <span className="absolute inset-0 flex items-center px-3 font-mono text-xs font-medium text-foreground">
                   {step.value.toLocaleString()}
                   <span className="ml-2 text-muted-foreground/80">
                     ({pctOfSent}%)
@@ -159,16 +159,16 @@ function BatchProgress({ broadcast }: { broadcast: Broadcast }) {
     : 0;
 
   return (
-    <div className="space-y-2 rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4">
+    <div className="space-y-2 rounded-xl border border-gold/20 bg-gold-soft p-4">
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium text-foreground">
           {t('sendingBatch', { current: broadcast.current_batch + 1, total: totalBatches })}
           {minutesRemaining > 0 ? ` — ${t('awaitingNextBatch', { minutes: minutesRemaining })}` : '...'}
         </span>
-        <span className="text-xs text-muted-foreground">{processed}/{broadcast.total_recipients}</span>
+        <span className="font-mono text-xs text-muted-foreground">{processed}/{broadcast.total_recipients}</span>
       </div>
       <div className="h-1.5 w-full rounded-full bg-muted">
-        <div className="h-1.5 rounded-full bg-yellow-500 transition-all duration-300" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 rounded-full bg-gold transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
@@ -244,7 +244,7 @@ function RoiStat({ label, value, icon }: RoiStatProps) {
         {icon}
         <span className="text-xs">{label}</span>
       </div>
-      <p className="mt-1 text-lg font-semibold text-foreground">{value}</p>
+      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -330,22 +330,22 @@ function BroadcastRoi({
         <div
           className={cn(
             'rounded-lg border p-4',
-            positive ? 'border-green-500/30 bg-green-500/10' : 'border-red-500/30 bg-red-500/10',
+            positive ? 'border-primary/30 bg-primary/10' : 'border-destructive/30 bg-destructive/10',
           )}
         >
           <div className="flex items-center gap-2">
             {positive ? (
-              <TrendingUp className="h-5 w-5 text-green-400" />
+              <TrendingUp className="h-5 w-5 text-primary" />
             ) : (
-              <TrendingDown className="h-5 w-5 text-red-400" />
+              <TrendingDown className="h-5 w-5 text-destructive" />
             )}
             <span
-              className={cn('text-3xl font-bold', positive ? 'text-green-400' : 'text-red-400')}
+              className={cn('font-mono text-3xl font-bold', positive ? 'text-primary' : 'text-destructive')}
             >
               {roiPct.toFixed(0)}%
             </span>
           </div>
-          <p className={cn('mt-1 text-sm', positive ? 'text-green-300' : 'text-red-300')}>
+          <p className={cn('mt-1 text-sm', positive ? 'text-primary' : 'text-destructive')}>
             {t('roiMultiplier', { multiplier: multiplier.toFixed(1) })}
           </p>
         </div>
@@ -354,7 +354,7 @@ function BroadcastRoi({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <RoiStat
           label={t('roiTotalCost')}
-          value={formatCurrency(totalCost, 'BRL')}
+          value={formatCurrency(totalCost, currency)}
           icon={<DollarSign className="h-3.5 w-3.5" />}
         />
         <RoiStat
@@ -599,7 +599,7 @@ export default function BroadcastDetailPage() {
   if (error || !broadcast) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error ?? t('broadcastNotFound')}</p>
+        <p className="text-sm text-destructive">{error ?? t('broadcastNotFound')}</p>
         <Button variant="outline" onClick={() => router.push('/broadcasts')}>
           {t('backToBroadcasts')}
         </Button>
@@ -611,9 +611,9 @@ export default function BroadcastDetailPage() {
 
   const funnelSteps: FunnelStep[] = [
     { label: t('funnelSent'), value: broadcast.sent_count, color: 'bg-primary' },
-    { label: t('funnelDelivered'), value: broadcast.delivered_count, color: 'bg-teal-500' },
-    { label: t('funnelRead'), value: broadcast.read_count, color: 'bg-blue-500' },
-    { label: t('funnelReplied'), value: broadcast.replied_count, color: 'bg-indigo-500' },
+    { label: t('funnelDelivered'), value: broadcast.delivered_count, color: 'bg-primary' },
+    { label: t('funnelRead'), value: broadcast.read_count, color: 'bg-primary' },
+    { label: t('funnelReplied'), value: broadcast.replied_count, color: 'bg-gold' },
   ];
 
   return (
@@ -642,7 +642,7 @@ export default function BroadcastDetailPage() {
               <span>{t('templateLabel')}: {broadcast.template_name}</span>
               <span>-</span>
               <span>
-                {t('createdOn')} {new Date(broadcast.created_at).toLocaleDateString()}
+                {t('createdOn')} <span className="font-mono">{new Date(broadcast.created_at).toLocaleDateString()}</span>
               </span>
             </div>
           </div>
@@ -676,8 +676,8 @@ export default function BroadcastDetailPage() {
             because orphaning in-flight Meta messages would leave the
             funnel inconsistent. */}
         {confirmDelete ? (
-          <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
-            <span className="text-red-300">{t('confirmDeleteBroadcast')}</span>
+          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm">
+            <span className="text-destructive">{t('confirmDeleteBroadcast')}</span>
             <Button
               variant="outline"
               size="sm"
@@ -688,10 +688,11 @@ export default function BroadcastDetailPage() {
               {t('cancel')}
             </Button>
             <Button
+              variant="destructive"
               size="sm"
               onClick={handleDelete}
               disabled={deleting}
-              className="h-7 bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              className="h-7"
             >
               {deleting ? t('deleting') : t('confirm')}
             </Button>
@@ -707,7 +708,7 @@ export default function BroadcastDetailPage() {
                 ? t('cannotDeleteWhileSending')
                 : t('deleteBroadcastTitle')
             }
-            className="border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+            className="border-destructive/30 bg-transparent text-destructive hover:bg-destructive/10 disabled:opacity-40"
           >
             <Trash2 className="h-3.5 w-3.5" />
             {t('delete')}
@@ -745,28 +746,28 @@ export default function BroadcastDetailPage() {
           value={broadcast.delivered_count}
           total={broadcast.total_recipients}
           icon={<CheckCheck className="h-4 w-4" />}
-          color="bg-teal-500/10 text-teal-400"
+          color="bg-primary/10 text-primary"
         />
         <StatCard
           label={t('statRead')}
           value={broadcast.read_count}
           total={broadcast.total_recipients}
           icon={<Eye className="h-4 w-4" />}
-          color="bg-blue-500/10 text-blue-400"
+          color="bg-primary/10 text-primary"
         />
         <StatCard
           label={t('statReplied')}
           value={broadcast.replied_count}
           total={broadcast.total_recipients}
           icon={<MessageCircle className="h-4 w-4" />}
-          color="bg-indigo-500/10 text-indigo-400"
+          color="bg-gold-soft text-gold"
         />
         <StatCard
           label={t('statFailed')}
           value={broadcast.failed_count}
           total={broadcast.total_recipients}
           icon={<AlertCircle className="h-4 w-4" />}
-          color="bg-red-500/10 text-red-400"
+          color="bg-destructive/10 text-destructive"
         />
       </div>
 
@@ -874,7 +875,7 @@ export default function BroadcastDetailPage() {
                       <TableCell className="font-medium text-foreground">
                         {recipient.contact?.name ?? t('unknownContact')}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="font-mono text-muted-foreground">
                         {recipient.contact?.phone ?? '-'}
                       </TableCell>
                       <TableCell>
@@ -884,22 +885,22 @@ export default function BroadcastDetailPage() {
                           {tRecipientStatus(rStatus.labelKey)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="font-mono text-muted-foreground">
                         {recipient.sent_at
                           ? new Date(recipient.sent_at).toLocaleString()
                           : '-'}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="font-mono text-muted-foreground">
                         {recipient.delivered_at
                           ? new Date(recipient.delivered_at).toLocaleString()
                           : '-'}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="font-mono text-muted-foreground">
                         {recipient.read_at
                           ? new Date(recipient.read_at).toLocaleString()
                           : '-'}
                       </TableCell>
-                      <TableCell className="max-w-xs truncate text-xs text-red-400">
+                      <TableCell className="max-w-xs truncate text-xs text-destructive">
                         {recipient.error_message ?? '-'}
                       </TableCell>
                     </TableRow>

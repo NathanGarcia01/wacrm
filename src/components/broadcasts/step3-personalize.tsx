@@ -60,6 +60,18 @@ export function Step3Personalize({
   onBack,
 }: Step3Props) {
   const t = useTranslations('broadcasts.step3');
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, this defaults to
+  // showing the raw value ("static") on first render.
+  const mappingTypeItems = useMemo(
+    () => ({
+      static: t('staticValue'),
+      field: t('contactField'),
+      custom_field: t('customFieldOption'),
+    }),
+    [t],
+  );
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [loadingFields, setLoadingFields] = useState(true);
   const [firstContact, setFirstContact] = useState<Contact | null>(null);
@@ -230,6 +242,7 @@ export function Step3Personalize({
                       {t('mappingType')}
                     </label>
                     <Select
+                      items={mappingTypeItems}
                       value={mapping.type}
                       onValueChange={(val) =>
                         updateVariable(key, {
@@ -338,7 +351,7 @@ export function Step3Personalize({
       </div>
 
       {unmappedKeys.length > 0 && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+        <div className="rounded-md border border-gold/30 bg-gold-soft px-3 py-2 text-xs text-gold">
           {t('unmappedWarningPrefix')}{' '}
           <span className="font-mono font-semibold">
             {unmappedKeys.join(', ')}

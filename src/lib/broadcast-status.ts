@@ -36,7 +36,7 @@ export const broadcastStatusConfig: Record<BroadcastStatus, StatusDisplay> = {
   },
   sending: {
     labelKey: "sending",
-    classes: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    classes: "bg-gold-soft text-gold border-gold/20",
     pulse: true,
   },
   paused: {
@@ -49,7 +49,7 @@ export const broadcastStatusConfig: Record<BroadcastStatus, StatusDisplay> = {
   },
   failed: {
     labelKey: "failed",
-    classes: "bg-red-500/10 text-red-400 border-red-500/20",
+    classes: "bg-destructive/10 text-destructive border-destructive/20",
   },
 };
 
@@ -76,7 +76,7 @@ export const recipientStatusConfig: Record<RecipientStatus, StatusDisplay> = {
   },
   failed: {
     labelKey: "failed",
-    classes: "bg-red-500/10 text-red-400 border-red-500/20",
+    classes: "bg-destructive/10 text-destructive border-destructive/20",
   },
 };
 

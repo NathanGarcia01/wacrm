@@ -92,12 +92,12 @@ function QualityBadge({ quality, loading }: { quality: QualityRating; loading: b
     },
     YELLOW: {
       label: t('qualityMedium'),
-      classes: 'border-amber-500/30 bg-amber-500/10 text-amber-400',
+      classes: 'border-gold/30 bg-gold-soft text-gold',
       icon: <ShieldAlert className="h-4 w-4" />,
     },
     RED: {
       label: t('qualityLow'),
-      classes: 'border-red-500/30 bg-red-500/10 text-red-400',
+      classes: 'border-destructive/30 bg-destructive/10 text-destructive',
       icon: <ShieldAlert className="h-4 w-4" />,
       warning: t('qualityLowWarning'),
     },
@@ -116,7 +116,7 @@ function QualityBadge({ quality, loading }: { quality: QualityRating; loading: b
         {c.label}
       </div>
       {c.warning && (
-        <p className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-xs text-red-400">
+        <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
           {c.warning}
         </p>
       )}
@@ -406,7 +406,7 @@ export function Step4ScheduleSend({
               />
             </div>
             {scheduleInvalid && (
-              <p className="text-xs text-red-400 sm:col-span-2">
+              <p className="text-xs text-destructive sm:col-span-2">
                 {t('futureDateHint')}
               </p>
             )}
@@ -434,7 +434,7 @@ export function Step4ScheduleSend({
               ) : (
                 <>
                   <Users className="h-3.5 w-3.5 text-primary" />
-                  <p className="font-medium text-foreground">{estimatedReach.toLocaleString()}</p>
+                  <p className="font-mono font-medium text-foreground">{estimatedReach.toLocaleString()}</p>
                 </>
               )}
             </div>
@@ -459,7 +459,7 @@ export function Step4ScheduleSend({
               })}
               <br />
               {t('estimatedCompletion')}{' '}
-              {completionLow.toLocaleString()} – {completionHigh.toLocaleString()}
+              <span className="font-mono">{completionLow.toLocaleString()} – {completionHigh.toLocaleString()}</span>
             </span>
           </div>
         )}
@@ -525,13 +525,13 @@ export function Step4ScheduleSend({
               <DialogTitle className="text-popover-foreground">{t('confirmBroadcast')}</DialogTitle>
               <DialogDescription className="text-muted-foreground">
                 {t('confirmBroadcastPrefix')}{' '}
-                <span className="font-medium text-popover-foreground">{estimatedReach.toLocaleString()}</span>{' '}
+                <span className="font-mono font-medium text-popover-foreground">{estimatedReach.toLocaleString()}</span>{' '}
                 {t('confirmBroadcastMiddle')}{' '}
                 <span className="font-medium text-popover-foreground">{template.name}</span> {t('confirmBroadcastTemplateSuffix')}
                 {scheduledAt && (
                   <>
                     {' '}{t('itWillStartOn')}{' '}
-                    <span className="font-medium text-popover-foreground">
+                    <span className="font-mono font-medium text-popover-foreground">
                       {scheduledAt.toLocaleString()}
                     </span>
                     .
@@ -539,7 +539,7 @@ export function Step4ScheduleSend({
                 )}{' '}
                 {t('actionCannotBeUndone')}
                 {quality === 'RED' && (
-                  <span className="mt-2 block font-medium text-red-400">
+                  <span className="mt-2 block font-medium text-destructive">
                     {t('lowQualityWarning')}
                   </span>
                 )}
