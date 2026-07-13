@@ -144,7 +144,7 @@ export default function AutomationsPage() {
   if (error) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error}</p>
+        <p className="text-sm text-destructive">{error}</p>
         <Button variant="outline" onClick={() => window.location.reload()}>
           {t("retry")}
         </Button>
@@ -323,7 +323,7 @@ function AutomationCard({
             >
               {meta.labelKey ? tBuilder(meta.labelKey) : meta.rawLabel}
             </span>
-            <span className="tabular-nums">
+            <span className="font-mono tabular-nums">
               {t("runsCount", { count: automation.execution_count })}
             </span>
             <span aria-hidden>·</span>

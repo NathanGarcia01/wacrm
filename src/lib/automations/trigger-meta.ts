@@ -48,7 +48,7 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
   },
   tag_added: {
     labelKey: 'triggerTagAdded',
-    pillClass: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+    pillClass: 'border-gold/30 bg-gold-soft text-gold',
   },
   time_based: {
     labelKey: 'triggerTimeBased',

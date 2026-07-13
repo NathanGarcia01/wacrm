@@ -97,7 +97,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   update_contact_field: { labelKey: "stepUpdateContactField", icon: PencilLine, border: "border-l-primary" },
   create_deal: { labelKey: "stepCreateDeal", icon: Briefcase, border: "border-l-primary" },
   wait: { labelKey: "stepWait", icon: Hourglass, border: "border-l-border" },
-  condition: { labelKey: "stepCondition", icon: GitBranch, border: "border-l-amber-500" },
+  condition: { labelKey: "stepCondition", icon: GitBranch, border: "border-l-gold" },
   send_webhook: { labelKey: "stepSendWebhook", icon: Webhook, border: "border-l-primary" },
   close_conversation: { labelKey: "stepCloseConversation", icon: CircleSlash, border: "border-l-primary" },
 }
