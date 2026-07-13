@@ -271,7 +271,7 @@ function FieldRow({
         disabled={busy}
         onClick={() => onDelete(field)}
         title={t('deleteField')}
-        className="shrink-0 text-muted-foreground hover:text-red-400"
+        className="shrink-0 text-muted-foreground hover:text-destructive"
       >
         {busy ? (
           <Loader2 className="size-4 animate-spin" />

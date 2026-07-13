@@ -618,7 +618,7 @@ export function ImportModal({
                 >
                   {truncateFilename(file.name)}
                 </p>
-                <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <span className="rounded-full bg-muted px-2.5 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
                   {mappedRows.length} linha{mappedRows.length !== 1 ? 's' : ''}{' '}
                   pronta{mappedRows.length !== 1 ? 's' : ''}
                 </span>
@@ -814,40 +814,40 @@ export function ImportModal({
                 {result.imported > 0 && (
                   <div className="text-primary flex items-center gap-1.5 text-sm">
                     <CheckCircle className="size-4 shrink-0" />
-                    {result.imported} importado{result.imported !== 1 ? 's' : ''}
+                    <span className="font-mono">{result.imported}</span> importado{result.imported !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.updated > 0 && (
                   <div className="flex items-center gap-1.5 text-sm text-teal-400">
                     <CheckCircle className="size-4 shrink-0" />
-                    {result.updated} atualizado{result.updated !== 1 ? 's' : ''}
+                    <span className="font-mono">{result.updated}</span> atualizado{result.updated !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.tagsAssigned > 0 && (
                   <div className="flex items-center gap-1.5 text-sm text-cyan-400">
                     <CheckCircle className="size-4 shrink-0" />
-                    {result.tagsAssigned} tag
+                    <span className="font-mono">{result.tagsAssigned}</span> tag
                     {result.tagsAssigned !== 1 ? 's' : ''} aplicada{result.tagsAssigned !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.customValuesAssigned > 0 && (
                   <div className="flex items-center gap-1.5 text-sm text-violet-400">
                     <CheckCircle className="size-4 shrink-0" />
-                    {result.customValuesAssigned} campo
+                    <span className="font-mono">{result.customValuesAssigned}</span> campo
                     {result.customValuesAssigned !== 1 ? 's' : ''} personalizado
                     {result.customValuesAssigned !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.skipped > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-amber-400">
+                  <div className="flex items-center gap-1.5 text-sm text-gold">
                     <AlertTriangle className="size-4 shrink-0" />
-                    {result.skipped} ignorado{result.skipped !== 1 ? 's' : ''}
+                    <span className="font-mono">{result.skipped}</span> ignorado{result.skipped !== 1 ? 's' : ''}
                   </div>
                 )}
                 {result.failed > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-red-400">
+                  <div className="flex items-center gap-1.5 text-sm text-destructive">
                     <XCircle className="size-4 shrink-0" />
-                    {result.failed} falhou{result.failed !== 1 ? 'aram' : ''}
+                    <span className="font-mono">{result.failed}</span> falhou{result.failed !== 1 ? 'aram' : ''}
                   </div>
                 )}
               </div>

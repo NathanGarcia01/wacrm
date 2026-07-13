@@ -344,8 +344,8 @@ export function ContactDetailView({
             {/* Header */}
             <SheetHeader className="p-4 border-b border-border/50">
               <div className="flex items-center gap-3">
-                <Avatar className="size-12 bg-muted border border-border">
-                  <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
+                <Avatar className="size-12 bg-card-2 border border-border">
+                  <AvatarFallback className="bg-primary/10 font-mono text-primary text-sm font-medium">
                     {getInitials(contact.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -434,7 +434,7 @@ export function ContactDetailView({
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-muted-foreground text-xs">
-                      {t('phoneLabel')} <span className="text-red-400">*</span>
+                      {t('phoneLabel')} <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       value={editPhone}
@@ -558,7 +558,7 @@ export function ContactDetailView({
                           </p>
                           <button
                             onClick={() => deleteNote(note.id)}
-                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all cursor-pointer shrink-0"
+                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all cursor-pointer shrink-0"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -657,7 +657,7 @@ export function ContactDetailView({
                           )}
                         </div>
                         <div className="mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
+                          <span className="flex items-center gap-1 font-mono">
                             <DollarSign className="size-3" />
                             {formatCurrency(
                               deal.value ?? 0,
@@ -669,7 +669,7 @@ export function ContactDetailView({
                               className={
                                 deal.status === 'won'
                                   ? 'text-primary'
-                                  : 'text-red-400'
+                                  : 'text-destructive'
                               }
                             >
                               {deal.status}
