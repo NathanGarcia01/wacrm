@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeAndSaveBroadcastCost } from '@/lib/broadcasts/meta-cost'
-import type { BroadcastRoiBundle, BroadcastRoiCards, BroadcastRoiRow, PeriodRange } from './types'
+import { addCostBreakdown, computeRoiCards, costBreakdown, ZERO_COST } from '@/lib/broadcasts/roi-metrics'
+import type {
+  AttributedWonDeal,
+} from '@/lib/broadcasts/roi-metrics'
+import type { BroadcastRoiBundle, BroadcastRoiRow, PeriodRange } from './types'
 
 type DB = SupabaseClient
 
@@ -12,23 +16,37 @@ interface BroadcastRow {
   template_language: string
   status: string
   sent_count: number
+  replied_count: number
   meta_total_cost: number
+  meta_cost_marketing: number
+  meta_cost_utility: number
+  meta_cost_authentication: number
   created_at: string
 }
 
-function roiPct(generated: number, cost: number): number | null {
-  return cost > 0 ? ((generated - cost) / cost) * 100 : null
+interface DealRow {
+  id: string
+  contact_id: string
+  value: number
+  status: string
+  won_at: string | null
+  created_at: string
+  products: { commission_value: number | null }[] | null
 }
 
 /**
- * Attribution rule mirrors the single-broadcast ROI card already
- * shipped on /broadcasts/[id]: a deal counts toward a broadcast's ROI
- * when its contact received that broadcast AND the deal was won
- * after the broadcast went out. A contact reached by several
- * broadcasts before winning can attribute the same deal to more than
- * one of them — there's no single source of truth for "which touch
- * actually closed it", so this deliberately over-counts rather than
- * arbitrarily picking one.
+ * Attribution rule mirrors the single-broadcast ROI card on
+ * /broadcasts/[id]: a deal counts toward a broadcast's ROI when its
+ * contact received that broadcast AND the deal was created after the
+ * broadcast went out. A contact reached by several broadcasts before
+ * converting can attribute the same deal to more than one of them —
+ * there's no single source of truth for "which touch actually did
+ * it", so this deliberately over-counts rather than arbitrarily
+ * picking one.
+ *
+ * Return is measured in COMMISSION (sum of deal_products.commission_value
+ * on won deals), not deal value — matches what the account actually
+ * earned from the spend, not the gross deal size.
  */
 export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promise<BroadcastRoiBundle> {
   const { startISO, endISO } = period
@@ -36,7 +54,7 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
   const { data, error } = await db
     .from('broadcasts')
     .select(
-      'id, account_id, name, template_name, template_language, status, sent_count, meta_total_cost, created_at',
+      'id, account_id, name, template_name, template_language, status, sent_count, replied_count, meta_total_cost, meta_cost_marketing, meta_cost_utility, meta_cost_authentication, created_at',
     )
     .gte('created_at', startISO)
     .lt('created_at', endISO)
@@ -45,17 +63,18 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
 
   const broadcasts = (data ?? []) as BroadcastRow[]
   if (broadcasts.length === 0) {
-    return { cards: { totalInvested: 0, totalGenerated: 0, roiPct: null }, rows: [] }
+    return {
+      cards: computeRoiCards({ cost: ZERO_COST, leadsGenerated: 0, dealsCreated: 0, wonDeals: [] }),
+      rows: [],
+      funnel: { sent: 0, replied: 0, dealsCreated: 0, dealsWon: 0 },
+    }
   }
 
   const categoryByKey = new Map<string, string>()
   const { data: templates } = await db
     .from('message_templates')
     .select('name, language, category')
-    .in(
-      'name',
-      [...new Set(broadcasts.map((b) => b.template_name))],
-    )
+    .in('name', [...new Set(broadcasts.map((b) => b.template_name))])
   for (const t of (templates ?? []) as { name: string; language: string; category: string }[]) {
     categoryByKey.set(`${t.name}::${t.language}`, t.category)
   }
@@ -96,41 +115,81 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
     allContactIds.add(r.contact_id)
   }
 
-  let wonDeals: { contact_id: string; value: number; won_at: string }[] = []
+  let deals: DealRow[] = []
   if (allContactIds.size > 0) {
-    const { data: deals } = await db
+    const { data: dealsData } = await db
       .from('deals')
-      .select('contact_id, value, won_at')
+      .select('id, contact_id, value, status, won_at, created_at, products:deal_products(commission_value)')
       .in('contact_id', [...allContactIds])
-      .eq('status', 'won')
-      .not('won_at', 'is', null)
-    wonDeals = (deals ?? []) as { contact_id: string; value: number; won_at: string }[]
+    deals = (dealsData ?? []) as unknown as DealRow[]
   }
+  const dealCommission = (d: DealRow) =>
+    (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
 
   const rows: BroadcastRoiRow[] = broadcasts.map((b) => {
     const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
-    const attributed = wonDeals.filter((d) => contacts.has(d.contact_id) && d.won_at > b.created_at)
-    const valueGenerated = attributed.reduce((sum, d) => sum + (d.value ?? 0), 0)
+    const attributedDeals = deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at)
+    const wonDeals: AttributedWonDeal[] = attributedDeals
+      .filter((d) => d.status === 'won' && d.won_at)
+      .map((d) => ({ commission: dealCommission(d), wonAt: d.won_at!, broadcastCreatedAt: b.created_at }))
+    const commissionGenerated = wonDeals.reduce((sum, d) => sum + d.commission, 0)
+    const cost = b.meta_total_cost
     return {
       id: b.id,
       name: b.name,
       templateCategory: categoryFor(b),
       sentCount: b.sent_count,
-      cost: b.meta_total_cost,
-      dealsWon: attributed.length,
-      valueGenerated,
-      roiPct: roiPct(valueGenerated, b.meta_total_cost),
+      cost,
+      dealsWon: wonDeals.length,
+      commissionGenerated,
+      roiPct: cost > 0 ? ((commissionGenerated - cost) / cost) * 100 : null,
     }
   })
 
-  const totalInvested = rows.reduce((sum, r) => sum + r.cost, 0)
-  const totalGenerated = rows.reduce((sum, r) => sum + r.valueGenerated, 0)
-
-  const cards: BroadcastRoiCards = {
-    totalInvested,
-    totalGenerated,
-    roiPct: roiPct(totalGenerated, totalInvested),
+  // Aggregate cards + funnel across every broadcast in the period.
+  let totalCost = ZERO_COST
+  let totalLeads = 0
+  let totalDealsCreated = 0
+  const allWonDeals: AttributedWonDeal[] = []
+  for (const b of broadcasts) {
+    const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
+    const attributedDeals = deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at)
+    totalDealsCreated += attributedDeals.length
+    for (const d of attributedDeals) {
+      if (d.status === 'won' && d.won_at) {
+        allWonDeals.push({ commission: dealCommission(d), wonAt: d.won_at, broadcastCreatedAt: b.created_at })
+      }
+    }
+    totalLeads += b.replied_count
+    // meta_cost_marketing/utility/authentication are always written
+    // together with meta_total_cost by computeAndSaveBroadcastCost, so
+    // they're already in sync — no fallback needed here.
+    totalCost = addCostBreakdown(
+      totalCost,
+      costBreakdown({
+        category: categoryFor(b),
+        sentCount: b.sent_count,
+        rateMarketing: b.meta_cost_marketing,
+        rateUtility: b.meta_cost_utility,
+        rateAuthentication: b.meta_cost_authentication,
+      }),
+    )
   }
 
-  return { cards, rows: rows.sort((a, b) => b.valueGenerated - a.valueGenerated) }
+  const cards = computeRoiCards({
+    cost: totalCost,
+    leadsGenerated: totalLeads,
+    dealsCreated: totalDealsCreated,
+    wonDeals: allWonDeals,
+  })
+
+  const totalSent = broadcasts.reduce((sum, b) => sum + b.sent_count, 0)
+  const funnel = {
+    sent: totalSent,
+    replied: totalLeads,
+    dealsCreated: totalDealsCreated,
+    dealsWon: allWonDeals.length,
+  }
+
+  return { cards, rows: rows.sort((a, b) => b.commissionGenerated - a.commissionGenerated), funnel }
 }

@@ -4,11 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
-import { Broadcast, BroadcastRecipient, Deal, DealProduct, RecipientStatus } from '@/types';
+import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
-import { formatCurrency } from '@/lib/currency';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
   Table,
   TableBody,
@@ -38,16 +36,15 @@ import {
   Trash2,
   Pause,
   Play,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Trophy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getBroadcastStatus,
   getRecipientStatus,
 } from '@/lib/broadcast-status';
+import { loadBroadcastRoiDetail } from '@/lib/broadcasts/roi-detail';
+import type { BroadcastRoiDetail } from '@/lib/reports/types';
+import { BroadcastRoiDetailPanel } from '@/components/broadcasts/broadcast-roi-detail-panel';
 
 interface StatCardProps {
   label: string;
@@ -231,155 +228,6 @@ function ButtonClickTracking({
   );
 }
 
-interface RoiStatProps {
-  label: string;
-  value: string;
-  icon: React.ReactNode;
-}
-
-function RoiStat({ label, value, icon }: RoiStatProps) {
-  return (
-    <div className="rounded-lg border border-border bg-background p-3">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {icon}
-        <span className="text-xs">{label}</span>
-      </div>
-      <p className="mt-1 font-mono text-lg font-semibold text-foreground">{value}</p>
-    </div>
-  );
-}
-
-/**
- * "ROI do Disparo" card — lets the agent record what they paid Meta per
- * message, then derives cost/revenue/commission from the deals won by
- * this broadcast's recipients. `wonDeals` is pre-filtered by the caller
- * (contact in broadcast_recipients, status='won', won_at after the
- * broadcast was created) so this component only aggregates and renders.
- */
-function BroadcastRoi({
-  broadcast,
-  wonDeals,
-  currency,
-  onSaveCost,
-}: {
-  broadcast: Broadcast;
-  wonDeals: (Deal & { products?: DealProduct[] })[];
-  currency: string;
-  onSaveCost: (cost: number) => Promise<void>;
-}) {
-  const t = useTranslations('broadcasts.detail');
-  const [costInput, setCostInput] = useState(String(broadcast.cost_per_message ?? 0));
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setCostInput(String(broadcast.cost_per_message ?? 0));
-  }, [broadcast.cost_per_message]);
-
-  const costPerMessage = Number(costInput) || 0;
-  const totalCost = costPerMessage * broadcast.sent_count;
-  const wonValue = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
-  const commission = wonDeals.reduce(
-    (sum, d) => sum + (d.products ?? []).reduce((s, p) => s + (p.commission_value || 0), 0),
-    0,
-  );
-  const roiPct = totalCost > 0 ? ((wonValue - totalCost) / totalCost) * 100 : null;
-  const multiplier = totalCost > 0 ? wonValue / totalCost : null;
-  const positive = (roiPct ?? 0) >= 0;
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await onSaveCost(costPerMessage);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4 rounded-xl border border-border bg-card p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-foreground">{t('roiTitle')}</h3>
-        <div className="flex items-center gap-2">
-          <label htmlFor="roi-cost-per-message" className="text-xs text-muted-foreground">
-            {t('roiCostPerMessage')}
-          </label>
-          <input
-            id="roi-cost-per-message"
-            type="number"
-            min="0"
-            step="0.0001"
-            value={costInput}
-            onChange={(e) => setCostInput(e.target.value)}
-            className="w-28 rounded-md border border-border bg-muted px-2 py-1 text-sm text-foreground outline-none focus:border-primary/50"
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleSave}
-            disabled={saving || costPerMessage === (broadcast.cost_per_message ?? 0)}
-            className="border-border text-muted-foreground hover:bg-muted"
-          >
-            {saving ? t('roiSaving') : t('roiSave')}
-          </Button>
-        </div>
-      </div>
-
-      {roiPct === null || multiplier === null ? (
-        <p className="text-sm text-muted-foreground">{t('roiSetCost')}</p>
-      ) : (
-        <div
-          className={cn(
-            'rounded-lg border p-4',
-            positive ? 'border-primary/30 bg-primary/10' : 'border-destructive/30 bg-destructive/10',
-          )}
-        >
-          <div className="flex items-center gap-2">
-            {positive ? (
-              <TrendingUp className="h-5 w-5 text-primary" />
-            ) : (
-              <TrendingDown className="h-5 w-5 text-destructive" />
-            )}
-            <span
-              className={cn('font-mono text-3xl font-bold', positive ? 'text-primary' : 'text-destructive')}
-            >
-              {roiPct.toFixed(0)}%
-            </span>
-          </div>
-          <p className={cn('mt-1 text-sm', positive ? 'text-primary' : 'text-destructive')}>
-            {t('roiMultiplier', { multiplier: multiplier.toFixed(1) })}
-          </p>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <RoiStat
-          label={t('roiTotalCost')}
-          value={formatCurrency(totalCost, currency)}
-          icon={<DollarSign className="h-3.5 w-3.5" />}
-        />
-        <RoiStat
-          label={t('roiWonDeals')}
-          value={String(wonDeals.length)}
-          icon={<Trophy className="h-3.5 w-3.5" />}
-        />
-        <RoiStat
-          label={t('roiWonValue')}
-          value={formatCurrency(wonValue, currency)}
-          icon={<TrendingUp className="h-3.5 w-3.5" />}
-        />
-        <RoiStat
-          label={t('roiCommission')}
-          value={formatCurrency(commission, currency)}
-          icon={<DollarSign className="h-3.5 w-3.5" />}
-        />
-      </div>
-
-      {wonDeals.length === 0 && (
-        <p className="text-xs text-muted-foreground">{t('roiNoWonDeals')}</p>
-      )}
-    </div>
-  );
-}
 
 const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
   'pending',
@@ -422,7 +270,8 @@ export default function BroadcastDetailPage() {
 
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
   const [recipients, setRecipients] = useState<BroadcastRecipient[]>([]);
-  const [wonDeals, setWonDeals] = useState<(Deal & { products?: DealProduct[] })[]>([]);
+  const [roiDetail, setRoiDetail] = useState<BroadcastRoiDetail | null>(null);
+  const [roiLoading, setRoiLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<RecipientStatus | 'all'>(
@@ -453,24 +302,6 @@ export default function BroadcastDetailPage() {
 
       if (recsError) throw recsError;
       setRecipients(recs ?? []);
-
-      // ROI card: deals won by a contact this broadcast reached, closed
-      // after the broadcast went out — so a win that predates the send
-      // (unrelated to it) isn't counted as attributed revenue.
-      const contactIds = Array.from(
-        new Set((recs ?? []).map((r) => r.contact_id).filter((id): id is string => !!id)),
-      );
-      if (contactIds.length > 0 && bc) {
-        const { data: deals } = await supabase
-          .from('deals')
-          .select('*, products:deal_products(*)')
-          .in('contact_id', contactIds)
-          .eq('status', 'won')
-          .gt('won_at', bc.created_at);
-        setWonDeals((deals as (Deal & { products?: DealProduct[] })[] | null) ?? []);
-      } else {
-        setWonDeals([]);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('loadFailed'));
     } finally {
@@ -478,23 +309,30 @@ export default function BroadcastDetailPage() {
     }
   }
 
-  async function handleSaveCost(cost: number) {
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from('broadcasts')
-      .update({ cost_per_message: cost })
-      .eq('id', broadcastId);
-    if (updateError) {
-      toast.error(t('roiSaveFailed', { message: updateError.message }));
-      return;
-    }
-    toast.success(t('roiSaveSuccess'));
-    setBroadcast((prev) => (prev ? { ...prev, cost_per_message: cost } : prev));
-  }
-
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [broadcastId]);
+
+  // ROI panel — separate from fetchData's polling loop (it's a heavier
+  // set of joins across recipients/deals/deal_products) and only needs
+  // to refresh once the broadcast is done sending, not every 5s tick.
+  useEffect(() => {
+    if (!broadcastId) return;
+    let cancelled = false;
+    setRoiLoading(true);
+    const supabase = createClient();
+    loadBroadcastRoiDetail(supabase, broadcastId)
+      .then((detail) => {
+        if (!cancelled) setRoiDetail(detail);
+      })
+      .catch((err) => console.error('[broadcast roi] load failed:', err))
+      .finally(() => {
+        if (!cancelled) setRoiLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [broadcastId]);
 
   // Poll while actively sending so the batch progress / countdown and
@@ -773,12 +611,7 @@ export default function BroadcastDetailPage() {
 
       <FunnelChart steps={funnelSteps} />
 
-      <BroadcastRoi
-        broadcast={broadcast}
-        wonDeals={wonDeals}
-        currency={defaultCurrency}
-        onSaveCost={handleSaveCost}
-      />
+      <BroadcastRoiDetailPanel detail={roiDetail} currency={defaultCurrency} loading={roiLoading} />
 
       <ButtonClickTracking recipients={recipients} sentCount={broadcast.sent_count} />
 

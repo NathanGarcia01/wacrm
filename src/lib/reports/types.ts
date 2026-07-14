@@ -208,11 +208,41 @@ export interface BroadcastsReportBundle {
 // Broadcast ROI tab
 // ------------------------------------------------------------
 
+export interface BroadcastRoiCostBreakdown {
+  marketing: number
+  utility: number
+  authentication: number
+  total: number
+}
+
+export interface BroadcastRoiFunnel {
+  sent: number
+  replied: number
+  dealsCreated: number
+  dealsWon: number
+}
+
 export interface BroadcastRoiCards {
-  totalInvested: number
-  totalGenerated: number
-  /** (generated - invested) / invested × 100. Null when nothing was invested. */
+  cost: BroadcastRoiCostBreakdown
+  /** Sum of deal_products.commission_value for won deals attributed to
+   *  the broadcast(s) — NOT deal value. See loadBroadcastRoiReport's
+   *  doc comment for the attribution rule. */
+  commissionGenerated: number
+  /** (commissionGenerated - cost.total) / cost.total × 100. Null when cost.total is 0. */
   roiPct: number | null
+  /** commissionGenerated / cost.total, e.g. 4.2 → rendered as "4.2x". Null when cost.total is 0. */
+  multiple: number | null
+  /** Recipients who replied to the broadcast (broadcast_recipients.replied_at is set). */
+  leadsGenerated: number
+  /** Deals created (any status) for a contact reached by the broadcast, after it went out. */
+  dealsCreated: number
+  dealsWon: number
+  /** dealsWon / leadsGenerated × 100. Null when leadsGenerated is 0. */
+  conversionRatePct: number | null
+  /** commissionGenerated / dealsWon. Null when dealsWon is 0. */
+  avgCommissionPerDeal: number | null
+  /** Average won_at - broadcast.created_at, in days. Null when dealsWon is 0. */
+  avgDaysToClose: number | null
 }
 
 export interface BroadcastRoiRow {
@@ -222,14 +252,30 @@ export interface BroadcastRoiRow {
   sentCount: number
   cost: number
   dealsWon: number
-  valueGenerated: number
-  /** (valueGenerated - cost) / cost × 100. Null when cost is 0. */
+  commissionGenerated: number
+  /** (commissionGenerated - cost) / cost × 100. Null when cost is 0. */
   roiPct: number | null
 }
 
 export interface BroadcastRoiBundle {
   cards: BroadcastRoiCards
   rows: BroadcastRoiRow[]
+  funnel: BroadcastRoiFunnel
+}
+
+export interface BroadcastRoiDealRow {
+  id: string
+  dealTitle: string
+  contactName: string | null
+  value: number
+  commission: number
+  closedAt: string | null
+}
+
+export interface BroadcastRoiDetail {
+  cards: BroadcastRoiCards
+  funnel: BroadcastRoiFunnel
+  deals: BroadcastRoiDealRow[]
 }
 
 // ------------------------------------------------------------

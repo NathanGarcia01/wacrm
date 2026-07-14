@@ -405,27 +405,6 @@ export default function PipelinesPage() {
     });
   }, [deals, filters, period]);
 
-  // Lost deals for the Losses panel — independent of the status filter
-  // above (that filter defaults to "open" and would otherwise hide
-  // every lost deal), but still respects responsible/period.
-  const lostDeals = useMemo(() => {
-    return deals.filter((d) => {
-      if ((d.status ?? "open") !== "lost") return false;
-      if (filters.assignedTo === "unassigned" && d.assigned_to) return false;
-      if (
-        filters.assignedTo !== "" &&
-        filters.assignedTo !== "unassigned" &&
-        d.assigned_to !== filters.assignedTo
-      )
-        return false;
-      if (period) {
-        const effectiveDate = d.lost_at ?? d.created_at;
-        if (effectiveDate < period.startISO || effectiveDate >= period.endISO) return false;
-      }
-      return true;
-    });
-  }, [deals, filters.assignedTo, period]);
-
   const [view, setView] = useState<"board" | "losses">("board");
 
   const handleExportCsv = useCallback(() => {
@@ -604,7 +583,13 @@ export default function PipelinesPage() {
               />
             </>
           ) : (
-            <LossesPanel deals={lostDeals} currency={defaultCurrency} />
+            <LossesPanel
+              pipelineId={selectedPipelineId}
+              stages={stages}
+              assignedTo={filters.assignedTo}
+              period={period}
+              currency={defaultCurrency}
+            />
           )}
         </>
       )}
