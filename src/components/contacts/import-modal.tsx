@@ -28,8 +28,10 @@ import {
   resolveImportCustomFieldIds,
   type ContactCustomFieldValue,
 } from '@/lib/contacts/resolve-import-custom-fields';
+import { ImportTagMultiSelect } from '@/components/contacts/import-tag-multiselect';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { Tag } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -53,7 +55,7 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Tag,
+  Tag as TagIcon,
   Columns3,
 } from 'lucide-react';
 
@@ -182,6 +184,9 @@ export function ImportModal({
   const [tagColorByKey, setTagColorByKey] = useState<Map<string, string>>(
     new Map()
   );
+  // Bulk tags applied to every contact in the file, in addition to any
+  // per-row tags resolved from a "Tags" column mapping.
+  const [bulkTags, setBulkTags] = useState<Tag[]>([]);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{
     imported: number;
@@ -198,6 +203,7 @@ export function ImportModal({
     setRawRows([]);
     setMappings([]);
     setTagColorByKey(new Map());
+    setBulkTags([]);
     setResult(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
@@ -367,6 +373,9 @@ export function ImportModal({
 
       const tagAssignments: ContactTagAssignment[] = [];
       const customValueAssignments: ContactCustomFieldValue[] = [];
+      // Every contact that ends up imported or updated — used to apply
+      // the bulk "tags for all imported contacts" selection below.
+      const allContactIds: string[] = [];
 
       // 4) Batch insert the genuinely-new rows in chunks of 50. The DB
       //    unique index is the backstop: a 23505 (race, or a format
@@ -403,6 +412,7 @@ export function ImportModal({
 
             if (!singleErr && singleData) {
               imported++;
+              allContactIds.push(singleData.id);
               if (source.tagNames.length > 0) {
                 tagAssignments.push({
                   contactId: singleData.id,
@@ -430,6 +440,7 @@ export function ImportModal({
           for (let j = 0; j < inserted.length; j++) {
             const source = chunk[j];
             if (!source) continue;
+            allContactIds.push(inserted[j].id);
             if (source.tagNames.length > 0) {
               tagAssignments.push({
                 contactId: inserted[j].id,
@@ -470,11 +481,28 @@ export function ImportModal({
         }
 
         updated++;
+        allContactIds.push(contactId);
         if (row.tagNames.length > 0) {
           tagAssignments.push({ contactId, tagNames: row.tagNames });
         }
         if (row.customValues.size > 0) {
           customValueAssignments.push({ contactId, values: row.customValues });
+        }
+      }
+
+      // 5b) Apply the bulk "tags for all imported contacts" selection —
+      // independent of any per-row "Tags" column mapping above. The
+      // selected tags already exist (created eagerly by the picker), so
+      // just fold their ids into tagIdByKey and queue one assignment per
+      // contact; assignImportedContactTags upserts with
+      // ignoreDuplicates, so overlap with per-row tags is harmless.
+      if (bulkTags.length > 0 && allContactIds.length > 0) {
+        for (const tag of bulkTags) {
+          tagIdByKey.set(tag.name.trim().toLowerCase(), tag.id);
+        }
+        const bulkTagNames = bulkTags.map((t) => t.name);
+        for (const contactId of allContactIds) {
+          tagAssignments.push({ contactId, tagNames: bulkTagNames });
         }
       }
 
@@ -695,6 +723,13 @@ export function ImportModal({
                 )}
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                  Adicionar tags a todos os contatos importados (opcional)
+                </label>
+                <ImportTagMultiSelect selected={bulkTags} onChange={setBulkTags} />
+              </div>
+
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
@@ -703,7 +738,7 @@ export function ImportModal({
                   <div className="flex flex-wrap items-center gap-1.5">
                     {tagStats.rowsWithTags > 0 && (
                       <span className="inline-flex items-center gap-1 rounded-md bg-muted/90 px-2 py-0.5 text-[11px] text-muted-foreground">
-                        <Tag className="text-primary/80 size-3" />
+                        <TagIcon className="text-primary/80 size-3" />
                         {tagStats.unique} tag{tagStats.unique !== 1 ? 's' : ''} ·{' '}
                         {tagStats.rowsWithTags} contato
                         {tagStats.rowsWithTags !== 1 ? 's' : ''}

@@ -205,7 +205,16 @@ export function Step2SelectAudience({
     };
   }, [audience.type, audience.pipelineId]);
 
+  // Guards against out-of-order responses: toggling tags/type quickly can
+  // fire several overlapping fetches (the "all contacts" branch in
+  // particular is much slower than a tag-scoped query), and without this
+  // an earlier, slower response can resolve after a newer one and clobber
+  // the count with a stale value. Mirrors the same guard on the Contacts
+  // page's fetchContacts.
+  const countFetchSeq = useRef(0);
+
   const fetchEstimatedCount = useCallback(async () => {
+    const seq = ++countFetchSeq.current;
     setLoadingCount(true);
     setExcludedRecentCount(0);
     try {
@@ -286,6 +295,12 @@ export function Step2SelectAudience({
         );
       }
 
+      // A newer call to fetchEstimatedCount has since started (the user
+      // toggled another tag/type while this one was still in flight) —
+      // let that one own the final setEstimatedCount instead of clobbering
+      // it with this stale result.
+      if (seq !== countFetchSeq.current) return;
+
       if (baseIds) {
         const afterTagExclude = [...baseIds].filter((id) => !excludeSet?.has(id));
         const excludedForRecent = recentIds
@@ -316,7 +331,7 @@ export function Step2SelectAudience({
         setEstimatedCount(Math.max(0, afterTagCount - excludedForRecent));
       }
     } finally {
-      setLoadingCount(false);
+      if (seq === countFetchSeq.current) setLoadingCount(false);
     }
   }, [
     audience.type,

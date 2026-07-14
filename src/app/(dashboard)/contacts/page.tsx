@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, Profile } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -49,14 +49,40 @@ import {
   SlidersHorizontal,
   Filter,
   X,
+  Download,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
+import { BulkAddTagButton, BulkRemoveTagButton } from '@/components/contacts/bulk-tag-actions';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { Checkbox } from '@/components/ui/checkbox';
+
+type DateRangeFilter = 'today' | 'week' | 'month' | 'custom';
+
+/** Start/end ISO bounds for a date-created filter — `to` stays null for
+ *  the rolling ranges (today/week/month look back from now with no
+ *  upper bound); only 'custom' supplies both ends. */
+function computeDateBounds(
+  range: DateRangeFilter | null,
+  customFrom: string,
+  customTo: string
+): { from: string | null; to: string | null } {
+  if (!range) return { from: null, to: null };
+  if (range === 'custom') {
+    return {
+      from: customFrom ? new Date(`${customFrom}T00:00:00`).toISOString() : null,
+      to: customTo ? new Date(`${customTo}T23:59:59.999`).toISOString() : null,
+    };
+  }
+  const from = new Date();
+  if (range === 'today') from.setHours(0, 0, 0, 0);
+  else if (range === 'week') from.setDate(from.getDate() - 7);
+  else from.setMonth(from.getMonth() - 1);
+  return { from: from.toISOString(), to: null };
+}
 
 const PAGE_SIZE = 25;
 
@@ -78,6 +104,13 @@ export default function ContactsPage() {
   const [totalCount, setTotalCount] = useState(0);
   // Tag filter — contacts shown must have ANY of these tags (OR).
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<DateRangeFilter | null>(null);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  // Assigned agent lives on the contact's conversation, not the contact
+  // row itself — value is a profile.user_id, or the literal "unassigned".
+  const [assignedAgent, setAssignedAgent] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -119,6 +152,9 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
+  const hasAdvancedFilters =
+    selectedTagIds.length > 0 || dateRange !== null || assignedAgent !== null;
+
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
     setLoading(true);
@@ -134,14 +170,23 @@ export default function ContactsPage() {
     let contactRows: Contact[];
     let count: number;
 
-    if (selectedTagIds.length > 0) {
-      // Tag filter active — resolve it server-side (join + distinct +
-      // windowed total count + pagination) so a tag covering many
-      // contacts can't silently truncate the result or overflow an IN
-      // clause. See migration 025_filter_contacts_by_tags.
-      const { data, error } = await supabase.rpc('filter_contacts_by_tags', {
-        p_tag_ids: selectedTagIds,
+    if (hasAdvancedFilters) {
+      // Any of tags/date/agent active — resolve server-side (join +
+      // distinct + windowed total count + pagination) so a filter
+      // covering many contacts can't silently truncate the result or
+      // overflow an IN clause. See migration 026_filter_contacts_advanced.
+      const { from: createdFrom, to: createdTo } = computeDateBounds(
+        dateRange,
+        customFrom,
+        customTo
+      );
+      const { data, error } = await supabase.rpc('filter_contacts', {
+        p_tag_ids: selectedTagIds.length > 0 ? selectedTagIds : null,
         p_search: term || null,
+        p_created_from: createdFrom,
+        p_created_to: createdTo,
+        p_agent_id: assignedAgent && assignedAgent !== 'unassigned' ? assignedAgent : null,
+        p_unassigned_only: assignedAgent === 'unassigned',
         p_limit: PAGE_SIZE,
         p_offset: from,
       });
@@ -208,7 +253,24 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, selectedTagIds, tagsMap]);
+  }, [
+    supabase,
+    page,
+    search,
+    selectedTagIds,
+    tagsMap,
+    hasAdvancedFilters,
+    dateRange,
+    customFrom,
+    customTo,
+    assignedAgent,
+    t,
+  ]);
+
+  const fetchProfiles = useCallback(async () => {
+    const { data } = await supabase.from('profiles').select('*').order('full_name');
+    setProfiles((data ?? []) as Profile[]);
+  }, [supabase]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -217,7 +279,9 @@ export default function ContactsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTags();
-  }, [fetchTags]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchProfiles();
+  }, [fetchTags, fetchProfiles]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -315,16 +379,55 @@ export default function ContactsPage() {
     setBulkDeleteOpen(false);
   }
 
+  function csvEscape(value: string): string {
+    if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+    return value;
+  }
+
+  function handleExportSelected() {
+    const rows = contacts.filter((c) => selected.has(c.id));
+    if (rows.length === 0) return;
+
+    const header = ['Nome', 'Telefone', 'Email', 'Tags', 'Data de criação'];
+    const lines = rows.map((c) =>
+      [
+        c.name ?? '',
+        c.phone,
+        c.email ?? '',
+        (c.tags ?? []).map((tag) => tag.name).join('; '),
+        new Date(c.created_at).toLocaleDateString('pt-BR'),
+      ]
+        .map((v) => csvEscape(String(v)))
+        .join(',')
+    );
+    const csv = [header.join(','), ...lines].join('\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `contatos-selecionados-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const hasNext = page < totalPages - 1;
   const hasPrev = page > 0;
 
-  // Tag filter helpers. Every change resets to page 0 — the result set
+  // Filter helpers. Every change resets to page 0 — the result set
   // shrinks/grows so page N may no longer be valid (mirrors the search box).
   const allTags = Object.values(tagsMap).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
-  const hasActiveFilters = search.trim().length > 0 || selectedTagIds.length > 0;
+  const activeFilterCount =
+    (search.trim().length > 0 ? 1 : 0) +
+    (selectedTagIds.length > 0 ? 1 : 0) +
+    (dateRange !== null ? 1 : 0) +
+    (assignedAgent !== null ? 1 : 0);
+  const hasActiveFilters = activeFilterCount > 0;
 
   function toggleTagFilter(tagId: string) {
     setSelectedTagIds((prev) =>
@@ -339,6 +442,46 @@ export default function ContactsPage() {
     setSelectedTagIds([]);
     setPage(0);
   }
+
+  function updateDateRange(range: DateRangeFilter | null) {
+    setDateRange(range);
+    if (range !== 'custom') {
+      setCustomFrom('');
+      setCustomTo('');
+    }
+    setPage(0);
+  }
+
+  function updateAssignedAgent(agent: string | null) {
+    setAssignedAgent(agent);
+    setPage(0);
+  }
+
+  function clearAllFilters() {
+    setSearch('');
+    setSelectedTagIds([]);
+    setDateRange(null);
+    setCustomFrom('');
+    setCustomTo('');
+    setAssignedAgent(null);
+    setPage(0);
+  }
+
+  const assignedAgentLabel =
+    assignedAgent === 'unassigned'
+      ? 'Sem responsável'
+      : profiles.find((p) => p.user_id === assignedAgent)?.full_name;
+
+  const dateRangeLabel =
+    dateRange === 'today'
+      ? 'Hoje'
+      : dateRange === 'week'
+        ? 'Últimos 7 dias'
+        : dateRange === 'month'
+          ? 'Últimos 30 dias'
+          : dateRange === 'custom'
+            ? 'Período personalizado'
+            : null;
 
   return (
     <div className="space-y-6">
@@ -411,60 +554,137 @@ export default function ContactsPage() {
               }
             >
               <Filter className="size-4" />
-              {t('filterByTags')}
-              {selectedTagIds.length > 0 && (
+              Filtros
+              {activeFilterCount > 0 && (
                 <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[10px] font-semibold text-primary-foreground">
-                  {selectedTagIds.length}
+                  {activeFilterCount}
                 </span>
               )}
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-0">
+            <PopoverContent align="start" className="w-72 p-0">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <span className="text-sm font-medium text-popover-foreground">
-                  {t('filterByTags')}
-                </span>
-                {selectedTagIds.length > 0 && (
+                <span className="text-sm font-medium text-popover-foreground">Filtros</span>
+                {hasActiveFilters && (
                   <button
-                    onClick={clearTagFilters}
+                    onClick={clearAllFilters}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    {t('clearAll')}
+                    Limpar filtros
                   </button>
                 )}
               </div>
-              {allTags.length === 0 ? (
-                <p className="px-3 py-4 text-sm text-muted-foreground text-center">
-                  {t('noTagsYet')}
-                </p>
-              ) : (
-                <div className="max-h-64 overflow-y-auto py-1">
-                  {allTags.map((tag) => (
-                    <label
-                      key={tag.id}
-                      className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-muted/50"
-                    >
-                      <Checkbox
-                        checked={selectedTagIds.includes(tag.id)}
-                        onCheckedChange={() => toggleTagFilter(tag.id)}
-                        aria-label={t('filterByTagAria', { name: tag.name })}
-                      />
-                      <span
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      <span className="text-sm text-popover-foreground truncate">
-                        {tag.name}
-                      </span>
+
+              <div className="max-h-[26rem] overflow-y-auto p-3 space-y-4">
+                {/* Tags */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {t('filterByTags')}
                     </label>
-                  ))}
+                    {selectedTagIds.length > 0 && (
+                      <button
+                        onClick={clearTagFilters}
+                        className="text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        {t('clearAll')}
+                      </button>
+                    )}
+                  </div>
+                  {allTags.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">{t('noTagsYet')}</p>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto rounded-md border border-border">
+                      {allTags.map((tag) => (
+                        <label
+                          key={tag.id}
+                          className="flex items-center gap-2.5 px-2.5 py-1.5 cursor-pointer hover:bg-muted/50"
+                        >
+                          <Checkbox
+                            checked={selectedTagIds.includes(tag.id)}
+                            onCheckedChange={() => toggleTagFilter(tag.id)}
+                            aria-label={t('filterByTagAria', { name: tag.name })}
+                          />
+                          <span
+                            className="size-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: tag.color }}
+                          />
+                          <span className="text-sm text-popover-foreground truncate">
+                            {tag.name}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Date created */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Data de criação
+                  </label>
+                  <select
+                    value={dateRange ?? ''}
+                    onChange={(e) =>
+                      updateDateRange((e.target.value || null) as DateRangeFilter | null)
+                    }
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Qualquer data</option>
+                    <option value="today">Hoje</option>
+                    <option value="week">Últimos 7 dias</option>
+                    <option value="month">Últimos 30 dias</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                  {dateRange === 'custom' && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <input
+                        type="date"
+                        value={customFrom}
+                        onChange={(e) => {
+                          setCustomFrom(e.target.value);
+                          setPage(0);
+                        }}
+                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary"
+                      />
+                      <input
+                        type="date"
+                        value={customTo}
+                        onChange={(e) => {
+                          setCustomTo(e.target.value);
+                          setPage(0);
+                        }}
+                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Assigned agent */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Responsável
+                  </label>
+                  <select
+                    value={assignedAgent ?? ''}
+                    onChange={(e) => updateAssignedAgent(e.target.value || null)}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Qualquer responsável</option>
+                    <option value="unassigned">Sem responsável</option>
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.user_id}>
+                        {p.full_name || p.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </PopoverContent>
           </Popover>
         </div>
 
-        {/* Active tag-filter chips */}
-        {selectedTagIds.length > 0 && (
+        {/* Active-filter chips */}
+        {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-1.5">
             {selectedTagIds.map((id) => {
               const tag = tagsMap[id];
@@ -489,11 +709,27 @@ export default function ContactsPage() {
                 </span>
               );
             })}
+            {dateRangeLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {dateRangeLabel}
+                <button onClick={() => updateDateRange(null)} aria-label="Remover filtro de data" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {assignedAgentLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {assignedAgentLabel}
+                <button onClick={() => updateAssignedAgent(null)} aria-label="Remover filtro de responsável" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
             <button
-              onClick={clearTagFilters}
+              onClick={clearAllFilters}
               className="text-xs text-muted-foreground hover:text-foreground px-1"
             >
-              {t('clearAll')}
+              Limpar filtros
             </button>
           </div>
         )}
@@ -513,6 +749,34 @@ export default function ContactsPage() {
               className="text-muted-foreground hover:text-foreground"
             >
               {t('clear')}
+            </Button>
+            {canEdit && (
+              <>
+                <BulkAddTagButton
+                  contactIds={[...selected]}
+                  onApplied={() => {
+                    setSelected(new Set());
+                    fetchContacts();
+                  }}
+                />
+                <BulkRemoveTagButton
+                  contactIds={[...selected]}
+                  tagsMap={tagsMap}
+                  onApplied={() => {
+                    setSelected(new Set());
+                    fetchContacts();
+                  }}
+                />
+              </>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportSelected}
+              className="border-border text-muted-foreground hover:bg-muted"
+            >
+              <Download className="size-4" />
+              Exportar selecionados
             </Button>
             <GatedButton
               variant="destructive"
