@@ -139,8 +139,9 @@ function FlowNodeCard({ data, selected }: NodeProps) {
           : "border-border hover:border-border",
         // Flash overrides hover/selected colors briefly. Tailwind's
         // built-in `animate-pulse` is too gentle; a ring with the
-        // amber accent matches the list view's flash semantics.
-        isFlashed && "!border-amber-400 ring-2 ring-amber-400/60",
+        // primary accent matches the list view's flash (see
+        // flow-builder.tsx's ring-primary on isFlashed).
+        isFlashed && "!border-primary ring-2 ring-primary/60",
       )}
     >
       {hasTarget && (
@@ -157,7 +158,7 @@ function FlowNodeCard({ data, selected }: NodeProps) {
           {tNodeTypes(node.node_type)}
         </span>
         {isEntry && (
-          <span className="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-emerald-300">
+          <span className="ml-auto rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-primary">
             {tFlows("entryBadge")}
           </span>
         )}
@@ -579,7 +580,7 @@ function NodeEditSheet({
             <Icon className={cn("h-4 w-4 shrink-0", meta.color)} />
             <span>{tNodeTypes(node.node_type)}</span>
             {isEntry && (
-              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
+              <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
                 {tFlows("entryBadge")}
               </span>
             )}
@@ -610,7 +611,7 @@ function NodeEditSheet({
             variant="ghost"
             size="sm"
             onClick={onDelete}
-            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            className="text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="h-3.5 w-3.5" />
             {t("deleteNodeButton")}

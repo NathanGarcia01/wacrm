@@ -24,7 +24,7 @@
  * renders the advanced rows.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Loader2,
@@ -316,7 +316,7 @@ function SendButtonsForm({
                 variant="ghost"
                 size="sm"
                 onClick={() => removeButton(i)}
-                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                className="text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -493,7 +493,7 @@ function SendListForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeSection(sIdx)}
-                  className="shrink-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="shrink-0 text-destructive hover:bg-destructive/10"
                   aria-label={t("removeSectionAria")}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -547,7 +547,7 @@ function SendListForm({
                   variant="ghost"
                   size="sm"
                   onClick={() => removeRow(sIdx, rIdx)}
-                  className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  className="text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -618,12 +618,36 @@ function ConditionForm({
   const operator = cfg.operator ?? "equals";
   const showValue = operator === "equals" || operator === "contains";
 
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, these two show
+  // the raw value ("var", "equals") on first render, since both always
+  // start non-empty (cfg.subject/operator default in above).
+  const subjectItems = useMemo(
+    () => ({
+      var: t("subjectVarOption"),
+      tag: t("subjectTagOption"),
+      contact_field: t("subjectFieldOption"),
+    }),
+    [t],
+  );
+  const operatorItems = useMemo(
+    () => ({
+      present: t("opPresent"),
+      absent: t("opAbsent"),
+      equals: t("opEquals"),
+      contains: t("opContains"),
+    }),
+    [t],
+  );
+
   return (
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">{t("ifLabel")}</label>
           <Select
+            items={subjectItems}
             value={subject}
             onValueChange={(v) =>
               onUpdateConfig({ subject: v as ConditionCfg["subject"] })
@@ -700,6 +724,7 @@ function ConditionForm({
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">{t("operatorLabel")}</label>
           <Select
+            items={operatorItems}
             value={operator}
             onValueChange={(v) =>
               onUpdateConfig({ operator: v as ConditionCfg["operator"] })
@@ -772,12 +797,24 @@ function SetTagForm({
   const t = useTranslations("flows.forms");
   const tags = useUserTags();
 
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map — without it, this shows the raw value ("add") on
+  // first render, since cfg.mode always starts non-empty (default above).
+  const modeItems = useMemo(
+    () => ({
+      add: t("addTagOption"),
+      remove: t("removeTagOption"),
+    }),
+    [t],
+  );
+
   return (
     <>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">{t("actionLabel")}</label>
           <Select
+            items={modeItems}
             value={cfg.mode ?? "add"}
             onValueChange={(v) =>
               onUpdateConfig({ mode: v as SetTagCfg["mode"] })
@@ -937,11 +974,24 @@ function SendMediaForm({
     onUpdateConfig({ media_url: "", filename: "" });
   };
 
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map — without it, this shows the raw value ("image") on
+  // first render, since mediaType always starts non-empty (default above).
+  const mediaTypeItems = useMemo(
+    () => ({
+      image: t("mediaTypeImage"),
+      video: t("mediaTypeVideo"),
+      document: t("mediaTypeDocument"),
+    }),
+    [t],
+  );
+
   return (
     <>
       <div>
         <label className="mb-1 block text-xs text-muted-foreground">{t("mediaTypeLabel")}</label>
         <Select
+          items={mediaTypeItems}
           value={mediaType}
           onValueChange={(v) => {
             // Changing type clears the existing file — the bucket

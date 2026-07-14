@@ -63,7 +63,7 @@ const STATUS_META: Record<
 > = {
   active: {
     label: "Active",
-    classes: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
+    classes: "border-primary/40 bg-primary/10 text-primary",
     icon: PlayCircle,
   },
   completed: {
@@ -73,7 +73,7 @@ const STATUS_META: Record<
   },
   handed_off: {
     label: "Handed off",
-    classes: "border-amber-600/40 bg-amber-500/10 text-amber-300",
+    classes: "border-gold/40 bg-gold-soft text-gold",
     icon: UserPlus,
   },
   timed_out: {
@@ -88,7 +88,7 @@ const STATUS_META: Record<
   },
   failed: {
     label: "Failed",
-    classes: "border-red-600/40 bg-red-500/10 text-red-300",
+    classes: "border-destructive/40 bg-destructive/10 text-destructive",
     icon: CircleAlert,
   },
 };
@@ -256,11 +256,11 @@ function RunCard({
             )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-            <span>Started {format(new Date(run.started_at), "PP p")}</span>
+            <span className="font-mono">Started {format(new Date(run.started_at), "PP p")}</span>
             {run.reprompt_count > 0 && (
-              <span>· {run.reprompt_count} re-prompts</span>
+              <span className="font-mono">· {run.reprompt_count} re-prompts</span>
             )}
-            {duration && <span>· ran for {duration}</span>}
+            {duration && <span className="font-mono">· ran for {duration}</span>}
           </div>
         </div>
       </button>
@@ -292,22 +292,22 @@ function RunCard({
 }
 
 const EVENT_COLOR: Record<string, string> = {
-  started: "text-emerald-300",
+  started: "text-primary",
   node_entered: "text-muted-foreground",
   message_sent: "text-sky-300",
   reply_received: "text-primary",
-  fallback_fired: "text-amber-300",
-  handoff: "text-amber-300",
+  fallback_fired: "text-gold",
+  handoff: "text-gold",
   timeout: "text-muted-foreground",
-  error: "text-red-300",
-  completed: "text-emerald-300",
+  error: "text-destructive",
+  completed: "text-primary",
 };
 
 function EventLine({ ev }: { ev: EventRow }) {
   const cls = EVENT_COLOR[ev.event_type] ?? "text-muted-foreground";
   return (
     <div className="flex items-start gap-2 rounded-md px-2 py-1 text-xs">
-      <span className="w-32 shrink-0 text-[10px] text-muted-foreground">
+      <span className="w-32 shrink-0 font-mono text-[10px] text-muted-foreground">
         {format(new Date(ev.created_at), "HH:mm:ss")}
       </span>
       <span className={cn("w-32 shrink-0 font-mono text-[10px]", cls)}>

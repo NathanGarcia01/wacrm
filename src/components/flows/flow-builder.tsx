@@ -270,6 +270,19 @@ function TriggerPanel({
   triggerIssues: ValidationIssue[];
 }) {
   const t = useTranslations("flows.builder");
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, the trigger shows
+  // the raw value ("manual", "keyword"...) on first render, since
+  // state.trigger_type always starts non-empty.
+  const triggerTypeItems = useMemo(
+    () => ({
+      keyword: t("triggerKeywordOption"),
+      first_inbound_message: t("triggerFirstInboundOption"),
+      manual: t("triggerManualOption"),
+    }),
+    [t],
+  );
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <h2 className="mb-3 text-sm font-semibold text-foreground">{t("triggerHeading")}</h2>
@@ -277,6 +290,7 @@ function TriggerPanel({
         <div>
           <label className="mb-1 block text-xs text-muted-foreground">{t("triggerWhenLabel")}</label>
           <Select
+            items={triggerTypeItems}
             value={state.trigger_type}
             onValueChange={(v) =>
               setState((s) => ({
@@ -409,7 +423,7 @@ function NodeCard({
       className={cn(
         "rounded-lg border bg-card transition-shadow duration-500",
         hasError
-          ? "border-red-500/40"
+          ? "border-destructive/40"
           : isEntry
             ? "border-primary/50"
             : "border-border",
@@ -447,7 +461,7 @@ function NodeCard({
           )}
         </div>
         {hasError && (
-          <CircleAlert className="h-3.5 w-3.5 shrink-0 text-red-400" />
+          <CircleAlert className="h-3.5 w-3.5 shrink-0 text-destructive" />
         )}
         {expanded ? (
           <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -475,14 +489,14 @@ function NodeCard({
               variant="ghost"
               size="sm"
               onClick={onRemove}
-              className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              className="text-destructive hover:bg-destructive/10"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {t("removeNodeButton")}
             </Button>
           </div>
           {issues.length > 0 && (
-            <div className="mt-3 flex flex-col gap-1 rounded-md bg-red-500/5 p-2">
+            <div className="mt-3 flex flex-col gap-1 rounded-md bg-destructive/5 p-2">
               {issues.map((i, ix) => (
                 <IssueLine key={ix} issue={i} />
               ))}

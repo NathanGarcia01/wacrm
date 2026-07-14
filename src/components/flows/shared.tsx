@@ -75,7 +75,7 @@ export const NODE_META: Record<
   NodeType,
   { icon: typeof Workflow; color: string }
 > = {
-  start: { icon: PlayCircle, color: "text-emerald-400" },
+  start: { icon: PlayCircle, color: "text-primary" },
   send_message: {
     icon: MessageCircle,
     color: "text-sky-400",
@@ -106,7 +106,7 @@ export const NODE_META: Record<
   },
   handoff: {
     icon: UserPlus,
-    color: "text-amber-400",
+    color: "text-gold",
   },
   end: { icon: Flag, color: "text-muted-foreground" },
 };
