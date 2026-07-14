@@ -152,7 +152,20 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
         )}
       </div>
 
-      <BroadcastRoiFunnelChart funnel={bundle?.funnel ?? null} loading={loading} title={t("funnelTitle")} />
+      <BroadcastRoiFunnelChart
+        stages={
+          bundle
+            ? [
+                { key: "sent", label: t("funnelSent"), value: bundle.funnel.sent },
+                { key: "replied", label: t("funnelReplied"), value: bundle.funnel.replied },
+                { key: "dealsCreated", label: t("funnelDealsCreated"), value: bundle.funnel.dealsCreated },
+                { key: "dealsWon", label: t("funnelDealsWon"), value: bundle.funnel.dealsWon },
+              ]
+            : null
+        }
+        loading={loading}
+        title={t("funnelTitle")}
+      />
 
       <div className="rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">

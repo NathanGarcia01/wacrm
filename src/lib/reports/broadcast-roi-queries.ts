@@ -115,13 +115,23 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
     allContactIds.add(r.contact_id)
   }
 
-  let deals: DealRow[] = []
+  // Chunked — an account with many contacts reached in the period can
+  // easily push a single `.in('contact_id', …)` past PostgREST's URL
+  // length limit (each UUID is ~37 bytes URL-encoded; a few hundred
+  // already blows past it and the request comes back 400 Bad Request).
+  const CONTACT_CHUNK = 200
+  const deals: DealRow[] = []
   if (allContactIds.size > 0) {
-    const { data: dealsData } = await db
-      .from('deals')
-      .select('id, contact_id, value, status, won_at, created_at, products:deal_products(commission_value)')
-      .in('contact_id', [...allContactIds])
-    deals = (dealsData ?? []) as unknown as DealRow[]
+    const contactIdList = [...allContactIds]
+    for (let i = 0; i < contactIdList.length; i += CONTACT_CHUNK) {
+      const chunk = contactIdList.slice(i, i + CONTACT_CHUNK)
+      const { data: dealsData, error: dealsError } = await db
+        .from('deals')
+        .select('id, contact_id, value, status, won_at, created_at, products:deal_products(commission_value)')
+        .in('contact_id', chunk)
+      if (dealsError) throw dealsError
+      deals.push(...((dealsData ?? []) as unknown as DealRow[]))
+    }
   }
   const dealCommission = (d: DealRow) =>
     (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)

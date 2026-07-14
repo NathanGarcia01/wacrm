@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
-import { CheckCircle2, Percent, Radio, Reply, Users, XCircle } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { formatCurrency } from "@/lib/currency"
+import { DollarSign, Radio, Reply, Trophy, Users } from "lucide-react"
 import { loadBroadcastsReport } from "@/lib/reports/broadcasts-queries"
 import type { BroadcastsReportBundle, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
 import { BroadcastsTable } from "@/components/reports/broadcasts-table"
+import { BroadcastRoiFunnelChart } from "@/components/reports/broadcast-roi-funnel-chart"
 
 function fmtPct(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(0)}%`
@@ -16,12 +19,14 @@ function fmtPct(v: number | null): string {
 
 export function BroadcastsTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.broadcastsTab")
+  const { defaultCurrency } = useAuth()
   const [bundle, setBundle] = useState<BroadcastsReportBundle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError(null)
     const db = createClient()
@@ -55,14 +60,37 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
         ) : (
           <>
             <MetricCard title={t("totalBroadcasts")} value={bundle.cards.totalBroadcasts.toLocaleString()} icon={Radio} />
-            <MetricCard title={t("uniqueRecipients")} value={bundle.cards.uniqueRecipients.toLocaleString()} icon={Users} />
-            <MetricCard title={t("delivered")} value={bundle.cards.delivered.toLocaleString()} icon={CheckCircle2} />
-            <MetricCard title={t("failed")} value={bundle.cards.failed.toLocaleString()} icon={XCircle} />
-            <MetricCard title={t("deliveryRate")} value={fmtPct(bundle.cards.deliveryRatePct)} icon={Percent} />
+            <MetricCard title={t("totalSent")} value={bundle.cards.totalSent.toLocaleString()} icon={Users} />
+            <MetricCard
+              title={t("uniqueContactsReached")}
+              value={bundle.cards.uniqueContactsReached.toLocaleString()}
+              icon={Users}
+            />
             <MetricCard title={t("replyRate")} value={fmtPct(bundle.cards.replyRatePct)} icon={Reply} />
+            <MetricCard title={t("dealsWon")} value={bundle.cards.dealsWon.toLocaleString()} icon={Trophy} />
+            <MetricCard
+              title={t("commissionGenerated")}
+              value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
+              icon={DollarSign}
+            />
           </>
         )}
       </div>
+
+      <BroadcastRoiFunnelChart
+        stages={
+          bundle
+            ? [
+                { key: "sent", label: t("funnelSent"), value: bundle.funnel.sent },
+                { key: "replied", label: t("funnelReplied"), value: bundle.funnel.replied },
+                { key: "dealsCreated", label: t("funnelDealsCreated"), value: bundle.funnel.dealsCreated },
+                { key: "dealsWon", label: t("funnelDealsWon"), value: bundle.funnel.dealsWon },
+              ]
+            : null
+        }
+        loading={loading}
+        title={t("funnelTitle")}
+      />
 
       <BroadcastsTable broadcasts={bundle?.broadcasts ?? []} loading={loading} />
     </div>

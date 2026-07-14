@@ -177,13 +177,31 @@ export interface CommissionReportBundle {
 
 export interface BroadcastReportCards {
   totalBroadcasts: number
-  uniqueRecipients: number
-  delivered: number
-  failed: number
-  /** 0-100. Null when there are no recipients in the period. */
-  deliveryRatePct: number | null
-  /** 0-100. Null when there are no delivered/read/sent recipients. */
+  /** Sum of broadcasts.sent_count across the period. */
+  totalSent: number
+  /** Distinct contact_id across broadcast_recipients for broadcasts in
+   *  the period (a contact reached by 2 broadcasts counts once) —
+   *  "leads subidos", not a per-broadcast sum. */
+  uniqueContactsReached: number
+  /** replied / sent × 100, 0-100. Null when totalSent is 0. */
   replyRatePct: number | null
+  /** Deals won whose contact received one of these broadcasts and the
+   *  deal was created after it went out — same attribution rule as the
+   *  ROI tab (src/lib/reports/broadcast-roi-queries.ts). */
+  dealsWon: number
+  /** Sum of deal_products.commission_value across dealsWon. */
+  commissionGenerated: number
+}
+
+/** One quick-reply button's click count for a broadcast, ranked by
+ *  popularity — "Button 1"/"Button 2" are the top-2 clicked labels for
+ *  that specific broadcast, not a fixed template slot (different
+ *  broadcasts can use different templates/button text). */
+export interface BroadcastButtonStat {
+  label: string
+  count: number
+  /** 0-100, of the broadcast's sentCount. */
+  pct: number
 }
 
 export interface BroadcastReportRow {
@@ -191,17 +209,34 @@ export interface BroadcastReportRow {
   name: string
   templateName: string
   createdAt: string
-  totalRecipients: number
-  deliveredCount: number
-  failedCount: number
+  sentCount: number
   repliedCount: number
-  /** 0-100. Null when totalRecipients is 0. */
+  /** 0-100. Null when sentCount is 0. */
   replyRatePct: number | null
+  /** Most-clicked button, if any. */
+  button1: BroadcastButtonStat | null
+  /** Second most-clicked button, if any. */
+  button2: BroadcastButtonStat | null
+  /** Repliers who never tapped a button (repliedCount minus everyone
+   *  with a non-null button_clicked) — free-text replies. */
+  freeTextCount: number
+  /** 0-100. Null when sentCount is 0. */
+  freeTextPct: number | null
+  dealsWon: number
+  commissionGenerated: number
+}
+
+export interface BroadcastReportFunnel {
+  sent: number
+  replied: number
+  dealsCreated: number
+  dealsWon: number
 }
 
 export interface BroadcastsReportBundle {
   cards: BroadcastReportCards
   broadcasts: BroadcastReportRow[]
+  funnel: BroadcastReportFunnel
 }
 
 // ------------------------------------------------------------

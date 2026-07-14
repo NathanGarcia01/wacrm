@@ -70,7 +70,11 @@ function ReportsPageInner() {
   const tab: ReportTab = isReportTab(tabParam) ? tabParam : "overview"
 
   const periodParam = searchParams.get("period")
-  const periodKey: PeriodKey = isPeriodKey(periodParam) ? periodParam : "today"
+  // The Transmissões report reads better zoomed out (a single day of
+  // broadcast activity is rarely representative) — defaults to "week"
+  // when no period is in the URL; every other tab keeps "today".
+  const defaultPeriodKey: PeriodKey = tab === "broadcasts" ? "week" : "today"
+  const periodKey: PeriodKey = isPeriodKey(periodParam) ? periodParam : defaultPeriodKey
   const fromParam = searchParams.get("from")
   const toParam = searchParams.get("to")
 

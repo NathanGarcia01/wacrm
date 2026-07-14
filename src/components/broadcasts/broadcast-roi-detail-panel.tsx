@@ -122,7 +122,16 @@ export function BroadcastRoiDetailPanel({
         />
       </div>
 
-      <BroadcastRoiFunnelChart funnel={funnel} loading={false} title={t('funnelTitle')} />
+      <BroadcastRoiFunnelChart
+        stages={[
+          { key: 'sent', label: t('funnelSent'), value: funnel.sent },
+          { key: 'replied', label: t('funnelReplied'), value: funnel.replied },
+          { key: 'dealsCreated', label: t('funnelDealsCreated'), value: funnel.dealsCreated },
+          { key: 'dealsWon', label: t('funnelDealsWon'), value: funnel.dealsWon },
+        ]}
+        loading={false}
+        title={t('funnelTitle')}
+      />
 
       <div className="rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">

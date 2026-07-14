@@ -1,33 +1,33 @@
 "use client"
 
-import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/dashboard/skeleton"
-import type { BroadcastRoiFunnel } from "@/lib/reports/types"
+
+interface FunnelStage {
+  key: string
+  label: string
+  value: number
+}
 
 interface BroadcastRoiFunnelChartProps {
-  funnel: BroadcastRoiFunnel | null
+  /** Null while loading; pass an already-labeled stage list so this
+   *  chart can be shared across reports with different translation
+   *  namespaces (broadcasts tab, broadcast ROI tab) without hardcoding
+   *  one. */
+  stages: FunnelStage[] | null
   loading: boolean
   title: string
 }
 
 /**
- * Sent → Replied → Deals Created → Deals Won. Same visual language as
- * the Dashboard's pipeline funnel (conversion-funnel-chart.tsx):
- * decreasing bars normalized against the busiest stage, primary fill
- * throughout, gold reserved for the final/most-valuable stage.
+ * Generic decreasing-funnel bar chart — e.g. Sent → Replied → Deals
+ * Created → Deals Won. Same visual language as the Dashboard's
+ * pipeline funnel (conversion-funnel-chart.tsx): decreasing bars
+ * normalized against the busiest stage, primary fill throughout, gold
+ * reserved for the final/most-valuable stage.
  */
-export function BroadcastRoiFunnelChart({ funnel, loading, title }: BroadcastRoiFunnelChartProps) {
-  const t = useTranslations("reports.broadcastRoiTab")
-
-  const stages = funnel
-    ? [
-        { key: "sent", label: t("funnelSent"), value: funnel.sent },
-        { key: "replied", label: t("funnelReplied"), value: funnel.replied },
-        { key: "dealsCreated", label: t("funnelDealsCreated"), value: funnel.dealsCreated },
-        { key: "dealsWon", label: t("funnelDealsWon"), value: funnel.dealsWon },
-      ]
-    : []
+export function BroadcastRoiFunnelChart({ stages: stagesProp, loading, title }: BroadcastRoiFunnelChartProps) {
+  const stages = stagesProp ?? []
   const baseline = Math.max(1, ...stages.map((s) => s.value))
   const lastIndex = stages.length - 1
 
@@ -37,7 +37,7 @@ export function BroadcastRoiFunnelChart({ funnel, loading, title }: BroadcastRoi
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       </header>
       <div className="p-5">
-        {loading || !funnel ? (
+        {loading || !stagesProp ? (
           <Skeleton className="h-40 w-full" />
         ) : (
           <ul className="space-y-2.5">
