@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/hooks/use-auth'
@@ -27,6 +27,8 @@ import type {
   PipelineDonutData,
   ResponseTimeSummary,
 } from '@/lib/dashboard/types'
+import { resolvePeriod } from '@/lib/reports/period'
+import type { PeriodKey } from '@/lib/reports/types'
 
 import { MetricCard } from '@/components/dashboard/metric-card'
 import { SkeletonCard } from '@/components/dashboard/skeleton'
@@ -36,12 +38,57 @@ import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ConversionFunnelChart } from '@/components/dashboard/conversion-funnel-chart'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { PeriodFilter } from '@/components/reports/period-filter'
 
 type RangeDays = 7 | 30 | 90
+
+const DASHBOARD_PERIOD_KEY = 'wacrm.dashboard.period'
+const DASHBOARD_PERIOD_FROM_KEY = 'wacrm.dashboard.period.from'
+const DASHBOARD_PERIOD_TO_KEY = 'wacrm.dashboard.period.to'
+const DEFAULT_PERIOD_KEY: PeriodKey = 'month'
+
+function loadStoredPeriodKey(): PeriodKey {
+  if (typeof window === 'undefined') return DEFAULT_PERIOD_KEY
+  const stored = window.localStorage.getItem(DASHBOARD_PERIOD_KEY)
+  if (stored === 'today' || stored === 'week' || stored === 'month' || stored === 'custom') {
+    return stored
+  }
+  return DEFAULT_PERIOD_KEY
+}
 
 export default function DashboardPage() {
   const t = useTranslations('dashboard')
   const { defaultCurrency, profile } = useAuth()
+
+  // Period filter — persisted to localStorage (not the URL, unlike
+  // Reports) since the dashboard is a single fixed page, not something
+  // users deep-link into with a specific period in mind.
+  const [periodKey, setPeriodKey] = useState<PeriodKey>(DEFAULT_PERIOD_KEY)
+  const [customFrom, setCustomFrom] = useState<string | undefined>(undefined)
+  const [customTo, setCustomTo] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    setPeriodKey(loadStoredPeriodKey())
+    setCustomFrom(window.localStorage.getItem(DASHBOARD_PERIOD_FROM_KEY) ?? undefined)
+    setCustomTo(window.localStorage.getItem(DASHBOARD_PERIOD_TO_KEY) ?? undefined)
+  }, [])
+  const period = useMemo(
+    () => resolvePeriod(periodKey, customFrom, customTo),
+    [periodKey, customFrom, customTo],
+  )
+  const handlePeriodChange = useCallback(
+    (next: { period: PeriodKey; from?: string; to?: string }) => {
+      setPeriodKey(next.period)
+      setCustomFrom(next.from)
+      setCustomTo(next.to)
+      window.localStorage.setItem(DASHBOARD_PERIOD_KEY, next.period)
+      if (next.period === 'custom' && next.from && next.to) {
+        window.localStorage.setItem(DASHBOARD_PERIOD_FROM_KEY, next.from)
+        window.localStorage.setItem(DASHBOARD_PERIOD_TO_KEY, next.to)
+      }
+    },
+    [],
+  )
+
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
 
@@ -71,7 +118,11 @@ export default function DashboardPage() {
     // Kick everything off in parallel. Each block has its own
     // setState + finally so a slow query doesn't hold up faster
     // sections — each widget shows its own skeleton independently.
-    void loadMetrics(db)
+    // Metrics + response time are period-scoped (flow data); pipeline
+    // donut and the activity feed are deliberately NOT (live snapshot /
+    // recent-activity log — see MetricsBundle and loadActivity).
+    setMetricsLoading(true)
+    void loadMetrics(db, period)
       .then((m) => setMetrics(m))
       .catch((err) => console.error('[dashboard] metrics failed:', err))
       .finally(() => setMetricsLoading(false))
@@ -86,7 +137,8 @@ export default function DashboardPage() {
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db)
+    setResponseTimeLoading(true)
+    void loadResponseTime(db, period)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -98,7 +150,7 @@ export default function DashboardPage() {
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
-  }, [t])
+  }, [t, period])
 
   useEffect(() => {
     loadAll()
@@ -130,20 +182,26 @@ export default function DashboardPage() {
       {/* Header — font-display is reserved for exactly this kind of
           one-off, high-visibility moment; the rest of the dashboard
           (KPI labels, chart headers, activity rows) stays font-sans. */}
-      <div>
-        <h1 className="font-display text-3xl text-foreground">
-          {greeting}
-          {firstName && (
-            <>
-              {', '}
-              <span className="text-primary">{firstName}</span>
-            </>
-          )}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl text-foreground">
+            {greeting}
+            {firstName && (
+              <>
+                {', '}
+                <span className="text-primary">{firstName}</span>
+              </>
+            )}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
+        </div>
+        <PeriodFilter period={period} onChange={handlePeriodChange} />
       </div>
 
-      {/* Metric cards */}
+      {/* Metric cards — "Conversas ativas" and "Valor em negociação"
+          are live snapshots and stay unaffected by the period filter
+          above; the rest (new contacts, messages sent, NPS) are
+          scoped to the selected period. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricsLoading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
@@ -159,16 +217,15 @@ export default function DashboardPage() {
               }}
             />
             <MetricCard
-              title={t('newContactsToday')}
-              value={metrics.newContactsToday.current.toLocaleString()}
+              title={t('newContacts')}
+              value={metrics.newContacts.current.toLocaleString()}
               icon={UserPlus}
               delta={{
-                sign:
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
+                sign: metrics.newContacts.current - metrics.newContacts.previous,
                 label: deltaLabel(
                   t,
-                  metrics.newContactsToday.current - metrics.newContactsToday.previous,
-                  t('vsYesterday'),
+                  metrics.newContacts.current - metrics.newContacts.previous,
+                  t('vsPreviousPeriod'),
                 ),
               }}
             />
@@ -179,16 +236,15 @@ export default function DashboardPage() {
               subtitle={t('openDealsCount', { count: metrics.openDealsCount })}
             />
             <MetricCard
-              title={t('messagesSentToday')}
-              value={metrics.messagesSentToday.current.toLocaleString()}
+              title={t('messagesSent')}
+              value={metrics.messagesSent.current.toLocaleString()}
               icon={Send}
               delta={{
-                sign:
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
+                sign: metrics.messagesSent.current - metrics.messagesSent.previous,
                 label: deltaLabel(
                   t,
-                  metrics.messagesSentToday.current - metrics.messagesSentToday.previous,
-                  t('vsYesterday'),
+                  metrics.messagesSent.current - metrics.messagesSent.previous,
+                  t('vsPreviousPeriod'),
                 ),
               }}
             />

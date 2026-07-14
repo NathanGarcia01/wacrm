@@ -19,12 +19,20 @@ import { UserRankingTable } from "@/components/reports/user-ranking-table"
 import { MessagesPerDayChart } from "@/components/reports/messages-per-day-chart"
 import { PipelineTab } from "@/components/reports/pipeline-tab"
 import { BroadcastsTab } from "@/components/reports/broadcasts-tab"
+import { BroadcastRoiTab } from "@/components/reports/broadcast-roi-tab"
 import { QualityTab } from "@/components/reports/quality-tab"
 import { NpsTab } from "@/components/reports/nps-tab"
 import { CommissionsTab } from "@/components/reports/commissions-tab"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-type ReportTab = "overview" | "pipeline" | "broadcasts" | "quality" | "satisfaction" | "commissions"
+type ReportTab =
+  | "overview"
+  | "pipeline"
+  | "broadcasts"
+  | "broadcastRoi"
+  | "quality"
+  | "satisfaction"
+  | "commissions"
 
 function isPeriodKey(v: string | null): v is PeriodKey {
   return v === "today" || v === "week" || v === "month" || v === "custom"
@@ -35,6 +43,7 @@ function isReportTab(v: string | null): v is ReportTab {
     v === "overview" ||
     v === "pipeline" ||
     v === "broadcasts" ||
+    v === "broadcastRoi" ||
     v === "quality" ||
     v === "satisfaction" ||
     v === "commissions"
@@ -138,6 +147,7 @@ function ReportsPageInner() {
             <TabsTrigger value="pipeline">Pipeline &amp; Vendas</TabsTrigger>
             <TabsTrigger value="commissions">Comissões</TabsTrigger>
             <TabsTrigger value="broadcasts">Transmissões</TabsTrigger>
+            <TabsTrigger value="broadcastRoi">ROI de Transmissões</TabsTrigger>
             <TabsTrigger value="quality">Qualidade da conta</TabsTrigger>
             <TabsTrigger value="satisfaction">Satisfação</TabsTrigger>
           </TabsList>
@@ -211,6 +221,7 @@ function ReportsPageInner() {
       {tab === "pipeline" && <PipelineTab period={period} />}
       {tab === "commissions" && <CommissionsTab period={period} />}
       {tab === "broadcasts" && <BroadcastsTab period={period} />}
+      {tab === "broadcastRoi" && <BroadcastRoiTab period={period} />}
       {tab === "quality" && <QualityTab />}
       {tab === "satisfaction" && <NpsTab period={period} />}
     </div>

@@ -205,6 +205,34 @@ export interface BroadcastsReportBundle {
 }
 
 // ------------------------------------------------------------
+// Broadcast ROI tab
+// ------------------------------------------------------------
+
+export interface BroadcastRoiCards {
+  totalInvested: number
+  totalGenerated: number
+  /** (generated - invested) / invested × 100. Null when nothing was invested. */
+  roiPct: number | null
+}
+
+export interface BroadcastRoiRow {
+  id: string
+  name: string
+  templateCategory: string | null
+  sentCount: number
+  cost: number
+  dealsWon: number
+  valueGenerated: number
+  /** (valueGenerated - cost) / cost × 100. Null when cost is 0. */
+  roiPct: number | null
+}
+
+export interface BroadcastRoiBundle {
+  cards: BroadcastRoiCards
+  rows: BroadcastRoiRow[]
+}
+
+// ------------------------------------------------------------
 // Meta account quality tab
 // ------------------------------------------------------------
 

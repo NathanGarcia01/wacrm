@@ -30,9 +30,12 @@ export type SendNpsSurveyResult =
  * 'manual_close' | 'inactivity', and a human-initiated send is
  * closer in spirit to the former than to an inactivity timeout).
  *
- * "Never send twice per conversation" is enforced here, not by a
- * unique constraint — we check for an existing nps_surveys row for
- * this conversation_id before sending anything.
+ * Resend cooldown is enforced here, not by a unique constraint: a
+ * conversation can get a new survey once any prior sent/responded
+ * nps_surveys row for it is more than 30 days old (a customer who
+ * reopens a closed conversation and gets helped again is a distinct
+ * "attendance" worth its own rating) — expired rows never block a
+ * resend regardless of age.
  */
 export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSurveyResult> {
   const db = supabaseAdmin();
@@ -65,10 +68,13 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
     return { sent: false, reason: "disabled" };
   }
 
+  const cooldownCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data: existing } = await db
     .from("nps_surveys")
     .select("id")
     .eq("conversation_id", args.conversationId)
+    .in("status", ["sent", "responded"])
+    .gte("created_at", cooldownCutoff)
     .maybeSingle();
   if (existing) {
     return { sent: false, reason: "already_sent" };

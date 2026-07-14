@@ -35,6 +35,10 @@ import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
 import { GatedButton } from "@/components/ui/gated-button";
+import { LossesPanel } from "@/components/pipelines/losses-panel";
+import { resolvePeriod } from "@/lib/reports/period";
+import { exportDealsToCsv } from "@/lib/pipelines/export-csv";
+import { Download, LayoutGrid, TrendingDown } from "lucide-react";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -65,7 +69,7 @@ export default function PipelinesPage() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId } = useAuth();
+  const { accountId, defaultCurrency } = useAuth();
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
@@ -370,6 +374,18 @@ export default function PipelinesPage() {
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
+  // "all" means no date restriction; otherwise resolve the same way
+  // Reports/Dashboard do. Each deal is checked against its own
+  // "effective date" (see filteredDeals below) rather than a single
+  // column, since won_at/lost_at only exist once a deal has closed.
+  const period = useMemo(
+    () =>
+      filters.periodKey === "all"
+        ? null
+        : resolvePeriod(filters.periodKey, filters.customFrom, filters.customTo),
+    [filters.periodKey, filters.customFrom, filters.customTo],
+  );
+
   const filteredDeals = useMemo(() => {
     return deals.filter((d) => {
       if (filters.status !== "all" && (d.status ?? "open") !== filters.status) return false;
@@ -381,9 +397,40 @@ export default function PipelinesPage() {
       )
         return false;
       if (filters.stageId !== "" && d.stage_id !== filters.stageId) return false;
+      if (period) {
+        const effectiveDate = d.won_at ?? d.lost_at ?? d.created_at;
+        if (effectiveDate < period.startISO || effectiveDate >= period.endISO) return false;
+      }
       return true;
     });
-  }, [deals, filters]);
+  }, [deals, filters, period]);
+
+  // Lost deals for the Losses panel — independent of the status filter
+  // above (that filter defaults to "open" and would otherwise hide
+  // every lost deal), but still respects responsible/period.
+  const lostDeals = useMemo(() => {
+    return deals.filter((d) => {
+      if ((d.status ?? "open") !== "lost") return false;
+      if (filters.assignedTo === "unassigned" && d.assigned_to) return false;
+      if (
+        filters.assignedTo !== "" &&
+        filters.assignedTo !== "unassigned" &&
+        d.assigned_to !== filters.assignedTo
+      )
+        return false;
+      if (period) {
+        const effectiveDate = d.lost_at ?? d.created_at;
+        if (effectiveDate < period.startISO || effectiveDate >= period.endISO) return false;
+      }
+      return true;
+    });
+  }, [deals, filters.assignedTo, period]);
+
+  const [view, setView] = useState<"board" | "losses">("board");
+
+  const handleExportCsv = useCallback(() => {
+    exportDealsToCsv(filteredDeals, t);
+  }, [filteredDeals, t]);
 
   if (loading) {
     return (
@@ -455,6 +502,45 @@ export default function PipelinesPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {pipelines.length > 0 && (
+            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
+              <button
+                type="button"
+                onClick={() => setView("board")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  view === "board"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                {t("viewBoard")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("losses")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                  view === "losses"
+                    ? "bg-destructive/15 text-destructive"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <TrendingDown className="h-3.5 w-3.5" />
+                {t("viewLosses")}
+              </button>
+            </div>
+          )}
+          {pipelines.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleExportCsv}
+              disabled={filteredDeals.length === 0}
+              className="border-border bg-card text-foreground hover:bg-muted"
+            >
+              <Download className="mr-1 h-4 w-4" />
+              {t("exportCsv")}
+            </Button>
+          )}
           <GatedButton
             variant="outline"
             canAct={canEditSettings}
@@ -506,14 +592,20 @@ export default function PipelinesPage() {
             profiles={profiles}
             stages={stages}
           />
-          <PipelineAnalytics stages={stages} deals={filteredDeals} />
-          <PipelineBoard
-            stages={stages}
-            deals={filteredDeals}
-            onDealMoved={handleDealMoved}
-            onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
-          />
+          {view === "board" ? (
+            <>
+              <PipelineAnalytics stages={stages} deals={filteredDeals} />
+              <PipelineBoard
+                stages={stages}
+                deals={filteredDeals}
+                onDealMoved={handleDealMoved}
+                onAddDeal={handleAddDeal}
+                onEditDeal={handleEditDeal}
+              />
+            </>
+          ) : (
+            <LossesPanel deals={lostDeals} currency={defaultCurrency} />
+          )}
         </>
       )}
 

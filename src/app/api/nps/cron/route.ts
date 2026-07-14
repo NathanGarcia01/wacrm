@@ -45,6 +45,11 @@ export async function GET(request: Request) {
     if (!ownerUserId) continue;
 
     const cutoff = new Date(Date.now() - row.inactivity_hours * 60 * 60 * 1000).toISOString();
+    // Mirrors the cooldown in sendNpsSurvey: only a sent/responded survey
+    // less than 30 days old blocks a resend, so this pre-filter has to
+    // use the same window — otherwise it'd silently exclude conversations
+    // sendNpsSurvey itself would happily re-survey.
+    const cooldownCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const [{ data: staleConvs }, { data: alreadySurveyed }] = await Promise.all([
       db
@@ -56,7 +61,12 @@ export async function GET(request: Request) {
         .not("last_message_at", "is", null)
         .order("last_message_at", { ascending: true })
         .limit(50),
-      db.from("nps_surveys").select("conversation_id").eq("account_id", row.account_id),
+      db
+        .from("nps_surveys")
+        .select("conversation_id")
+        .eq("account_id", row.account_id)
+        .in("status", ["sent", "responded"])
+        .gte("created_at", cooldownCutoff),
     ]);
 
     const surveyed = new Set((alreadySurveyed ?? []).map((s) => s.conversation_id as string));

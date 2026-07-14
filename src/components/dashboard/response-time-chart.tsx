@@ -62,17 +62,17 @@ export function ResponseTimeChart({
               {t('targetMinutes', { minutes: thresholdMinutes })}
             </span>
           )}
-          {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
+          {data && (data.currentPeriodAvg != null || data.previousPeriodAvg != null) && (
             <div>
               <div className="text-muted-foreground">
-                {t('thisWeek')}{' '}
+                {t('currentPeriod')}{' '}
                 <span className="font-mono font-medium text-foreground tabular-nums">
-                  {fmt(data.thisWeekAvg)}
+                  {fmt(data.currentPeriodAvg)}
                 </span>
               </div>
               <div className="text-muted-foreground">
-                {t('lastWeek')}{' '}
-                <span className="font-mono tabular-nums">{fmt(data.lastWeekAvg)}</span>
+                {t('previousPeriod')}{' '}
+                <span className="font-mono tabular-nums">{fmt(data.previousPeriodAvg)}</span>
               </div>
             </div>
           )}

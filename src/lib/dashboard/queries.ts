@@ -17,6 +17,7 @@ import type {
   ResponseTimeBucket,
   ResponseTimeSummary,
 } from './types'
+import type { PeriodRange } from '../reports/types'
 
 // ------------------------------------------------------------
 // All client-side aggregation. RLS scopes every query to the
@@ -30,23 +31,29 @@ type DB = SupabaseClient
 
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB): Promise<MetricsBundle> {
+export async function loadMetrics(db: DB, period: PeriodRange): Promise<MetricsBundle> {
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+  // "Previous period" = the immediately preceding window of the same
+  // length as the selected one — e.g. selecting "this month" compares
+  // against the prior 30-ish days, not literally last calendar month.
+  const periodMs = new Date(period.endISO).getTime() - new Date(period.startISO).getTime()
+  const previousStartISO = new Date(new Date(period.startISO).getTime() - periodMs).toISOString()
+  const previousEndISO = period.startISO
 
   const [
     openConvCur,
     newConvToday,
     newConvYesterday,
-    newContactsToday,
-    newContactsYesterday,
     openDeals,
-    messagesToday,
-    messagesYesterday,
-    npsSurveysThisMonth,
+    newContactsCur,
+    newContactsPrev,
+    messagesCur,
+    messagesPrev,
+    npsSurveysInPeriod,
   ] = await Promise.all([
+    // Live snapshots — deliberately NOT period-scoped (see MetricsBundle).
     db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
     db
       .from('conversations')
@@ -59,31 +66,41 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       .eq('status', 'open')
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+    db.from('deals').select('value, status').eq('status', 'open'),
+    // Period-scoped flow metrics.
     db
       .from('contacts')
       .select('id', { count: 'exact', head: true })
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db.from('deals').select('value, status').eq('status', 'open'),
+      .gte('created_at', period.startISO)
+      .lt('created_at', period.endISO),
+    db
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', previousStartISO)
+      .lt('created_at', previousEndISO),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
-      .gte('created_at', todayStart),
+      .gte('created_at', period.startISO)
+      .lt('created_at', period.endISO),
     db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    db.from('nps_surveys').select('rating').gte('sent_at', monthStart),
+      .gte('created_at', previousStartISO)
+      .lt('created_at', previousEndISO),
+    db
+      .from('nps_surveys')
+      .select('rating')
+      .gte('sent_at', period.startISO)
+      .lt('sent_at', period.endISO),
   ])
 
   const openDealsRows = (openDeals.data ?? []) as { value: number | null }[]
   const openDealsValue = openDealsRows.reduce((sum, d) => sum + (d.value ?? 0), 0)
 
-  const npsRows = (npsSurveysThisMonth.data ?? []) as { rating: number | null }[]
+  const npsRows = (npsSurveysInPeriod.data ?? []) as { rating: number | null }[]
   const npsRated = npsRows.filter((r) => r.rating != null)
   const nps: NpsSummary = {
     avgRating:
@@ -100,17 +117,18 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
       // "vs yesterday" on a current-state count has no clean answer
       // without snapshots — we show the delta in NEW open conversations
       // today vs yesterday. That's the business-meaningful daily signal.
+      // Deliberately NOT period-scoped, same as the current count above.
       previous: (newConvToday.count ?? 0) - (newConvYesterday.count ?? 0),
     },
-    newContactsToday: {
-      current: newContactsToday.count ?? 0,
-      previous: newContactsYesterday.count ?? 0,
+    newContacts: {
+      current: newContactsCur.count ?? 0,
+      previous: newContactsPrev.count ?? 0,
     },
     openDealsValue,
     openDealsCount: openDealsRows.length,
-    messagesSentToday: {
-      current: messagesToday.count ?? 0,
-      previous: messagesYesterday.count ?? 0,
+    messagesSent: {
+      current: messagesCur.count ?? 0,
+      previous: messagesPrev.count ?? 0,
     },
     nps,
   }
@@ -186,17 +204,20 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
 
 // --- 4. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
-  // Pull the last 14 days of messages in one shot, then walk per
-  // conversation to find each "first inbound" → "first subsequent
-  // outbound" pair. 14 days gives us both "this week" + "last week"
-  // with enough overlap if the user opens the dashboard late on a
-  // Monday.
-  const fourteenDaysAgo = daysAgoStart(13).toISOString()
+export async function loadResponseTime(db: DB, period: PeriodRange): Promise<ResponseTimeSummary> {
+  // Pull messages for the selected period PLUS the immediately
+  // preceding period of equal length in one shot (so the header's
+  // "current vs previous" comparison doesn't need a second round
+  // trip), then walk per conversation to find each "first inbound" →
+  // "first subsequent outbound" pair.
+  const periodMs = new Date(period.endISO).getTime() - new Date(period.startISO).getTime()
+  const previousStartISO = new Date(new Date(period.startISO).getTime() - periodMs).toISOString()
+
   const { data, error } = await db
     .from('messages')
     .select('conversation_id, sender_type, created_at')
-    .gte('created_at', fourteenDaysAgo)
+    .gte('created_at', previousStartISO)
+    .lt('created_at', period.endISO)
     .order('conversation_id', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -233,27 +254,26 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
     }
   }
 
-  const now = new Date()
-  const thisWeekStart = daysAgoStart(mondayIndex(now))
-  const lastWeekStart = daysAgoStart(mondayIndex(now) + 7)
+  const periodStart = new Date(period.startISO)
+  const periodEnd = new Date(period.endISO)
 
-  // Per-day-of-week buckets, averaged over both weeks' worth of data
-  // so each bar has more samples to stand on. If a day has no samples
-  // its avgMinutes stays null and the chart renders the bar muted.
+  // Per-day-of-week buckets, built ONLY from the selected period (mixing
+  // in the comparison window would blend two different date ranges into
+  // one chart). If a day has no samples its avgMinutes stays null and
+  // the chart renders the bar muted.
   const byDow = new Map<number, number[]>()
   for (let i = 0; i < 7; i++) byDow.set(i, [])
-  const thisWeekMins: number[] = []
-  const lastWeekMins: number[] = []
+  const currentPeriodMins: number[] = []
+  const previousPeriodMins: number[] = []
 
   for (const s of samples) {
     const diffMin = (s.responseAt.getTime() - s.customerAt.getTime()) / 60_000
     if (diffMin < 0) continue
-    const dow = mondayIndex(s.customerAt)
-    byDow.get(dow)!.push(diffMin)
-    if (s.customerAt >= thisWeekStart) {
-      thisWeekMins.push(diffMin)
-    } else if (s.customerAt >= lastWeekStart && s.customerAt < thisWeekStart) {
-      lastWeekMins.push(diffMin)
+    if (s.customerAt >= periodStart && s.customerAt < periodEnd) {
+      byDow.get(mondayIndex(s.customerAt))!.push(diffMin)
+      currentPeriodMins.push(diffMin)
+    } else if (s.customerAt < periodStart) {
+      previousPeriodMins.push(diffMin)
     }
   }
 
@@ -275,8 +295,8 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
 
   return {
     buckets,
-    thisWeekAvg: avg(thisWeekMins),
-    lastWeekAvg: avg(lastWeekMins),
+    currentPeriodAvg: avg(currentPeriodMins),
+    previousPeriodAvg: avg(previousPeriodMins),
   }
 }
 

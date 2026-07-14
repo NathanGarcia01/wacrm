@@ -318,10 +318,16 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     }
     setNpsLoading(true);
     const supabase = createClient();
+    // A conversation can now have more than one survey over time (a
+    // 30-day-old sent/responded survey no longer blocks a resend — see
+    // sendNpsSurvey) — order + limit(1) so this always reflects the
+    // latest attempt instead of erroring on multiple rows.
     const { data } = await supabase
       .from("nps_surveys")
       .select("*")
       .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
     setNpsSurvey((data as NpsSurvey) ?? null);
     setNpsLoading(false);

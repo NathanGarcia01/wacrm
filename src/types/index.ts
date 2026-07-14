@@ -324,6 +324,7 @@ export interface Deal {
   status?: DealStatus;
   lost_reason?: string;
   lost_at?: string;
+  won_at?: string;
   created_at: string;
   updated_at?: string;
   contact?: Contact;

@@ -11,19 +11,27 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { X } from "lucide-react";
 import type { DealStatus, PipelineStage, Profile } from "@/types";
+import type { PeriodKey } from "@/lib/reports/types";
 
 export interface PipelineFilters {
   status: DealStatus | "all";
   assignedTo: string; // "" = all, "unassigned" = no assignee, else profile id
   stageId: string; // "" = all stages
+  /** "all" = no date restriction. Filters each deal by its "effective
+   *  date" — won_at / lost_at if closed, created_at if still open. */
+  periodKey: PeriodKey | "all";
+  customFrom?: string;
+  customTo?: string;
 }
 
 export const DEFAULT_PIPELINE_FILTERS: PipelineFilters = {
   status: "open",
   assignedTo: "",
   stageId: "",
+  periodKey: "all",
 };
 
 export function countActivePipelineFilters(filters: PipelineFilters): number {
@@ -31,6 +39,7 @@ export function countActivePipelineFilters(filters: PipelineFilters): number {
   if (filters.status !== DEFAULT_PIPELINE_FILTERS.status) count += 1;
   if (filters.assignedTo !== "") count += 1;
   if (filters.stageId !== "") count += 1;
+  if (filters.periodKey !== "all") count += 1;
   return count;
 }
 
@@ -77,6 +86,16 @@ export function PipelineFilterBar({
     for (const s of stages) items[s.id] = s.name;
     return items;
   }, [t, stages]);
+  const periodItems = useMemo(
+    () => ({
+      all: t("periodAll"),
+      today: t("periodToday"),
+      week: t("periodWeek"),
+      month: t("periodMonth"),
+      custom: t("periodCustom"),
+    }),
+    [t],
+  );
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/60 p-3">
@@ -153,6 +172,55 @@ export function PipelineFilterBar({
           </SelectContent>
         </Select>
       </div>
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground" title={t("periodHint")}>
+          {t("periodLabel")}
+        </label>
+        <Select
+          items={periodItems}
+          value={filters.periodKey}
+          onValueChange={(v) =>
+            onChange({ ...filters, periodKey: (v || "all") as PipelineFilters["periodKey"] })
+          }
+        >
+          <SelectTrigger className="w-40 bg-muted">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("periodAll")}</SelectItem>
+            <SelectItem value="today">{t("periodToday")}</SelectItem>
+            <SelectItem value="week">{t("periodWeek")}</SelectItem>
+            <SelectItem value="month">{t("periodMonth")}</SelectItem>
+            <SelectItem value="custom">{t("periodCustom")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {filters.periodKey === "custom" && (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t("periodFrom")}</label>
+            <Input
+              type="date"
+              value={filters.customFrom ?? ""}
+              max={filters.customTo}
+              onChange={(e) => onChange({ ...filters, customFrom: e.target.value })}
+              className="h-9 w-36 bg-muted"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t("periodTo")}</label>
+            <Input
+              type="date"
+              value={filters.customTo ?? ""}
+              min={filters.customFrom}
+              onChange={(e) => onChange({ ...filters, customTo: e.target.value })}
+              className="h-9 w-36 bg-muted"
+            />
+          </div>
+        </>
+      )}
 
       {activeCount > 0 && (
         <div className="ml-auto flex items-center gap-2 self-end">

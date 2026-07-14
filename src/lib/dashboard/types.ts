@@ -8,20 +8,26 @@ export interface MetricDelta {
 }
 
 export interface NpsSummary {
-  /** Average of rated surveys sent this calendar month. Null if none. */
+  /** Average of rated surveys sent within the selected period. Null if none. */
   avgRating: number | null
-  /** Surveys that got at least a rating this month. */
+  /** Surveys that got at least a rating within the period. */
   totalResponses: number
-  /** 0-100, responded ÷ sent. Null when none were sent this month. */
+  /** 0-100, responded ÷ sent. Null when none were sent in the period. */
   responseRatePct: number | null
 }
 
 export interface MetricsBundle {
+  /** Live snapshot — always "right now", unaffected by the period filter. */
   activeConversations: MetricDelta
-  newContactsToday: MetricDelta
+  /** Contacts created within the selected period, vs the immediately
+   *  preceding period of equal length. */
+  newContacts: MetricDelta
+  /** Live snapshot — always "right now", unaffected by the period filter. */
   openDealsValue: number
   openDealsCount: number
-  messagesSentToday: MetricDelta
+  /** Agent-sent messages within the selected period, vs the immediately
+   *  preceding period of equal length. */
+  messagesSent: MetricDelta
   nps: NpsSummary
 }
 
@@ -54,8 +60,8 @@ export interface ResponseTimeBucket {
 
 export interface ResponseTimeSummary {
   buckets: ResponseTimeBucket[]
-  thisWeekAvg: number | null
-  lastWeekAvg: number | null
+  currentPeriodAvg: number | null
+  previousPeriodAvg: number | null
 }
 
 export type ActivityKind =

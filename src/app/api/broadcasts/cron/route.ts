@@ -16,6 +16,7 @@ import {
   type VariableMapping,
 } from '@/lib/broadcast-variables'
 import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
+import { computeAndSaveBroadcastCost } from '@/lib/broadcasts/meta-cost'
 
 // Lazy service-role client — mirrors the inline pattern used by
 // src/app/api/whatsapp/webhook/route.ts and src/lib/automations/admin-client.ts.
@@ -400,10 +401,27 @@ export async function GET(request: Request) {
       .eq('status', 'pending')
 
     if (!remainingPending) {
-      await admin
+      const { data: finished } = await admin
         .from('broadcasts')
         .update({ status: 'sent', next_batch_at: null })
         .eq('id', row.id)
+        .select('sent_count')
+        .single()
+
+      // Real Meta cost, computed from the account's configured rates
+      // (see meta_pricing / settings > WhatsApp) now that the send is
+      // done and sent_count is final. Best-effort: a pricing lookup
+      // failure shouldn't leave the broadcast stuck mid-completion.
+      try {
+        await computeAndSaveBroadcastCost(admin, {
+          broadcastId: row.id,
+          accountId: row.account_id,
+          templateCategory: templateRow?.category ?? null,
+          sentCount: finished?.sent_count ?? 0,
+        })
+      } catch (err) {
+        console.error('[broadcasts/cron] cost calculation failed:', err)
+      }
     } else {
       const newBatchSent = row.current_batch_sent + batchSentDelta
       if (newBatchSent >= row.batch_size) {

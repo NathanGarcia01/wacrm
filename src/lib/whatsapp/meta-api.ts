@@ -87,6 +87,33 @@ export async function verifyPhoneNumber(
   return response.json()
 }
 
+/**
+ * Reads whether this number is on Meta's old conversation-based
+ * pricing (CBP) or the current per-message pricing (PMP) model.
+ *
+ * IMPORTANT: this is the only pricing-related field the Graph API
+ * actually exposes — Meta does not publish a programmatic endpoint
+ * for the per-message R$/category rate cards themselves (those only
+ * exist as a rate table in WhatsApp Manager / the public pricing
+ * page). Callers must not treat this as "fetched the tariffs"; it's
+ * informational context for the account owner, who still enters the
+ * marketing/utility/authentication rates by hand.
+ */
+export async function getPricingModel(
+  args: VerifyPhoneNumberArgs
+): Promise<{ pricing_model: string | null }> {
+  const { phoneNumberId, accessToken } = args
+  const url = `${META_API_BASE}/${phoneNumberId}?fields=pricing_model`
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = await response.json()
+  return { pricing_model: data.pricing_model ?? null }
+}
+
 // ============================================================
 // Cloud API registration (subscription for inbound webhooks)
 // ============================================================
