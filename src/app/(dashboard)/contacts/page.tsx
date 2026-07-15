@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -61,8 +62,20 @@ import { GatedButton } from '@/components/ui/gated-button';
 import { Checkbox } from '@/components/ui/checkbox';
 
 type DateRangeFilter = 'today' | 'week' | 'month' | 'custom';
+type OriginFilter = 'ativo' | 'receptivo' | 'none';
+type DealStatusFilter = 'open' | 'won' | 'lost' | 'none';
 
-/** Start/end ISO bounds for a date-created filter — `to` stays null for
+function isDateRangeFilter(v: string | null): v is DateRangeFilter {
+  return v === 'today' || v === 'week' || v === 'month' || v === 'custom';
+}
+function isOriginFilter(v: string | null): v is OriginFilter {
+  return v === 'ativo' || v === 'receptivo' || v === 'none';
+}
+function isDealStatusFilter(v: string | null): v is DealStatusFilter {
+  return v === 'open' || v === 'won' || v === 'lost' || v === 'none';
+}
+
+/** Start/end ISO bounds for a date range filter — `to` stays null for
  *  the rolling ranges (today/week/month look back from now with no
  *  upper bound); only 'custom' supplies both ends. */
 function computeDateBounds(
@@ -84,33 +97,105 @@ function computeDateBounds(
   return { from: from.toISOString(), to: null };
 }
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
+const DEFAULT_PAGE_SIZE: PageSize = 50;
+const PAGE_SIZE_STORAGE_KEY = 'funilly.contacts.pageSize';
+
+function isPageSize(v: number): v is PageSize {
+  return (PAGE_SIZE_OPTIONS as readonly number[]).includes(v);
+}
 
 interface ContactWithTags extends Contact {
   tags?: Tag[];
 }
 
+// useSearchParams opts the page out of static prerendering unless it
+// sits under a Suspense boundary — same split used by reports/page.tsx.
 export default function ContactsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ContactsPageInner />
+    </Suspense>
+  );
+}
+
+function ContactsPageInner() {
   const t = useTranslations('contacts');
   const tc = useTranslations('common');
   const supabase = createClient();
   const canEdit = useCan('send-messages');
   const canEditSettings = useCan('edit-settings');
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Page size — a device preference (localStorage), not a shareable
+  // filter, so it's deliberately kept out of the URL sync below.
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE);
+  useEffect(() => {
+    try {
+      const stored = Number(window.localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+      if (isPageSize(stored)) setPageSize(stored);
+    } catch {
+      // localStorage can throw in private-browsing / sandboxed contexts
+    }
+  }, []);
+  function updatePageSize(size: PageSize) {
+    setPageSize(size);
+    setPage(0);
+    try {
+      window.localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+    } catch {
+      // ignore
+    }
+  }
+
   // Tag filter — contacts shown must have ANY of these tags (OR).
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
-  const [dateRange, setDateRange] = useState<DateRangeFilter | null>(null);
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(() => {
+    const raw = searchParams.get('tags');
+    return raw ? raw.split(',').filter(Boolean) : [];
+  });
+  const [dateRange, setDateRange] = useState<DateRangeFilter | null>(() =>
+    isDateRangeFilter(searchParams.get('created')) ? (searchParams.get('created') as DateRangeFilter) : null
+  );
+  const [customFrom, setCustomFrom] = useState(() => searchParams.get('createdFrom') ?? '');
+  const [customTo, setCustomTo] = useState(() => searchParams.get('createdTo') ?? '');
+
+  // Last-message (last-interaction) date range — same shape as created date.
+  const [lastMsgRange, setLastMsgRange] = useState<DateRangeFilter | null>(() =>
+    isDateRangeFilter(searchParams.get('lastMsg')) ? (searchParams.get('lastMsg') as DateRangeFilter) : null
+  );
+  const [lastMsgFrom, setLastMsgFrom] = useState(() => searchParams.get('lastMsgFrom') ?? '');
+  const [lastMsgTo, setLastMsgTo] = useState(() => searchParams.get('lastMsgTo') ?? '');
+
   // Assigned agent lives on the contact's conversation, not the contact
   // row itself — value is a profile.user_id, or the literal "unassigned".
-  const [assignedAgent, setAssignedAgent] = useState<string | null>(null);
+  const [assignedAgent, setAssignedAgent] = useState<string | null>(() => searchParams.get('agent'));
   const [profiles, setProfiles] = useState<Profile[]>([]);
+
+  // Origin — not a column, resolved from the Ativo/Receptivo tag
+  // auto-applied on first inbound message (src/lib/contacts/auto-tag.ts).
+  const [origin, setOrigin] = useState<OriginFilter | null>(() =>
+    isOriginFilter(searchParams.get('origin')) ? (searchParams.get('origin') as OriginFilter) : null
+  );
+
+  // Deal status — a contact can have zero, one, or many deals.
+  const [dealStatus, setDealStatus] = useState<DealStatusFilter | null>(() =>
+    isDealStatusFilter(searchParams.get('deal')) ? (searchParams.get('deal') as DealStatusFilter) : null
+  );
+
+  // City/state — free-form custom fields, only shown if the account has
+  // created a matching field via Settings → Campos Personalizados.
+  const [cityFilter, setCityFilter] = useState(() => searchParams.get('city') ?? '');
+  const [stateFilter, setStateFilter] = useState(() => searchParams.get('state') ?? '');
+  const [hasCityField, setHasCityField] = useState(false);
+  const [hasStateField, setHasStateField] = useState(false);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -152,8 +237,29 @@ export default function ContactsPage() {
     }
   }, [supabase]);
 
+  const fetchProfiles = useCallback(async () => {
+    const { data } = await supabase.from('profiles').select('*').order('full_name');
+    setProfiles((data ?? []) as Profile[]);
+  }, [supabase]);
+
+  const fetchCustomFieldFlags = useCallback(async () => {
+    const { data } = await supabase.from('custom_fields').select('field_name');
+    const names = (data ?? []).map((f) => (f.field_name as string).toLowerCase());
+    setHasCityField(names.includes('cidade') || names.includes('city'));
+    setHasStateField(
+      names.includes('estado') || names.includes('uf') || names.includes('state')
+    );
+  }, [supabase]);
+
   const hasAdvancedFilters =
-    selectedTagIds.length > 0 || dateRange !== null || assignedAgent !== null;
+    selectedTagIds.length > 0 ||
+    dateRange !== null ||
+    assignedAgent !== null ||
+    lastMsgRange !== null ||
+    origin !== null ||
+    dealStatus !== null ||
+    cityFilter.trim().length > 0 ||
+    stateFilter.trim().length > 0;
 
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
@@ -163,22 +269,27 @@ export default function ContactsPage() {
     // act on rows the user can no longer see.
     setSelected(new Set());
 
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
     const term = search.trim();
 
     let contactRows: Contact[];
     let count: number;
 
     if (hasAdvancedFilters) {
-      // Any of tags/date/agent active — resolve server-side (join +
+      // Any advanced filter active — resolve server-side (join +
       // distinct + windowed total count + pagination) so a filter
       // covering many contacts can't silently truncate the result or
-      // overflow an IN clause. See migration 026_filter_contacts_advanced.
+      // overflow an IN clause. See migrations 026/035.
       const { from: createdFrom, to: createdTo } = computeDateBounds(
         dateRange,
         customFrom,
         customTo
+      );
+      const { from: lastMsgFromIso, to: lastMsgToIso } = computeDateBounds(
+        lastMsgRange,
+        lastMsgFrom,
+        lastMsgTo
       );
       const { data, error } = await supabase.rpc('filter_contacts', {
         p_tag_ids: selectedTagIds.length > 0 ? selectedTagIds : null,
@@ -187,8 +298,14 @@ export default function ContactsPage() {
         p_created_to: createdTo,
         p_agent_id: assignedAgent && assignedAgent !== 'unassigned' ? assignedAgent : null,
         p_unassigned_only: assignedAgent === 'unassigned',
-        p_limit: PAGE_SIZE,
+        p_limit: pageSize,
         p_offset: from,
+        p_last_message_from: lastMsgFromIso,
+        p_last_message_to: lastMsgToIso,
+        p_origin: origin,
+        p_deal_status: dealStatus,
+        p_city: cityFilter.trim() || null,
+        p_state: stateFilter.trim() || null,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
@@ -256,6 +373,7 @@ export default function ContactsPage() {
   }, [
     supabase,
     page,
+    pageSize,
     search,
     selectedTagIds,
     tagsMap,
@@ -263,30 +381,76 @@ export default function ContactsPage() {
     dateRange,
     customFrom,
     customTo,
+    lastMsgRange,
+    lastMsgFrom,
+    lastMsgTo,
     assignedAgent,
+    origin,
+    dealStatus,
+    cityFilter,
+    stateFilter,
     t,
   ]);
-
-  const fetchProfiles = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('*').order('full_name');
-    setProfiles((data ?? []) as Profile[]);
-  }, [supabase]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
   // synchronously in the effect body, so the cascade the lint rule
   // warns about doesn't apply here.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTags();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchProfiles();
-  }, [fetchTags, fetchProfiles]);
+    fetchCustomFieldFlags();
+  }, [fetchTags, fetchProfiles, fetchCustomFieldFlags]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContacts();
   }, [fetchContacts]);
+
+  // Mirror every filter into the URL as query params so the current
+  // view can be shared or bookmarked. Page size is deliberately
+  // excluded — see the comment by its declaration above.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('q', search.trim());
+    if (selectedTagIds.length > 0) params.set('tags', selectedTagIds.join(','));
+    if (dateRange) {
+      params.set('created', dateRange);
+      if (dateRange === 'custom') {
+        if (customFrom) params.set('createdFrom', customFrom);
+        if (customTo) params.set('createdTo', customTo);
+      }
+    }
+    if (lastMsgRange) {
+      params.set('lastMsg', lastMsgRange);
+      if (lastMsgRange === 'custom') {
+        if (lastMsgFrom) params.set('lastMsgFrom', lastMsgFrom);
+        if (lastMsgTo) params.set('lastMsgTo', lastMsgTo);
+      }
+    }
+    if (assignedAgent) params.set('agent', assignedAgent);
+    if (origin) params.set('origin', origin);
+    if (dealStatus) params.set('deal', dealStatus);
+    if (cityFilter.trim()) params.set('city', cityFilter.trim());
+    if (stateFilter.trim()) params.set('state', stateFilter.trim());
+
+    const qs = params.toString();
+    router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    search,
+    selectedTagIds,
+    dateRange,
+    customFrom,
+    customTo,
+    lastMsgRange,
+    lastMsgFrom,
+    lastMsgTo,
+    assignedAgent,
+    origin,
+    dealStatus,
+    cityFilter,
+    stateFilter,
+  ]);
 
   function openAddForm() {
     setEditContact(null);
@@ -413,7 +577,7 @@ export default function ContactsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / pageSize);
   const hasNext = page < totalPages - 1;
   const hasPrev = page > 0;
 
@@ -426,7 +590,12 @@ export default function ContactsPage() {
     (search.trim().length > 0 ? 1 : 0) +
     (selectedTagIds.length > 0 ? 1 : 0) +
     (dateRange !== null ? 1 : 0) +
-    (assignedAgent !== null ? 1 : 0);
+    (assignedAgent !== null ? 1 : 0) +
+    (lastMsgRange !== null ? 1 : 0) +
+    (origin !== null ? 1 : 0) +
+    (dealStatus !== null ? 1 : 0) +
+    (cityFilter.trim().length > 0 ? 1 : 0) +
+    (stateFilter.trim().length > 0 ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
   function toggleTagFilter(tagId: string) {
@@ -452,8 +621,37 @@ export default function ContactsPage() {
     setPage(0);
   }
 
+  function updateLastMsgRange(range: DateRangeFilter | null) {
+    setLastMsgRange(range);
+    if (range !== 'custom') {
+      setLastMsgFrom('');
+      setLastMsgTo('');
+    }
+    setPage(0);
+  }
+
   function updateAssignedAgent(agent: string | null) {
     setAssignedAgent(agent);
+    setPage(0);
+  }
+
+  function updateOrigin(next: OriginFilter | null) {
+    setOrigin(next);
+    setPage(0);
+  }
+
+  function updateDealStatus(next: DealStatusFilter | null) {
+    setDealStatus(next);
+    setPage(0);
+  }
+
+  function updateCityFilter(value: string) {
+    setCityFilter(value);
+    setPage(0);
+  }
+
+  function updateStateFilter(value: string) {
+    setStateFilter(value);
     setPage(0);
   }
 
@@ -463,7 +661,14 @@ export default function ContactsPage() {
     setDateRange(null);
     setCustomFrom('');
     setCustomTo('');
+    setLastMsgRange(null);
+    setLastMsgFrom('');
+    setLastMsgTo('');
     setAssignedAgent(null);
+    setOrigin(null);
+    setDealStatus(null);
+    setCityFilter('');
+    setStateFilter('');
     setPage(0);
   }
 
@@ -472,15 +677,32 @@ export default function ContactsPage() {
       ? 'Sem responsável'
       : profiles.find((p) => p.user_id === assignedAgent)?.full_name;
 
-  const dateRangeLabel =
-    dateRange === 'today'
+  function dateRangeText(range: DateRangeFilter | null): string | null {
+    return range === 'today'
       ? 'Hoje'
-      : dateRange === 'week'
+      : range === 'week'
         ? 'Últimos 7 dias'
-        : dateRange === 'month'
+        : range === 'month'
           ? 'Últimos 30 dias'
-          : dateRange === 'custom'
+          : range === 'custom'
             ? 'Período personalizado'
+            : null;
+  }
+  const dateRangeLabel = dateRangeText(dateRange);
+  const lastMsgRangeLabel = dateRangeText(lastMsgRange);
+
+  const originLabel =
+    origin === 'ativo' ? 'Ativo' : origin === 'receptivo' ? 'Receptivo' : origin === 'none' ? 'Sem classificação' : null;
+
+  const dealStatusLabel =
+    dealStatus === 'open'
+      ? 'Deal aberto'
+      : dealStatus === 'won'
+        ? 'Deal ganho'
+        : dealStatus === 'lost'
+          ? 'Deal perdido'
+          : dealStatus === 'none'
+            ? 'Sem deal'
             : null;
 
   return (
@@ -526,7 +748,7 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* Search + tag filter */}
+      {/* Search + filters */}
       <div className="space-y-2">
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative w-full max-w-sm">
@@ -569,12 +791,12 @@ export default function ContactsPage() {
                     onClick={clearAllFilters}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    Limpar filtros
+                    Limpar tudo
                   </button>
                 )}
               </div>
 
-              <div className="max-h-[26rem] overflow-y-auto p-3 space-y-4">
+              <div className="max-h-[30rem] overflow-y-auto p-3 space-y-4">
                 {/* Tags */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -659,6 +881,48 @@ export default function ContactsPage() {
                   )}
                 </div>
 
+                {/* Last message date */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Última mensagem
+                  </label>
+                  <select
+                    value={lastMsgRange ?? ''}
+                    onChange={(e) =>
+                      updateLastMsgRange((e.target.value || null) as DateRangeFilter | null)
+                    }
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Qualquer data</option>
+                    <option value="today">Hoje</option>
+                    <option value="week">Últimos 7 dias</option>
+                    <option value="month">Últimos 30 dias</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                  {lastMsgRange === 'custom' && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <input
+                        type="date"
+                        value={lastMsgFrom}
+                        onChange={(e) => {
+                          setLastMsgFrom(e.target.value);
+                          setPage(0);
+                        }}
+                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary"
+                      />
+                      <input
+                        type="date"
+                        value={lastMsgTo}
+                        onChange={(e) => {
+                          setLastMsgTo(e.target.value);
+                          setPage(0);
+                        }}
+                        className="h-8 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {/* Assigned agent */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -678,6 +942,71 @@ export default function ContactsPage() {
                     ))}
                   </select>
                 </div>
+
+                {/* Origin */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Origem
+                  </label>
+                  <select
+                    value={origin ?? ''}
+                    onChange={(e) => updateOrigin((e.target.value || null) as OriginFilter | null)}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Qualquer origem</option>
+                    <option value="receptivo">Receptivo</option>
+                    <option value="ativo">Ativo</option>
+                    <option value="none">Sem classificação</option>
+                  </select>
+                </div>
+
+                {/* Deal status */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Status do negócio
+                  </label>
+                  <select
+                    value={dealStatus ?? ''}
+                    onChange={(e) =>
+                      updateDealStatus((e.target.value || null) as DealStatusFilter | null)
+                    }
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Qualquer status</option>
+                    <option value="open">Com deal aberto</option>
+                    <option value="won">Deal ganho</option>
+                    <option value="lost">Deal perdido</option>
+                    <option value="none">Sem deal</option>
+                  </select>
+                </div>
+
+                {/* City / state — only shown when the account has the field */}
+                {hasCityField && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Cidade
+                    </label>
+                    <Input
+                      value={cityFilter}
+                      onChange={(e) => updateCityFilter(e.target.value)}
+                      placeholder="Filtrar por cidade"
+                      className="h-9 bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                )}
+                {hasStateField && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Estado
+                    </label>
+                    <Input
+                      value={stateFilter}
+                      onChange={(e) => updateStateFilter(e.target.value)}
+                      placeholder="Filtrar por estado"
+                      className="h-9 bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                    />
+                  </div>
+                )}
               </div>
             </PopoverContent>
           </Popover>
@@ -711,8 +1040,16 @@ export default function ContactsPage() {
             })}
             {dateRangeLabel && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
-                {dateRangeLabel}
-                <button onClick={() => updateDateRange(null)} aria-label="Remover filtro de data" className="hover:opacity-70">
+                Criado: {dateRangeLabel}
+                <button onClick={() => updateDateRange(null)} aria-label="Remover filtro de data de criação" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {lastMsgRangeLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                Última msg: {lastMsgRangeLabel}
+                <button onClick={() => updateLastMsgRange(null)} aria-label="Remover filtro de última mensagem" className="hover:opacity-70">
                   <X className="size-3" />
                 </button>
               </span>
@@ -725,11 +1062,43 @@ export default function ContactsPage() {
                 </button>
               </span>
             )}
+            {originLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {originLabel}
+                <button onClick={() => updateOrigin(null)} aria-label="Remover filtro de origem" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {dealStatusLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {dealStatusLabel}
+                <button onClick={() => updateDealStatus(null)} aria-label="Remover filtro de status do negócio" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {cityFilter.trim() && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                Cidade: {cityFilter.trim()}
+                <button onClick={() => updateCityFilter('')} aria-label="Remover filtro de cidade" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {stateFilter.trim() && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                Estado: {stateFilter.trim()}
+                <button onClick={() => updateStateFilter('')} aria-label="Remover filtro de estado" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
             <button
               onClick={clearAllFilters}
               className="text-xs text-muted-foreground hover:text-foreground px-1"
             >
-              Limpar filtros
+              Limpar tudo
             </button>
           </div>
         )}
@@ -957,38 +1326,56 @@ export default function ContactsPage() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="font-mono text-xs text-muted-foreground">
-            {t('showingRange', {
-              from: page * PAGE_SIZE + 1,
-              to: Math.min((page + 1) * PAGE_SIZE, totalCount),
-              total: totalCount,
-            })}
-          </p>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={!hasPrev}
-              onClick={() => setPage((p) => p - 1)}
-              className="border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <span className="font-mono text-xs text-muted-foreground px-2">
-              {t('pageOf', { page: page + 1, total: totalPages })}
-            </span>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              disabled={!hasNext}
-              onClick={() => setPage((p) => p + 1)}
-              className="border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
-            >
-              <ChevronRight className="size-4" />
-            </Button>
+      {totalCount > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              {t('showingRange', {
+                from: page * pageSize + 1,
+                to: Math.min((page + 1) * pageSize, totalCount),
+                total: totalCount,
+              })}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-muted-foreground">Por página:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => updatePageSize(Number(e.target.value) as PageSize)}
+                className="h-7 rounded-md border border-border bg-muted px-1.5 text-xs text-foreground outline-none focus:border-primary"
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={!hasPrev}
+                onClick={() => setPage((p) => p - 1)}
+                className="border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="font-mono text-xs text-muted-foreground px-2">
+                {t('pageOf', { page: page + 1, total: totalPages })}
+              </span>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                disabled={!hasNext}
+                onClick={() => setPage((p) => p + 1)}
+                className="border-border text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
