@@ -1115,3 +1115,70 @@ async function startNewRun(
     outcome: outcome.outcome === "advanced" ? "started" : outcome.outcome,
   };
 }
+
+// ============================================================
+// Manual trigger — the "Acionar fluxo" button in the conversation
+// sidebar. Unlike startNewRun, there's no real inbound message to
+// hang idempotency/audit off of, so this skips the ParsedInbound
+// entirely rather than fabricating one.
+// ============================================================
+
+export type StartManualRunResult =
+  | { ok: true; run_id: string }
+  | { ok: false; error: "flow_not_found" | "flow_not_active" | "flow_has_no_entry_node" | "contact_has_active_run" | string };
+
+export async function startManualRun(
+  flowId: string,
+  contactId: string,
+  conversationId: string,
+): Promise<StartManualRunResult> {
+  const db = supabaseAdmin();
+  const flow = await loadFlow(db, flowId);
+  if (!flow) return { ok: false, error: "flow_not_found" };
+  if (flow.status !== "active") return { ok: false, error: "flow_not_active" };
+  if (!flow.entry_node_id) return { ok: false, error: "flow_has_no_entry_node" };
+
+  const existingActive = await loadActiveRunForContact(db, flow.account_id, contactId);
+  if (existingActive) return { ok: false, error: "contact_has_active_run" };
+
+  const nodes = await loadAllNodes(db, flow.id);
+
+  // Same partial unique index as startNewRun protects against a
+  // concurrent start winning the race between the check above and
+  // this INSERT.
+  const { data: inserted, error: insErr } = await db
+    .from("flow_runs")
+    .insert({
+      flow_id: flow.id,
+      account_id: flow.account_id,
+      user_id: flow.user_id,
+      contact_id: contactId,
+      conversation_id: conversationId,
+      status: "active",
+      current_node_key: flow.entry_node_id,
+    })
+    .select("*")
+    .maybeSingle();
+  if (insErr) {
+    const msg = insErr.message ?? "";
+    if (msg.includes("23505") || msg.includes("duplicate key")) {
+      return { ok: false, error: "contact_has_active_run" };
+    }
+    console.error("[flows] startManualRun insert error:", insErr.message);
+    return { ok: false, error: insErr.message };
+  }
+  const run = inserted as FlowRunRow;
+  await logEvent(db, run.id, "started", flow.entry_node_id, {
+    flow_id: flow.id,
+    trigger_type: "manual",
+  });
+  const { error: incErr } = await db.rpc("increment_flow_execution_count", {
+    p_flow_id: flow.id,
+  });
+  if (incErr) {
+    console.error("[flows] execution_count rpc error:", incErr.message);
+  }
+
+  await advanceFromNodeKey(db, run, flow.entry_node_id, nodes);
+  return { ok: true, run_id: run.id };
+}

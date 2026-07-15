@@ -33,13 +33,16 @@ import {
   Loader2,
   Star,
   Send,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import Link from "next/link";
 import { TagPickerPopover } from "./tag-picker-popover";
 import { DealMiniSheet } from "./deal-mini-sheet";
 import { DealForm } from "@/components/pipelines/deal-form";
+import { FlowTriggerPopover } from "./flow-trigger-popover";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -68,6 +71,33 @@ function dealStatusBadge(
         label: t("dealStatusOpen"),
         classes: "bg-blue-500/10 text-blue-400",
       };
+  }
+}
+
+interface FlowRunSummary {
+  id: string;
+  flow_id: string;
+  status: "active" | "completed" | "handed_off" | "timed_out" | "paused_by_agent" | "failed";
+  started_at: string;
+  flow: { name: string } | null;
+}
+
+/** Status badge styling for a flow run history entry. */
+function flowRunStatusBadge(
+  status: FlowRunSummary["status"],
+  t: (key: string) => string,
+): { label: string; classes: string } {
+  switch (status) {
+    case "completed":
+      return { label: t("flowRunCompleted"), classes: "bg-green-500/10 text-green-400" };
+    case "failed":
+      return { label: t("flowRunError"), classes: "bg-red-500/10 text-red-400" };
+    case "handed_off":
+      return { label: t("flowRunHandedOff"), classes: "bg-amber-500/10 text-amber-400" };
+    case "timed_out":
+      return { label: t("flowRunTimedOut"), classes: "bg-muted-foreground/10 text-muted-foreground" };
+    default:
+      return { label: t("flowRunInProgress"), classes: "bg-blue-500/10 text-blue-400" };
   }
 }
 
@@ -104,6 +134,10 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   const [npsSurvey, setNpsSurvey] = useState<NpsSurvey | null>(null);
   const [npsLoading, setNpsLoading] = useState(false);
   const [sendingNps, setSendingNps] = useState(false);
+  const [flowRuns, setFlowRuns] = useState<FlowRunSummary[]>([]);
+  const [flowRunsLoading, setFlowRunsLoading] = useState(false);
+  const [flowRunningBadge, setFlowRunningBadge] = useState(false);
+  const flowBadgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -358,6 +392,35 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     }
   }, [conversationId, fetchNpsSurvey, t]);
 
+  const fetchFlowRuns = useCallback(async () => {
+    if (!contact) return;
+    setFlowRunsLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("flow_runs")
+      .select("id, flow_id, status, started_at, flow:flows(name)")
+      .eq("contact_id", contact.id)
+      .order("started_at", { ascending: false })
+      .limit(3);
+    setFlowRuns((data as unknown as FlowRunSummary[]) ?? []);
+    setFlowRunsLoading(false);
+  }, [contact]);
+
+  useEffect(() => {
+    fetchFlowRuns();
+  }, [fetchFlowRuns]);
+
+  useEffect(() => {
+    return () => clearTimeout(flowBadgeTimeoutRef.current);
+  }, []);
+
+  const handleFlowTriggered = useCallback(() => {
+    setFlowRunningBadge(true);
+    clearTimeout(flowBadgeTimeoutRef.current);
+    flowBadgeTimeoutRef.current = setTimeout(() => setFlowRunningBadge(false), 6000);
+    fetchFlowRuns();
+  }, [fetchFlowRuns]);
+
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
@@ -604,6 +667,70 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
+
+          {/* Flows */}
+          {conversationId && (
+            <>
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Workflow className="h-3 w-3" />
+                  {t("flows")}
+                </div>
+                <div className="mt-2">
+                  <FlowTriggerPopover
+                    contactId={contact.id}
+                    conversationId={conversationId}
+                    onTriggered={handleFlowTriggered}
+                  />
+                </div>
+
+                {flowRunningBadge && (
+                  <div className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {t("flowRunningBadge")}
+                  </div>
+                )}
+
+                <div className="mt-2 space-y-1.5">
+                  {flowRunsLoading ? (
+                    <div className="flex justify-center py-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : flowRuns.length === 0 ? (
+                    <p className="px-1 text-xs text-muted-foreground">{t("noFlowRuns")}</p>
+                  ) : (
+                    flowRuns.map((run) => {
+                      const badge = flowRunStatusBadge(run.status, t);
+                      return (
+                        <Link
+                          key={run.id}
+                          href={`/flows/${run.flow_id}/runs`}
+                          className="block rounded-lg bg-muted px-3 py-2 transition-colors hover:bg-muted/70"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-medium text-foreground">
+                              {run.flow?.name ?? t("unknownFlow")}
+                            </span>
+                            <span
+                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${badge.classes}`}
+                            >
+                              {badge.label}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {format(new Date(run.started_at), "dd/MM/yyyy HH:mm")}
+                          </p>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Satisfaction (NPS) */}
           {conversationId && (

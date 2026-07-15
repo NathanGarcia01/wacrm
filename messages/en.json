@@ -251,7 +251,16 @@
       "npsExpired": "Survey expired with no response",
       "npsSent": "Satisfaction survey sent",
       "npsSendFailed": "Failed to send survey",
-      "npsDisabled": "Satisfaction survey is disabled in Settings"
+      "npsDisabled": "Satisfaction survey is disabled in Settings",
+      "flows": "Flows",
+      "flowRunningBadge": "Flow running...",
+      "noFlowRuns": "No flow runs yet",
+      "unknownFlow": "Deleted flow",
+      "flowRunCompleted": "Completed",
+      "flowRunError": "Error",
+      "flowRunInProgress": "In progress",
+      "flowRunHandedOff": "Handed off",
+      "flowRunTimedOut": "Timed out"
     },
     "dealSheet": {
       "titleAndStageRequired": "Title and stage are required",
@@ -330,6 +339,16 @@
       "cancel": "Cancel",
       "create": "Create",
       "createNewTag": "Create new tag"
+    },
+    "flowTrigger": {
+      "triggerFlow": "▶ Trigger flow",
+      "searchPlaceholder": "Search flows…",
+      "noFlowsFound": "No flows found.",
+      "noActiveFlows": "No active flows in this account.",
+      "execute": "Run",
+      "flowStarted": "Flow \"{name}\" started successfully",
+      "errorContactHasActiveRun": "This contact already has a flow running",
+      "errorGeneric": "Failed to trigger the flow"
     },
     "templatePicker": {
       "sendTemplate": "Send template",

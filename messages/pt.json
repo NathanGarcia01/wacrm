@@ -251,7 +251,16 @@
       "npsExpired": "Pesquisa expirada sem resposta",
       "npsSent": "Pesquisa de satisfação enviada",
       "npsSendFailed": "Falha ao enviar pesquisa",
-      "npsDisabled": "Pesquisa de satisfação está desativada em Configurações"
+      "npsDisabled": "Pesquisa de satisfação está desativada em Configurações",
+      "flows": "Fluxos",
+      "flowRunningBadge": "Fluxo em execução...",
+      "noFlowRuns": "Nenhum fluxo executado ainda",
+      "unknownFlow": "Fluxo removido",
+      "flowRunCompleted": "Concluído",
+      "flowRunError": "Erro",
+      "flowRunInProgress": "Em andamento",
+      "flowRunHandedOff": "Transferido",
+      "flowRunTimedOut": "Expirado"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título e etapa são obrigatórios",
@@ -330,6 +339,16 @@
       "cancel": "Cancelar",
       "create": "Criar",
       "createNewTag": "Criar nova tag"
+    },
+    "flowTrigger": {
+      "triggerFlow": "▶ Acionar fluxo",
+      "searchPlaceholder": "Buscar fluxos…",
+      "noFlowsFound": "Nenhum fluxo encontrado.",
+      "noActiveFlows": "Nenhum fluxo ativo na conta.",
+      "execute": "Executar",
+      "flowStarted": "Fluxo \"{name}\" iniciado com sucesso",
+      "errorContactHasActiveRun": "Este contato já tem um fluxo em execução",
+      "errorGeneric": "Falha ao acionar o fluxo"
     },
     "templatePicker": {
       "sendTemplate": "Enviar template",

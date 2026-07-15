@@ -251,7 +251,16 @@
       "npsExpired": "Encuesta expirada sin respuesta",
       "npsSent": "Encuesta de satisfacción enviada",
       "npsSendFailed": "Error al enviar la encuesta",
-      "npsDisabled": "La encuesta de satisfacción está desactivada en Configuración"
+      "npsDisabled": "La encuesta de satisfacción está desactivada en Configuración",
+      "flows": "Flujos",
+      "flowRunningBadge": "Flujo en ejecución...",
+      "noFlowRuns": "Ningún flujo ejecutado todavía",
+      "unknownFlow": "Flujo eliminado",
+      "flowRunCompleted": "Completado",
+      "flowRunError": "Error",
+      "flowRunInProgress": "En curso",
+      "flowRunHandedOff": "Transferido",
+      "flowRunTimedOut": "Expirado"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título y etapa son obligatorios",
@@ -330,6 +339,16 @@
       "cancel": "Cancelar",
       "create": "Crear",
       "createNewTag": "Crear nuevo tag"
+    },
+    "flowTrigger": {
+      "triggerFlow": "▶ Activar flujo",
+      "searchPlaceholder": "Buscar flujos…",
+      "noFlowsFound": "Ningún flujo encontrado.",
+      "noActiveFlows": "No hay flujos activos en la cuenta.",
+      "execute": "Ejecutar",
+      "flowStarted": "Flujo \"{name}\" iniciado con éxito",
+      "errorContactHasActiveRun": "Este contacto ya tiene un flujo en ejecución",
+      "errorGeneric": "Error al activar el flujo"
     },
     "templatePicker": {
       "sendTemplate": "Enviar template",
