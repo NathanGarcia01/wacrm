@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveDefaultChannel } from '@/lib/whatsapp/channels'
 import {
   deleteMessageTemplate,
   editMessageTemplate,
@@ -138,18 +138,14 @@ export async function PATCH(
     }
 
     if (!isDryRun()) {
-      const { data: config, error: configError } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', accountId)
-        .single()
-      if (configError || !config) {
+      const config = await resolveDefaultChannel(supabase, accountId)
+      if (!config) {
         return NextResponse.json(
           { error: 'WhatsApp not configured.' },
           { status: 400 },
         )
       }
-      const accessToken = decrypt(config.access_token)
+      const accessToken = config.accessToken
 
       // Image headers need a fresh Resumable-Upload handle on every edit
       // (Meta replaces components wholesale). Derive from header_media_url.
@@ -278,21 +274,17 @@ export async function DELETE(
     }
 
     if (existing.meta_template_id && !isDryRun()) {
-      const { data: config, error: configError } = await supabase
-        .from('whatsapp_config')
-        .select('*')
-        .eq('account_id', accountId)
-        .single()
-      if (configError || !config || !config.waba_id) {
+      const config = await resolveDefaultChannel(supabase, accountId)
+      if (!config || !config.wabaId) {
         return NextResponse.json(
           { error: 'WhatsApp not configured — cannot delete on Meta.' },
           { status: 400 },
         )
       }
-      const accessToken = decrypt(config.access_token)
+      const accessToken = config.accessToken
       try {
         await deleteMessageTemplate({
-          wabaId: config.waba_id,
+          wabaId: config.wabaId,
           accessToken,
           name: existing.name,
           metaTemplateId: existing.meta_template_id,

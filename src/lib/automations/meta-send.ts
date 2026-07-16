@@ -1,5 +1,5 @@
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveChannelById } from '@/lib/whatsapp/channels'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -83,21 +83,25 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
     throw new Error(`contact phone invalid: ${contact.phone}`)
   }
 
-  const { data: config, error: configErr } = await db
-    .from('whatsapp_config')
-    .select('*')
+  // Resolve which channel to send through: the conversation's own
+  // channel_id if it has one, else the account's default channel.
+  const { data: conversationRow } = await db
+    .from('conversations')
+    .select('channel_id')
+    .eq('id', input.conversationId)
     .eq('account_id', input.accountId)
-    .single()
-  if (configErr || !config) {
+    .maybeSingle()
+  const config = await resolveChannelById(db, conversationRow?.channel_id ?? null, input.accountId)
+  if (!config) {
     throw new Error('WhatsApp not configured for this account')
   }
 
-  const accessToken = decrypt(config.access_token)
+  const accessToken = config.accessToken
 
   const attempt = async (phone: string): Promise<string> => {
     if (input.kind === 'template') {
       const r = await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId: config.phoneNumberId,
         accessToken,
         to: phone,
         templateName: input.templateName,
@@ -107,7 +111,7 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
       return r.messageId
     }
     const r = await sendTextMessage({
-      phoneNumberId: config.phone_number_id,
+      phoneNumberId: config.phoneNumberId,
       accessToken,
       to: phone,
       text: input.text,

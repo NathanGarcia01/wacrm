@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { MetaApiError, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveChannelById, resolveAccountOwnerUserId } from '@/lib/whatsapp/channels'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
 import {
   sanitizePhoneForMeta,
@@ -65,6 +65,7 @@ const RATE_LIMIT_PAUSE_MS = 60 * 60 * 1000
 interface BroadcastRow {
   id: string
   account_id: string
+  channel_id: string | null
   template_name: string
   template_language: string
   template_variables: Record<string, VariableMapping> | null
@@ -112,6 +113,7 @@ async function findOrCreateConversationForContact(
   accountId: string,
   userId: string,
   contactId: string,
+  channelId: string | null,
 ): Promise<string | null> {
   const { data: existing, error: findError } = await admin
     .from('conversations')
@@ -134,6 +136,7 @@ async function findOrCreateConversationForContact(
       user_id: userId,
       contact_id: contactId,
       status: 'closed',
+      channel_id: channelId,
     })
     .select('id')
     .single()
@@ -162,7 +165,7 @@ export async function GET(request: Request) {
   const { data: due, error } = await admin
     .from('broadcasts')
     .select(
-      'id, account_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent',
+      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent',
     )
     .in('status', ['scheduled', 'sending'])
     .or(`next_batch_at.is.null,next_batch_at.lte.${nowIso()}`)
@@ -203,11 +206,7 @@ export async function GET(request: Request) {
       continue
     }
 
-    const { data: config } = await admin
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token, user_id')
-      .eq('account_id', row.account_id)
-      .single()
+    const config = await resolveChannelById(admin, row.channel_id, row.account_id)
 
     if (!config) {
       // Nothing we can do without WhatsApp config — pause for an hour
@@ -219,7 +218,8 @@ export async function GET(request: Request) {
       continue
     }
 
-    const accessToken = decrypt(config.access_token)
+    const accessToken = config.accessToken
+    const configOwnerUserId = await resolveAccountOwnerUserId(admin, row.account_id)
 
     const { data: rawTemplateRow } = await admin
       .from('message_templates')
@@ -283,7 +283,7 @@ export async function GET(request: Request) {
       for (const variant of phoneVariants(sanitized)) {
         try {
           const result = await sendTemplateMessage({
-            phoneNumberId: config.phone_number_id,
+            phoneNumberId: config.phoneNumberId,
             accessToken,
             to: variant,
             templateName: row.template_name,
@@ -328,13 +328,18 @@ export async function GET(request: Request) {
         // Mirror the send into `messages` so the agent sees it in the
         // inbox conversation — broadcasts previously only touched
         // broadcast_recipients, leaving the customer's conversation
-        // with no record the message was ever sent.
-        const conversationId = await findOrCreateConversationForContact(
-          admin,
-          row.account_id,
-          config.user_id,
-          contact.id,
-        )
+        // with no record the message was ever sent. Best-effort: a
+        // missing account owner (shouldn't happen) just skips the
+        // mirror rather than failing the send, which already landed.
+        const conversationId = configOwnerUserId
+          ? await findOrCreateConversationForContact(
+              admin,
+              row.account_id,
+              configOwnerUserId,
+              contact.id,
+              config.channelId,
+            )
+          : null
         if (conversationId) {
           const contentText = templateRow?.body_text
             ? renderTemplateText(templateRow.body_text, params)

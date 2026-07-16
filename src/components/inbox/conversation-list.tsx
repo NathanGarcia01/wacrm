@@ -14,6 +14,7 @@ import {
   MailOpen,
   Archive,
   UserPlus,
+  Smartphone,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
@@ -107,6 +108,19 @@ export function ConversationList({
       .then(({ data }) => setProfiles((data ?? []) as Profile[]));
   }, []);
 
+  // Only worth showing "which number" per row when there's more than one
+  // active channel to disambiguate between — a single-channel account
+  // doesn't need the extra noise on every row.
+  const [multiChannel, setMultiChannel] = useState(false);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("whatsapp_channels")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .then(({ count }) => setMultiChannel((count ?? 0) > 1));
+  }, []);
+
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
   // depended on `onConversationsLoaded`, which depends on the parent's
@@ -131,7 +145,9 @@ export function ConversationList({
     (async () => {
       const { data, error } = await supabase
         .from("conversations")
-        .select("*, contact:contacts(*, contact_tags(tag_id), deals(status, stage_id))")
+        .select(
+          "*, contact:contacts(*, contact_tags(tag_id), deals(status, stage_id)), channel:whatsapp_channels(name, display_phone_number)",
+        )
         .order("last_message_at", { ascending: false });
 
       if (cancelled) return;
@@ -453,6 +469,7 @@ export function ConversationList({
                 selectionActive={selectionActive}
                 selected={selectedIds.has(conv.id)}
                 onToggleSelect={handleToggleSelect}
+                showChannel={multiChannel}
               />
             ))}
           </div>
@@ -469,6 +486,9 @@ interface ConversationItemProps {
   selectionActive: boolean;
   selected: boolean;
   onToggleSelect: (id: string) => void;
+  /** Only render the per-row channel badge when the account has more
+   *  than one active WhatsApp number. */
+  showChannel: boolean;
 }
 
 function ConversationItem({
@@ -478,6 +498,7 @@ function ConversationItem({
   selectionActive,
   selected,
   onToggleSelect,
+  showChannel,
 }: ConversationItemProps) {
   const t = useTranslations("inbox.list");
   const locale = useLocale() as Locale;
@@ -579,6 +600,15 @@ function ConversationItem({
             {conversation.last_message_text || t("noMessagesYet")}
           </p>
           <div className="flex shrink-0 items-center gap-1.5">
+            {showChannel && conversation.channel?.name && (
+              <span
+                className="flex items-center gap-0.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"
+                title={conversation.channel.display_phone_number ?? conversation.channel.name}
+              >
+                <Smartphone className="h-2.5 w-2.5" />
+                {conversation.channel.name}
+              </span>
+            )}
             {conversation.unread_count > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
                 {conversation.unread_count}

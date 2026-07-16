@@ -70,6 +70,10 @@ interface BroadcastPayload {
   cadence: CadenceSettings;
   /** null = send immediately. */
   scheduledAt: Date | null;
+  /** Which WhatsApp channel to send through. null = account's default
+   *  channel (resolved server-side at send time — see
+   *  src/lib/whatsapp/channels.ts). */
+  channelId: string | null;
 }
 
 interface UseBroadcastSendingReturn {
@@ -356,6 +360,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           status: startsNow ? 'sending' : 'scheduled',
           scheduled_at: payload.scheduledAt?.toISOString() ?? null,
           next_batch_at: nextBatchAt,
+          channel_id: payload.channelId,
           total_recipients: uniqueContacts.length,
           batch_size: payload.cadence.batchSize,
           batch_interval_minutes: payload.cadence.batchIntervalMinutes,

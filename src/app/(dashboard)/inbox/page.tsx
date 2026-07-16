@@ -140,7 +140,7 @@ export default function InboxPage() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("conversations")
-        .select("*, contact:contacts(*)")
+        .select("*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number)")
         .eq("id", convId)
         .maybeSingle();
       if (error) {
@@ -188,12 +188,10 @@ export default function InboxPage() {
 
       if (!user) return;
 
-      // whatsapp_config is one-row-per-account post-multi-user, so
-      // the previous `.eq('user_id', user.id)` would miss the row
-      // for any teammate who didn't personally save the config —
-      // the "WhatsApp not connected" banner would show in the
-      // shared inbox even though the admin had it configured.
-      // Resolve account_id via the profile and query by that.
+      // Account-scoped (not user_id) so the "WhatsApp not connected"
+      // banner reflects the shared account state, not just what this
+      // particular teammate set up. whatsapp_channels is multi-row —
+      // any active channel means the account has something connected.
       const { data: profile } = await supabase
         .from("profiles")
         .select("account_id")
@@ -205,13 +203,13 @@ export default function InboxPage() {
         return;
       }
 
-      const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
+      const { count } = await supabase
+        .from("whatsapp_channels")
+        .select("id", { count: "exact", head: true })
         .eq("account_id", accountId)
-        .maybeSingle();
+        .eq("is_active", true);
 
-      setWhatsappConnected(data?.status === "connected");
+      setWhatsappConnected((count ?? 0) > 0);
     };
 
     checkConnection();

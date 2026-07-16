@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { resolveChannelByPhoneNumberId, resolveAccountOwnerUserId } from '@/lib/whatsapp/channels'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { extensionForMimeType } from '@/lib/whatsapp/mime'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
@@ -104,29 +105,36 @@ export async function GET(request: Request) {
       )
     }
 
-    // Fetch all whatsapp configs to check verify tokens
-    const { data: configs, error: configError } = await supabaseAdmin()
-      .from('whatsapp_config')
-      .select('id, verify_token')
+    // Fetch every channel's verify_token, plus the legacy whatsapp_config
+    // rows for accounts that predate the whatsapp_channels backfill
+    // (migration 036). Either table can hold the token that matches
+    // whatever the caller configured in Meta's webhook setup screen.
+    const [{ data: channels, error: channelsError }, { data: configs, error: configError }] =
+      await Promise.all([
+        supabaseAdmin().from('whatsapp_channels').select('id, verify_token'),
+        supabaseAdmin().from('whatsapp_config').select('id, verify_token'),
+      ])
 
-    if (configError || !configs) {
-      console.error('Error fetching configs for verification:', configError)
+    if (channelsError || configError) {
+      console.error('Error fetching verify tokens:', channelsError || configError)
       return NextResponse.json(
         { error: 'Verification failed' },
         { status: 403 }
       )
     }
 
-    // Check if any config's verify_token matches. Also collect the
-    // matching row so we can opportunistically upgrade its token to
-    // GCM if it was still in the legacy CBC format.
+    // Check if any channel's (or legacy config's) verify_token matches.
+    // Also collect the matching row so we can opportunistically upgrade
+    // its token to GCM if it was still in the legacy CBC format.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let matchedConfig: any = null
-    for (const config of configs) {
+    let matchedTable: 'whatsapp_channels' | 'whatsapp_config' = 'whatsapp_channels'
+    for (const config of [...(channels ?? []), ...(configs ?? [])]) {
       if (!config.verify_token) continue
       try {
         if (decrypt(config.verify_token) === verifyToken) {
           matchedConfig = config
+          matchedTable = (channels ?? []).includes(config) ? 'whatsapp_channels' : 'whatsapp_config'
           break
         }
       } catch {
@@ -139,7 +147,7 @@ export async function GET(request: Request) {
       // since it's a no-op once the column is already GCM.
       if (isLegacyFormat(matchedConfig.verify_token)) {
         void supabaseAdmin()
-          .from('whatsapp_config')
+          .from(matchedTable)
           .update({ verify_token: encrypt(verifyToken) })
           .eq('id', matchedConfig.id)
           .then(({ error }: { error: unknown }) => {
@@ -233,44 +241,21 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const phoneNumberId = value.metadata.phone_number_id
 
-      // Find user's config by phone_number_id. `.single()` returns
-      // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
-      // operators see the real cause in logs. ≥2 rows shouldn't happen
-      // post-migration 013 (UNIQUE constraint), but a row created
-      // before the constraint, or a race, would still surface here.
-      const { data: configRows, error: configError } = await supabaseAdmin()
-        .from('whatsapp_config')
-        .select('*')
-        .eq('phone_number_id', phoneNumberId)
-
-      if (configError) {
-        console.error(
-          'Error fetching whatsapp_config for phone_number_id:',
-          phoneNumberId,
-          configError
-        )
+      // Resolve which channel (or, pre-migration-036, legacy
+      // whatsapp_config row) received this message. Logs + drops the
+      // message the same way the old single-config lookup did when the
+      // number isn't recognised at all or maps to more than one row.
+      const resolved = await resolveChannelByPhoneNumberId(supabaseAdmin(), phoneNumberId)
+      if (!resolved) {
+        console.error('No channel found for phone_number_id:', phoneNumberId)
         continue
       }
 
-      if (!configRows || configRows.length === 0) {
-        console.error('No config found for phone_number_id:', phoneNumberId)
+      const configOwnerUserId = await resolveAccountOwnerUserId(supabaseAdmin(), resolved.accountId)
+      if (!configOwnerUserId) {
+        console.error('No account owner found for account_id:', resolved.accountId)
         continue
       }
-
-      if (configRows.length > 1) {
-        console.error(
-          `Multiple configs (${configRows.length}) found for phone_number_id:`,
-          phoneNumberId,
-          '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
-          'Account owners:',
-          configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
-        )
-        continue
-      }
-
-      const config = configRows[0]
-
-      const decryptedAccessToken = decrypt(config.access_token)
 
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
@@ -281,13 +266,18 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           contact,
           // Tenancy — drives every contact / conversation lookup
           // and the engines' active-row dispatch.
-          config.account_id,
+          resolved.accountId,
           // Audit / sender-of-record — used as the user_id on row
-          // inserts that need it for NOT NULL FK compliance. Always
-          // the admin who saved the WhatsApp config.
-          config.user_id,
-          decryptedAccessToken,
-          config.phone_number_id
+          // inserts that need it for NOT NULL FK compliance. The
+          // account's owner, stable regardless of which channel
+          // handled the message.
+          configOwnerUserId,
+          resolved.accessToken,
+          resolved.phoneNumberId,
+          // Which channel received this — stamped onto the
+          // conversation so the inbox can show which number it came in
+          // on. Null when resolved from the legacy whatsapp_config row.
+          resolved.channelId,
         )
       }
     }
@@ -658,16 +648,22 @@ async function handleReaction(
 async function processMessage(
   message: WhatsAppMessage,
   contact: { profile: { name: string }; wa_id: string },
-  // Tenancy. Resolved from the matched whatsapp_config row; every
-  // contact / conversation / message row created downstream is
-  // stamped with this so any member of the account can see it.
+  // Tenancy. Resolved from the matched whatsapp_channels (or legacy
+  // whatsapp_config) row; every contact / conversation / message row
+  // created downstream is stamped with this so any member of the
+  // account can see it.
   accountId: string,
   // Sender-of-record for inserts that need a NOT NULL user_id FK
-  // (contacts, conversations). Always the admin who saved the
-  // WhatsApp config; the choice is arbitrary post-017 but stable.
+  // (contacts, conversations). Always the account owner — stable
+  // regardless of which channel/admin set up the number.
   configOwnerUserId: string,
   accessToken: string,
-  phoneNumberId: string
+  phoneNumberId: string,
+  // Which whatsapp_channels row received this message. Null when
+  // resolved from the legacy whatsapp_config row (pre-migration-036
+  // accounts) — findOrCreateConversation leaves channel_id untouched
+  // in that case rather than clearing it to null.
+  channelId: string | null,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -686,7 +682,8 @@ async function processMessage(
   const conversation = await findOrCreateConversation(
     accountId,
     configOwnerUserId,
-    contactRecord.id
+    contactRecord.id,
+    channelId,
   )
   if (!conversation) return
 
@@ -1199,6 +1196,11 @@ async function findOrCreateConversation(
   accountId: string,
   configOwnerUserId: string,
   contactId: string,
+  // Which whatsapp_channels row received the message that triggered
+  // this lookup. Null (legacy whatsapp_config fallback) leaves an
+  // existing conversation's channel_id untouched rather than clearing
+  // it — only a resolved channel ever overwrites it.
+  channelId: string | null,
 ) {
   // Look for existing conversation in this account
   const { data: existing, error: findError } = await supabaseAdmin()
@@ -1209,6 +1211,22 @@ async function findOrCreateConversation(
     .single()
 
   if (!findError && existing) {
+    // Keep channel_id current — a contact may start messaging a
+    // different number than the one that first created this
+    // conversation, and the inbox badge should reflect the latest one.
+    if (channelId && existing.channel_id !== channelId) {
+      const { data: updated, error: updateError } = await supabaseAdmin()
+        .from('conversations')
+        .update({ channel_id: channelId })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (updateError) {
+        console.error('Error updating conversation channel_id:', updateError)
+        return existing
+      }
+      return updated
+    }
     return existing
   }
 
@@ -1220,6 +1238,7 @@ async function findOrCreateConversation(
       account_id: accountId,
       user_id: configOwnerUserId,
       contact_id: contactId,
+      channel_id: channelId,
     })
     .select()
     .single()

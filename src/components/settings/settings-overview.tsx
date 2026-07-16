@@ -118,21 +118,22 @@ export function SettingsOverview({
       setCountsLoading(false);
     })();
 
-    // WhatsApp connection status — slower, independent.
+    // WhatsApp connection status — slower, independent. Reads
+    // whatsapp_channels (multi-channel) rather than pinging Meta live —
+    // "connected" here means at least one active channel completed
+    // /register, which is what the Settings > WhatsApp page's own
+    // per-channel badges already track.
     (async () => {
       setWhatsappLoading(true);
-      const [row, health] = await Promise.allSettled([
-        supabase
-          .from('whatsapp_config')
-          .select('phone_number_id')
-          .eq('account_id', acctId)
-          .maybeSingle(),
-        fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
-      ]);
+      const { data, error } = await supabase
+        .from('whatsapp_channels')
+        .select('is_active, registered_at')
+        .eq('account_id', acctId);
       if (cancelled) return;
+      const rows = error ? [] : (data ?? []);
       setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
-        connected: health.status === 'fulfilled' && !!health.value?.connected,
+        configured: rows.length > 0,
+        connected: rows.some((r) => r.is_active && r.registered_at != null),
       });
       setWhatsappLoading(false);
     })();

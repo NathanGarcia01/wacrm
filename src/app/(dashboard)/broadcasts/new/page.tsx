@@ -57,7 +57,11 @@ export default function NewBroadcastPage() {
   >({});
   const [name, setName] = useState('');
 
-  async function handleSend(cadence: CadenceSettings, scheduledAt: Date | null) {
+  async function handleSend(
+    cadence: CadenceSettings,
+    scheduledAt: Date | null,
+    channelId: string | null,
+  ) {
     if (!template) return;
 
     try {
@@ -78,6 +82,7 @@ export default function NewBroadcastPage() {
         variables,
         cadence,
         scheduledAt,
+        channelId,
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {

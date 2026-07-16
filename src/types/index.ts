@@ -156,6 +156,10 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   contact?: Contact;
+  /** WhatsApp channel that received/sent through this conversation.
+   *  null = the account's default channel (see src/lib/whatsapp/channels.ts). */
+  channel_id?: string | null;
+  channel?: { name: string; display_phone_number: string | null } | null;
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';

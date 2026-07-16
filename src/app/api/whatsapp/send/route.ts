@@ -6,7 +6,7 @@ import {
   sendMediaMessage,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
-import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { resolveChannelById } from '@/lib/whatsapp/channels'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import {
@@ -166,41 +166,20 @@ export async function POST(request: Request) {
       )
     }
 
-    // Fetch and decrypt WhatsApp config
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('account_id', accountId)
-      .single()
+    // Resolve which channel to send through: the conversation's own
+    // channel_id if it has one, else the account's default channel
+    // (falls further back to the legacy whatsapp_config row, then env
+    // vars — see src/lib/whatsapp/channels.ts).
+    const config = await resolveChannelById(supabase, conversation.channel_id, accountId)
 
-    if (configError || !config) {
+    if (!config) {
       return NextResponse.json(
         { error: 'WhatsApp not configured. Please set up your WhatsApp integration first.' },
         { status: 400 }
       )
     }
 
-    const accessToken = decrypt(config.access_token)
-
-    // Self-heal legacy CBC-encrypted tokens. Fire-and-forget: we
-    // return from the send without waiting, so a failed upgrade just
-    // means the next send tries again. The upgrade is idempotent —
-    // concurrent sends both produce valid GCM ciphertexts of the same
-    // plaintext, last write wins.
-    if (isLegacyFormat(config.access_token)) {
-      void supabase
-        .from('whatsapp_config')
-        .update({ access_token: encrypt(accessToken) })
-        .eq('id', config.id)
-        .then(({ error }) => {
-          if (error) {
-            console.warn(
-              '[whatsapp/send] access_token GCM upgrade failed:',
-              error.message,
-            )
-          }
-        })
-    }
+    const accessToken = config.accessToken
 
     // Resolve the reply target (if any) to its Meta message_id, which is
     // what `context.message_id` on the outgoing Meta payload needs. The
@@ -275,7 +254,7 @@ export async function POST(request: Request) {
     const attempt = async (phone: string): Promise<string> => {
       if (message_type === 'template') {
         const result = await sendTemplateMessage({
-          phoneNumberId: config.phone_number_id,
+          phoneNumberId: config.phoneNumberId,
           accessToken,
           to: phone,
           templateName: template_name,
@@ -294,7 +273,7 @@ export async function POST(request: Request) {
         // sendMediaMessage). filename surfaces in the recipient's chat
         // for documents only.
         const result = await sendMediaMessage({
-          phoneNumberId: config.phone_number_id,
+          phoneNumberId: config.phoneNumberId,
           accessToken,
           to: phone,
           kind: message_type as MediaKind,
@@ -306,7 +285,7 @@ export async function POST(request: Request) {
         return result.messageId
       }
       const result = await sendTextMessage({
-        phoneNumberId: config.phone_number_id,
+        phoneNumberId: config.phoneNumberId,
         accessToken,
         to: phone,
         text: content_text,

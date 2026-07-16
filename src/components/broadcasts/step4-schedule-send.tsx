@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { MessageTemplate } from '@/types';
@@ -9,6 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -51,11 +58,18 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
-  onSend: (cadence: CadenceSettings, scheduledAt: Date | null) => void;
+  onSend: (cadence: CadenceSettings, scheduledAt: Date | null, channelId: string | null) => void;
   onSaveDraft?: () => void;
   onBack: () => void;
   isProcessing: boolean;
   progress: number;
+}
+
+interface WhatsAppChannelOption {
+  id: string;
+  name: string;
+  display_phone_number: string | null;
+  is_default: boolean;
 }
 
 type QualityRating = 'GREEN' | 'YELLOW' | 'RED' | 'UNKNOWN';
@@ -152,6 +166,9 @@ export function Step4ScheduleSend({
   const [quality, setQuality] = useState<QualityRating>('UNKNOWN');
   const [loadingQuality, setLoadingQuality] = useState(true);
 
+  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+
   const [cadence, setCadence] = useState<CadenceSettings>(DEFAULT_CADENCE);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -201,12 +218,55 @@ export function Step4ScheduleSend({
     calculateReach();
   }, [audience]);
 
+  // Load the account's active WhatsApp channels once so the user can pick
+  // which number sends this broadcast. Pre-select the account's default
+  // channel — matches what a send would fall back to anyway if left
+  // unset (see src/lib/whatsapp/channels.ts's resolveDefaultChannel).
+  useEffect(() => {
+    let cancelled = false;
+    async function loadChannels() {
+      try {
+        const res = await fetch('/api/whatsapp/channels');
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const active: WhatsAppChannelOption[] = (data.channels ?? []).filter(
+          (c: { is_active: boolean }) => c.is_active,
+        );
+        setChannels(active);
+        const defaultChannel = active.find((c) => c.is_default) ?? active[0];
+        if (defaultChannel) setSelectedChannelId(defaultChannel.id);
+      } catch {
+        // Best-effort — leaving channels empty just hides the selector,
+        // and sends fall back to the account's default channel server-side.
+      }
+    }
+    loadChannels();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, a freshly loaded
+  // list briefly shows the raw channel id instead of its name.
+  const channelItems = useMemo(
+    () =>
+      Object.fromEntries(
+        channels.map((c) => [c.id, c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name]),
+      ),
+    [channels],
+  );
+
   useEffect(() => {
     let cancelled = false;
     async function loadQuality() {
       setLoadingQuality(true);
       try {
-        const res = await fetch('/api/whatsapp/quality');
+        const url = selectedChannelId
+          ? `/api/whatsapp/quality?channel_id=${selectedChannelId}`
+          : '/api/whatsapp/quality';
+        const res = await fetch(url);
         const data = await res.json();
         if (!cancelled) {
           setQuality(res.ok ? normalizeQuality(data.quality_rating ?? null) : 'UNKNOWN');
@@ -221,7 +281,7 @@ export function Step4ScheduleSend({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedChannelId]);
 
   const audienceLabel =
     audience.type === 'all'
@@ -271,6 +331,29 @@ export function Step4ScheduleSend({
           className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
         />
       </div>
+
+      {/* Channel selection — only worth showing when there's a real choice */}
+      {channels.length > 1 && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-foreground">{t('sendFromChannel')}</Label>
+          <Select
+            items={channelItems}
+            value={selectedChannelId ?? undefined}
+            onValueChange={(v) => v && setSelectedChannelId(v)}
+          >
+            <SelectTrigger className="w-full border-border bg-muted text-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-border bg-popover">
+              {channels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Account quality */}
       <div className="space-y-2">
@@ -556,7 +639,7 @@ export function Step4ScheduleSend({
               <Button
                 onClick={() => {
                   setShowConfirm(false);
-                  onSend(cadence, scheduledAt);
+                  onSend(cadence, scheduledAt, selectedChannelId);
                 }}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >

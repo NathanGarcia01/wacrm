@@ -30,6 +30,7 @@ import {
   PanelRightClose,
   Mail,
   MailOpen,
+  Smartphone,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -257,6 +258,18 @@ export function MessageThread({
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Only worth showing "which number" on the header when there's more
+  // than one active channel to disambiguate between.
+  const [multiChannel, setMultiChannel] = useState(false);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("whatsapp_channels")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true)
+      .then(({ count }) => setMultiChannel((count ?? 0) > 1));
   }, []);
 
   // 24-hour session timer
@@ -1034,6 +1047,19 @@ export function MessageThread({
             <Clock className="h-3 w-3" />
             {sessionInfo.remaining}
           </Badge>
+
+          {/* Which WhatsApp number this conversation is on — only shown
+              when the account actually has more than one to disambiguate. */}
+          {multiChannel && conversation.channel?.name && (
+            <Badge
+              variant="outline"
+              className="ml-1 hidden gap-1 border-border text-[10px] font-mono text-muted-foreground sm:inline-flex sm:ml-2"
+              title={conversation.channel.display_phone_number ?? conversation.channel.name}
+            >
+              <Smartphone className="h-3 w-3" />
+              {conversation.channel.name}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

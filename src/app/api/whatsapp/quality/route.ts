@@ -1,16 +1,24 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveChannelById } from '@/lib/whatsapp/channels'
 
 /**
- * Surfaces the WhatsApp number's `quality_rating` (used by the broadcast
+ * Surfaces a WhatsApp number's `quality_rating` (used by the broadcast
  * Send step's anti-ban badge) plus `messaging_limit_tier` and
  * `display_phone_number` (used by the Reports Quality tab). A dedicated
  * route (rather than calling Meta from the client) because the access
  * token only ever gets decrypted server-side.
+ *
+ * Accepts an optional `?channel_id=` — the broadcast wizard passes the
+ * number the user picked in step 4 so the quality badge reflects that
+ * channel specifically. Omitted (or invalid), falls back to the
+ * account's default channel.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const channelId = searchParams.get('channel_id')
+
   const supabase = await createClient()
 
   const {
@@ -34,13 +42,9 @@ export async function GET() {
     )
   }
 
-  const { data: config, error: configError } = await supabase
-    .from('whatsapp_config')
-    .select('phone_number_id, access_token')
-    .eq('account_id', accountId)
-    .single()
+  const config = await resolveChannelById(supabase, channelId, accountId)
 
-  if (configError || !config) {
+  if (!config) {
     return NextResponse.json(
       { error: 'WhatsApp not configured.' },
       { status: 400 },
@@ -48,10 +52,9 @@ export async function GET() {
   }
 
   try {
-    const accessToken = decrypt(config.access_token)
     const info = await verifyPhoneNumber({
-      phoneNumberId: config.phone_number_id,
-      accessToken,
+      phoneNumberId: config.phoneNumberId,
+      accessToken: config.accessToken,
     })
     return NextResponse.json({
       quality_rating: info.quality_rating ?? null,

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getPricingModel } from '@/lib/whatsapp/meta-api'
-import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveDefaultChannel } from '@/lib/whatsapp/channels'
 
 /**
  * Account's Meta per-message rates (meta_pricing) used to compute
@@ -44,15 +44,13 @@ export async function GET() {
     .maybeSingle()
 
   let pricingModel: string | null = null
-  const { data: config } = await supabase
-    .from('whatsapp_config')
-    .select('phone_number_id, access_token')
-    .eq('account_id', accountId)
-    .maybeSingle()
+  const config = await resolveDefaultChannel(supabase, accountId)
   if (config) {
     try {
-      const accessToken = decrypt(config.access_token)
-      const info = await getPricingModel({ phoneNumberId: config.phone_number_id, accessToken })
+      const info = await getPricingModel({
+        phoneNumberId: config.phoneNumberId,
+        accessToken: config.accessToken,
+      })
       pricingModel = info.pricing_model
     } catch {
       // Best-effort — an unconfigured/invalid token just means we
