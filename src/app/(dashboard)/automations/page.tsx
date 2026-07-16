@@ -43,6 +43,7 @@ import {
 import { buildAutomationTemplates, type TemplateSlug } from "@/lib/automations/templates"
 import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
+import { AiGenerateModal } from "@/components/ai/ai-generate-modal"
 
 const TEMPLATE_ORDER: TemplateSlug[] = [
   "welcome_message",
@@ -171,15 +172,23 @@ export default function AutomationsPage() {
             {t("description")}
           </p>
         </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create automations"
-          onClick={() => router.push("/automations/new")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          {t("createButton")}
-        </GatedButton>
+        <div className="flex items-center gap-2">
+          <AiGenerateModal
+            target="automation"
+            onSaved={(id, editManually) =>
+              editManually ? router.push(`/automations/${id}/edit`) : load()
+            }
+          />
+          <GatedButton
+            canAct={canCreate}
+            gateReason="create automations"
+            onClick={() => router.push("/automations/new")}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            {t("createButton")}
+          </GatedButton>
+        </div>
       </div>
 
       {showTemplates && (

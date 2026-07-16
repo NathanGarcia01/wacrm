@@ -406,7 +406,24 @@
     "title": "Contatos",
     "subtitle": "Gerencie sua lista de contatos.",
     "totalContacts": "{count} contatos no total.",
-    "customFields": "Campos personalizados",
+    "customFields": {
+      "title": "Campos personalizados",
+      "description": "Defina campos extras de contato (ex: CEP, origem do lead). Eles aparecem em todo contato e na ação de automação \"Atualizar Campo do Contato\".",
+      "noAccountLinked": "Seu perfil não está vinculado a uma conta.",
+      "fieldAlreadyExists": "Já existe um campo chamado \"{name}\".",
+      "createFailed": "Não foi possível criar o campo. Você pode não ter permissão.",
+      "createdField": "\"{name}\" criado.",
+      "renameFailed": "Não foi possível renomear o campo.",
+      "confirmDelete": "Excluir \"{name}\"? Isso também remove o valor salvo em todos os contatos. Não pode ser desfeito.",
+      "deleteFailed": "Não foi possível excluir o campo.",
+      "deletedField": "\"{name}\" excluído.",
+      "newFieldPlaceholder": "Nome do novo campo…",
+      "add": "Adicionar",
+      "loading": "Carregando…",
+      "noFieldsYet": "Nenhum campo personalizado ainda.",
+      "renameFieldAria": "Renomear {name}",
+      "deleteField": "Excluir campo"
+    },
     "import": "Importar",
     "addContact": "Adicionar Contato",
     "searchPlaceholder": "Buscar por nome, telefone ou email...",
@@ -503,24 +520,6 @@
       "enterFieldPlaceholder": "Digite {field}...",
       "saveCustomFields": "Salvar Campos Personalizados",
       "noDealsYet": "Sem negócios ainda"
-    },
-    "customFields": {
-      "title": "Campos personalizados",
-      "description": "Defina campos extras de contato (ex: CEP, origem do lead). Eles aparecem em todo contato e na ação de automação \"Atualizar Campo do Contato\".",
-      "noAccountLinked": "Seu perfil não está vinculado a uma conta.",
-      "fieldAlreadyExists": "Já existe um campo chamado \"{name}\".",
-      "createFailed": "Não foi possível criar o campo. Você pode não ter permissão.",
-      "createdField": "\"{name}\" criado.",
-      "renameFailed": "Não foi possível renomear o campo.",
-      "confirmDelete": "Excluir \"{name}\"? Isso também remove o valor salvo em todos os contatos. Não pode ser desfeito.",
-      "deleteFailed": "Não foi possível excluir o campo.",
-      "deletedField": "\"{name}\" excluído.",
-      "newFieldPlaceholder": "Nome do novo campo…",
-      "add": "Adicionar",
-      "loading": "Carregando…",
-      "noFieldsYet": "Nenhum campo personalizado ainda.",
-      "renameFieldAria": "Renomear {name}",
-      "deleteField": "Excluir campo"
     }
   },
   "presence": {
@@ -2207,5 +2206,31 @@
       "documentFilenamePlaceholder": "fatura.pdf",
       "afterSendAdvanceLabel": "Após enviar, avança para"
     }
+  },
+  "aiGenerate": {
+    "buttonLabel": "✨ Criar com IA",
+    "modalTitle": "Criar com IA",
+    "modalDescription": "Descreva o que você quer automatizar em linguagem natural e a IA monta a estrutura para você revisar antes de salvar.",
+    "promptPlaceholderAutomation": "Ex: Quando um cliente novo entrar em contato, mandar mensagem de boas-vindas, criar um deal e adicionar a tag Receptivo",
+    "promptPlaceholderFlow": "Ex: Quando o cliente pedir para falar com atendente, perguntar o motivo e transferir para um humano",
+    "examplesLabel": "Exemplos rápidos",
+    "exampleWelcome": "Boas-vindas para novos contatos",
+    "exampleFollowUp": "Follow-up após 24h sem resposta",
+    "exampleQualify": "Qualificar lead com pergunta",
+    "exampleNps": "NPS após fechar atendimento",
+    "generateButtonAutomation": "Gerar automação",
+    "generateButtonFlow": "Gerar fluxo",
+    "generateFailed": "Falha ao gerar. Tente reformular a descrição.",
+    "noSteps": "Nenhum passo gerado.",
+    "branchYes": "Sim",
+    "branchNo": "Não",
+    "entryBadge": "Início",
+    "startOver": "Recomeçar",
+    "editManually": "Editar manualmente",
+    "saveAnyway": "Salvar assim mesmo",
+    "saveFailed": "Falha ao salvar",
+    "automationSaved": "Automação criada com sucesso",
+    "flowSaved": "Fluxo criado com sucesso",
+    "close": "Fechar"
   }
 }

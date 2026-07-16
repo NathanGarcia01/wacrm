@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { AiGenerateModal } from "@/components/ai/ai-generate-modal";
 
 /**
  * Flows list page.
@@ -91,39 +92,35 @@ export default function FlowsPage() {
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [flowsRes, tmplRes] = await Promise.all([
-          fetch("/api/flows"),
-          fetch("/api/flows/templates"),
-        ]);
-        if (!flowsRes.ok) {
-          throw new Error(`Failed to load flows: ${flowsRes.status}`);
-        }
-        const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
-        if (!cancelled) setFlows(flowsJson.flows ?? []);
-        // Templates endpoint is forward-looking — if it 404s on an
-        // older deployment, gracefully fall through.
-        if (tmplRes.ok) {
-          const tmplJson = (await tmplRes.json()) as {
-            templates: TemplateSummary[];
-          };
-          if (!cancelled) setTemplates(tmplJson.templates ?? []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error(err);
-          toast.error("Couldn't load flows.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  async function loadFlows() {
+    try {
+      const [flowsRes, tmplRes] = await Promise.all([
+        fetch("/api/flows"),
+        fetch("/api/flows/templates"),
+      ]);
+      if (!flowsRes.ok) {
+        throw new Error(`Failed to load flows: ${flowsRes.status}`);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+      const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
+      setFlows(flowsJson.flows ?? []);
+      // Templates endpoint is forward-looking — if it 404s on an
+      // older deployment, gracefully fall through.
+      if (tmplRes.ok) {
+        const tmplJson = (await tmplRes.json()) as {
+          templates: TemplateSummary[];
+        };
+        setTemplates(tmplJson.templates ?? []);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Couldn't load flows.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadFlows();
   }, []);
 
   async function handleCreate() {
@@ -214,14 +211,22 @@ export default function FlowsPage() {
             menus, FAQs, and triage before a human steps in.
           </p>
         </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create flows"
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          New flow
-        </GatedButton>
+        <div className="flex items-center gap-2">
+          <AiGenerateModal
+            target="flow"
+            onSaved={(id, editManually) =>
+              editManually ? router.push(`/flows/${id}`) : loadFlows()
+            }
+          />
+          <GatedButton
+            canAct={canCreate}
+            gateReason="create flows"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            New flow
+          </GatedButton>
+        </div>
       </header>
 
       {flows.length === 0 ? (

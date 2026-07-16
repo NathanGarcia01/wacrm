@@ -255,7 +255,33 @@ export function Step2SelectAudience({
         audience.csvContacts &&
         audience.csvContacts.length > 0
       ) {
-        setEstimatedCount(audience.csvContacts.length);
+        // CSV rows are raw phone numbers, not contact ids yet (those are
+        // only created at send time — see upsertCsvContacts), so the
+        // recent-exclusion guard can only catch phones that already match
+        // an existing contact.
+        if (audience.excludeRecentlyMessaged && (audience.excludeRecentDays ?? 0) > 0) {
+          const phones = audience.csvContacts.map((c) => c.phone);
+          const { data: existing } = await supabase
+            .from('contacts')
+            .select('id, phone')
+            .in('phone', phones);
+          const idByPhone = new Map(
+            (existing ?? []).map((c) => [c.phone, c.id]),
+          );
+          const recentIds = await fetchRecentlyMessagedContactIds(
+            supabase,
+            audience.excludeRecentDays!,
+          );
+          if (seq !== countFetchSeq.current) return;
+          const excludedForRecent = audience.csvContacts.filter((c) => {
+            const id = idByPhone.get(c.phone);
+            return id ? recentIds.has(id) : false;
+          }).length;
+          setExcludedRecentCount(excludedForRecent);
+          setEstimatedCount(audience.csvContacts.length - excludedForRecent);
+        } else {
+          setEstimatedCount(audience.csvContacts.length);
+        }
         return;
       } else if (audience.type === 'pipeline_stage' && audience.stageId) {
         const { data } = await supabase
@@ -732,52 +758,51 @@ export function Step2SelectAudience({
       </div>
 
       {/* Anti-duplicate guard (#8) — applies regardless of audience type,
-          except CSV (synthetic contacts, no send-history angle). */}
-      {audience.type !== 'csv' && (
-        <div className="rounded-xl border border-border bg-card/50 p-4">
-          <label className="flex items-start gap-3">
-            <Checkbox
-              checked={!!audience.excludeRecentlyMessaged}
-              onCheckedChange={(checked) =>
+          CSV included: send-time resolution (use-broadcast-sending.ts)
+          matches CSV phones to existing contacts before applying it. */}
+      <div className="rounded-xl border border-border bg-card/50 p-4">
+        <label className="flex items-start gap-3">
+          <Checkbox
+            checked={!!audience.excludeRecentlyMessaged}
+            onCheckedChange={(checked) =>
+              onUpdate({
+                ...audience,
+                excludeRecentlyMessaged: !!checked,
+                excludeRecentDays:
+                  audience.excludeRecentDays ?? DEFAULT_EXCLUDE_RECENT_DAYS,
+              })
+            }
+            className="mt-0.5"
+          />
+          <span className="flex-1">
+            <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              {t('excludeRecentLabel')}
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {t('excludeRecentDescription')}
+            </span>
+          </span>
+        </label>
+        {audience.excludeRecentlyMessaged && (
+          <div className="mt-3 flex items-center gap-2 pl-7">
+            <span className="text-sm text-muted-foreground">{t('excludeRecentDaysPrefix')}</span>
+            <input
+              type="number"
+              min={1}
+              value={audience.excludeRecentDays ?? DEFAULT_EXCLUDE_RECENT_DAYS}
+              onChange={(e) =>
                 onUpdate({
                   ...audience,
-                  excludeRecentlyMessaged: !!checked,
-                  excludeRecentDays:
-                    audience.excludeRecentDays ?? DEFAULT_EXCLUDE_RECENT_DAYS,
+                  excludeRecentDays: Math.max(1, Number(e.target.value) || 1),
                 })
               }
-              className="mt-0.5"
+              className="h-8 w-20 rounded-lg border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
-            <span className="flex-1">
-              <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                {t('excludeRecentLabel')}
-              </span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                {t('excludeRecentDescription')}
-              </span>
-            </span>
-          </label>
-          {audience.excludeRecentlyMessaged && (
-            <div className="mt-3 flex items-center gap-2 pl-7">
-              <span className="text-sm text-muted-foreground">{t('excludeRecentDaysPrefix')}</span>
-              <input
-                type="number"
-                min={1}
-                value={audience.excludeRecentDays ?? DEFAULT_EXCLUDE_RECENT_DAYS}
-                onChange={(e) =>
-                  onUpdate({
-                    ...audience,
-                    excludeRecentDays: Math.max(1, Number(e.target.value) || 1),
-                  })
-                }
-                className="h-8 w-20 rounded-lg border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-              />
-              <span className="text-sm text-muted-foreground">{t('excludeRecentDaysSuffix')}</span>
-            </div>
-          )}
-        </div>
-      )}
+            <span className="text-sm text-muted-foreground">{t('excludeRecentDaysSuffix')}</span>
+          </div>
+        )}
+      </div>
 
       {/* Audience Summary */}
       <div className="rounded-xl border border-border bg-card/50 p-4">

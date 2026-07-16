@@ -406,7 +406,24 @@
     "title": "Contacts",
     "subtitle": "Manage your contact list.",
     "totalContacts": "{count} total contacts.",
-    "customFields": "Custom fields",
+    "customFields": {
+      "title": "Custom fields",
+      "description": "Define extra contact fields (e.g. ZIP code, lead source). They appear on every contact and in the \"Update Contact Field\" automation action.",
+      "noAccountLinked": "Your profile is not linked to an account.",
+      "fieldAlreadyExists": "A field named \"{name}\" already exists.",
+      "createFailed": "Could not create field. You may not have permission.",
+      "createdField": "Created \"{name}\".",
+      "renameFailed": "Could not rename field.",
+      "confirmDelete": "Delete \"{name}\"? This also removes its stored value on every contact. This cannot be undone.",
+      "deleteFailed": "Could not delete field.",
+      "deletedField": "Deleted \"{name}\".",
+      "newFieldPlaceholder": "New field name…",
+      "add": "Add",
+      "loading": "Loading…",
+      "noFieldsYet": "No custom fields yet.",
+      "renameFieldAria": "Rename {name}",
+      "deleteField": "Delete field"
+    },
     "import": "Import",
     "addContact": "Add Contact",
     "searchPlaceholder": "Search by name, phone, or email...",
@@ -503,24 +520,6 @@
       "enterFieldPlaceholder": "Enter {field}...",
       "saveCustomFields": "Save Custom Fields",
       "noDealsYet": "No deals yet"
-    },
-    "customFields": {
-      "title": "Custom fields",
-      "description": "Define extra contact fields (e.g. ZIP code, lead source). They appear on every contact and in the \"Update Contact Field\" automation action.",
-      "noAccountLinked": "Your profile is not linked to an account.",
-      "fieldAlreadyExists": "A field named \"{name}\" already exists.",
-      "createFailed": "Could not create field. You may not have permission.",
-      "createdField": "Created \"{name}\".",
-      "renameFailed": "Could not rename field.",
-      "confirmDelete": "Delete \"{name}\"? This also removes its stored value on every contact. This cannot be undone.",
-      "deleteFailed": "Could not delete field.",
-      "deletedField": "Deleted \"{name}\".",
-      "newFieldPlaceholder": "New field name…",
-      "add": "Add",
-      "loading": "Loading…",
-      "noFieldsYet": "No custom fields yet.",
-      "renameFieldAria": "Rename {name}",
-      "deleteField": "Delete field"
     }
   },
   "presence": {
@@ -2207,5 +2206,31 @@
       "documentFilenamePlaceholder": "invoice.pdf",
       "afterSendAdvanceLabel": "After sending, advance to"
     }
+  },
+  "aiGenerate": {
+    "buttonLabel": "✨ Create with AI",
+    "modalTitle": "Create with AI",
+    "modalDescription": "Describe what you want to automate in plain language and the AI builds the structure for you to review before saving.",
+    "promptPlaceholderAutomation": "E.g.: When a new customer reaches out, send a welcome message, create a deal, and add the Inbound tag",
+    "promptPlaceholderFlow": "E.g.: When the customer asks to speak to an agent, ask why and transfer to a human",
+    "examplesLabel": "Quick examples",
+    "exampleWelcome": "Welcome new contacts",
+    "exampleFollowUp": "Follow up after 24h with no reply",
+    "exampleQualify": "Qualify a lead with a question",
+    "exampleNps": "NPS survey after closing a conversation",
+    "generateButtonAutomation": "Generate automation",
+    "generateButtonFlow": "Generate flow",
+    "generateFailed": "Failed to generate. Try rephrasing the description.",
+    "noSteps": "No steps generated.",
+    "branchYes": "Yes",
+    "branchNo": "No",
+    "entryBadge": "Start",
+    "startOver": "Start over",
+    "editManually": "Edit manually",
+    "saveAnyway": "Save anyway",
+    "saveFailed": "Failed to save",
+    "automationSaved": "Automation created successfully",
+    "flowSaved": "Flow created successfully",
+    "close": "Close"
   }
 }

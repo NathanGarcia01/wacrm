@@ -80,6 +80,13 @@ export async function POST(request: Request) {
          * provided.
          */
         template_slug?: string
+        /**
+         * Explicit node graph — the "Criar com IA" path. Same shape as a
+         * template's nodes[], just supplied directly instead of resolved
+         * from a template_slug.
+         */
+        entry_node_id?: string
+        nodes?: Array<{ node_key: string; node_type: string; config?: Record<string, unknown> }>
       }
     | null
   if (!body) {
@@ -87,6 +94,47 @@ export async function POST(request: Request) {
   }
 
   const admin = supabaseAdmin()
+
+  // -------- AI-generated / explicit-node-graph path --------
+  if (Array.isArray(body.nodes) && body.nodes.length > 0) {
+    if (!body.name?.trim()) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    }
+    const { data: flow, error: flowErr } = await admin
+      .from('flows')
+      .insert({
+        user_id: userId,
+        account_id: accountId,
+        name: body.name.trim(),
+        description: body.description ?? null,
+        status: 'draft',
+        trigger_type: body.trigger_type ?? 'manual',
+        trigger_config: body.trigger_config ?? {},
+        entry_node_id: body.entry_node_id ?? null,
+      })
+      .select()
+      .single()
+    if (flowErr || !flow) {
+      return NextResponse.json(
+        { error: flowErr?.message ?? 'flow insert failed' },
+        { status: 500 },
+      )
+    }
+    const { error: nodesErr } = await admin.from('flow_nodes').insert(
+      body.nodes.map((n) => ({
+        flow_id: flow.id,
+        node_key: n.node_key,
+        node_type: n.node_type,
+        config: n.config ?? {},
+      })),
+    )
+    if (nodesErr) {
+      // Roll back the parent flow, same as the template-clone path below.
+      await admin.from('flows').delete().eq('id', flow.id)
+      return NextResponse.json({ error: nodesErr.message }, { status: 500 })
+    }
+    return NextResponse.json({ flow }, { status: 201 })
+  }
 
   // -------- Template clone path --------
   if (body.template_slug) {

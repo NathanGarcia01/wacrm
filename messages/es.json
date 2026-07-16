@@ -406,7 +406,24 @@
     "title": "Contactos",
     "subtitle": "Gestiona tu lista de contactos.",
     "totalContacts": "{count} contactos en total.",
-    "customFields": "Campos personalizados",
+    "customFields": {
+      "title": "Campos personalizados",
+      "description": "Define campos extra de contacto (ej. código postal, origen del lead). Aparecen en cada contacto y en la acción de automatización \"Actualizar Campo del Contacto\".",
+      "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
+      "fieldAlreadyExists": "Ya existe un campo llamado \"{name}\".",
+      "createFailed": "No se pudo crear el campo. Es posible que no tengas permiso.",
+      "createdField": "\"{name}\" creado.",
+      "renameFailed": "No se pudo renombrar el campo.",
+      "confirmDelete": "¿Eliminar \"{name}\"? Esto también elimina su valor guardado en todos los contactos. No se puede deshacer.",
+      "deleteFailed": "No se pudo eliminar el campo.",
+      "deletedField": "\"{name}\" eliminado.",
+      "newFieldPlaceholder": "Nombre del nuevo campo…",
+      "add": "Agregar",
+      "loading": "Cargando…",
+      "noFieldsYet": "Ningún campo personalizado todavía.",
+      "renameFieldAria": "Renombrar {name}",
+      "deleteField": "Eliminar campo"
+    },
     "import": "Importar",
     "addContact": "Agregar Contacto",
     "searchPlaceholder": "Buscar por nombre, teléfono o email...",
@@ -503,24 +520,6 @@
       "enterFieldPlaceholder": "Ingresa {field}...",
       "saveCustomFields": "Guardar Campos Personalizados",
       "noDealsYet": "Sin negocios todavía"
-    },
-    "customFields": {
-      "title": "Campos personalizados",
-      "description": "Define campos extra de contacto (ej. código postal, origen del lead). Aparecen en cada contacto y en la acción de automatización \"Actualizar Campo del Contacto\".",
-      "noAccountLinked": "Tu perfil no está vinculado a una cuenta.",
-      "fieldAlreadyExists": "Ya existe un campo llamado \"{name}\".",
-      "createFailed": "No se pudo crear el campo. Es posible que no tengas permiso.",
-      "createdField": "\"{name}\" creado.",
-      "renameFailed": "No se pudo renombrar el campo.",
-      "confirmDelete": "¿Eliminar \"{name}\"? Esto también elimina su valor guardado en todos los contactos. No se puede deshacer.",
-      "deleteFailed": "No se pudo eliminar el campo.",
-      "deletedField": "\"{name}\" eliminado.",
-      "newFieldPlaceholder": "Nombre del nuevo campo…",
-      "add": "Agregar",
-      "loading": "Cargando…",
-      "noFieldsYet": "Ningún campo personalizado todavía.",
-      "renameFieldAria": "Renombrar {name}",
-      "deleteField": "Eliminar campo"
     }
   },
   "presence": {
@@ -2207,5 +2206,31 @@
       "documentFilenamePlaceholder": "factura.pdf",
       "afterSendAdvanceLabel": "Después de enviar, avanza a"
     }
+  },
+  "aiGenerate": {
+    "buttonLabel": "✨ Crear con IA",
+    "modalTitle": "Crear con IA",
+    "modalDescription": "Describe lo que quieres automatizar en lenguaje natural y la IA arma la estructura para que la revises antes de guardar.",
+    "promptPlaceholderAutomation": "Ej: Cuando un cliente nuevo entre en contacto, enviar mensaje de bienvenida, crear un negocio y agregar la tag Receptivo",
+    "promptPlaceholderFlow": "Ej: Cuando el cliente pida hablar con un agente, preguntar el motivo y transferir a un humano",
+    "examplesLabel": "Ejemplos rápidos",
+    "exampleWelcome": "Bienvenida para nuevos contactos",
+    "exampleFollowUp": "Seguimiento después de 24h sin respuesta",
+    "exampleQualify": "Calificar lead con una pregunta",
+    "exampleNps": "Encuesta NPS al cerrar la conversación",
+    "generateButtonAutomation": "Generar automatización",
+    "generateButtonFlow": "Generar flujo",
+    "generateFailed": "Error al generar. Intenta reformular la descripción.",
+    "noSteps": "Ningún paso generado.",
+    "branchYes": "Sí",
+    "branchNo": "No",
+    "entryBadge": "Inicio",
+    "startOver": "Recomenzar",
+    "editManually": "Editar manualmente",
+    "saveAnyway": "Guardar de todos modos",
+    "saveFailed": "Error al guardar",
+    "automationSaved": "Automatización creada con éxito",
+    "flowSaved": "Flujo creado con éxito",
+    "close": "Cerrar"
   }
 }
