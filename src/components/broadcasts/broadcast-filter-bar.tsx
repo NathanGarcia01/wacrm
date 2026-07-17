@@ -15,57 +15,60 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { X, Tag as TagIcon, ChevronDown } from "lucide-react";
-import type { DealStatus, PipelineStage, Profile, Tag } from "@/types";
+import type { BroadcastStatus, Tag } from "@/types";
 import type { PeriodKey } from "@/lib/reports/types";
 
-export interface PipelineFilters {
-  status: DealStatus | "all";
-  assignedTo: string; // "" = all, "unassigned" = no assignee, else profile id
-  stageId: string; // "" = all stages
-  /** "all" = no date restriction. Filters each deal by its "effective
-   *  date" — won_at / lost_at if closed, created_at if still open. */
+export interface WhatsAppChannelOption {
+  id: string;
+  name: string;
+  display_phone_number?: string | null;
+  is_active: boolean;
+}
+
+export interface BroadcastFilters {
+  status: BroadcastStatus | "all";
+  /** ANY-match against the broadcast's audience_filter.tagIds. */
+  tagIds: string[];
+  /** "all" = no date restriction. Filters each broadcast by its
+   *  "effective date" — scheduled_at if set, else created_at. */
   periodKey: PeriodKey | "all";
   customFrom?: string;
   customTo?: string;
-  /** ANY-match: deal's contact must have at least one of these tags. */
-  tagIds: string[];
+  channelId: string; // "" = all
 }
 
-export const DEFAULT_PIPELINE_FILTERS: PipelineFilters = {
-  status: "open",
-  assignedTo: "",
-  stageId: "",
-  periodKey: "all",
+export const DEFAULT_BROADCAST_FILTERS: BroadcastFilters = {
+  status: "all",
   tagIds: [],
+  periodKey: "all",
+  channelId: "",
 };
 
-export function countActivePipelineFilters(filters: PipelineFilters): number {
+export function countActiveBroadcastFilters(filters: BroadcastFilters): number {
   let count = 0;
-  if (filters.status !== DEFAULT_PIPELINE_FILTERS.status) count += 1;
-  if (filters.assignedTo !== "") count += 1;
-  if (filters.stageId !== "") count += 1;
-  if (filters.periodKey !== "all") count += 1;
+  if (filters.status !== "all") count += 1;
   if (filters.tagIds.length > 0) count += 1;
+  if (filters.periodKey !== "all") count += 1;
+  if (filters.channelId !== "") count += 1;
   return count;
 }
 
-interface PipelineFilterBarProps {
-  filters: PipelineFilters;
-  onChange: (filters: PipelineFilters) => void;
-  profiles: Profile[];
-  stages: PipelineStage[];
+interface BroadcastFilterBarProps {
+  filters: BroadcastFilters;
+  onChange: (filters: BroadcastFilters) => void;
   tags: Tag[];
+  channels: WhatsAppChannelOption[];
 }
 
-export function PipelineFilterBar({
+export function BroadcastFilterBar({
   filters,
   onChange,
-  profiles,
-  stages,
   tags,
-}: PipelineFilterBarProps) {
-  const t = useTranslations("pipelines.filters");
-  const activeCount = countActivePipelineFilters(filters);
+  channels,
+}: BroadcastFilterBarProps) {
+  const t = useTranslations("broadcasts.list.filters");
+  const tStatus = useTranslations("broadcasts.status");
+  const activeCount = countActiveBroadcastFilters(filters);
 
   function toggleTag(tagId: string) {
     const next = filters.tagIds.includes(tagId)
@@ -75,32 +78,20 @@ export function PipelineFilterBar({
   }
 
   // Base UI's <Select> only resolves the trigger's displayed label from
-  // its `items` map (or from the popup's <SelectItem> children once the
-  // popup has actually been opened) — without `items`, the trigger shows
-  // the raw value ("open", "__all__") until the user opens it once.
-  // Passing `items` up front keeps the closed trigger's label correct.
+  // its `items` map up front — see pipeline-filter-bar.tsx for the same
+  // note. Kept consistent here.
   const statusItems = useMemo(
     () => ({
       all: t("statusAll"),
-      open: t("statusOpen"),
-      won: t("statusWon"),
-      lost: t("statusLost"),
+      draft: tStatus("draft"),
+      scheduled: tStatus("scheduled"),
+      sending: tStatus("sending"),
+      paused: tStatus("paused"),
+      sent: tStatus("sent"),
+      failed: tStatus("failed"),
     }),
-    [t],
+    [t, tStatus],
   );
-  const responsibleItems = useMemo(() => {
-    const items: Record<string, string> = {
-      __all__: t("responsibleAll"),
-      unassigned: t("responsibleUnassigned"),
-    };
-    for (const p of profiles) items[p.id] = p.full_name || p.email;
-    return items;
-  }, [t, profiles]);
-  const stageItems = useMemo(() => {
-    const items: Record<string, string> = { __all__: t("stageAll") };
-    for (const s of stages) items[s.id] = s.name;
-    return items;
-  }, [t, stages]);
   const periodItems = useMemo(
     () => ({
       all: t("periodAll"),
@@ -111,79 +102,34 @@ export function PipelineFilterBar({
     }),
     [t],
   );
+  const channelItems = useMemo(() => {
+    const items: Record<string, string> = { __all__: t("channelAll") };
+    for (const c of channels) {
+      items[c.id] = c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name;
+    }
+    return items;
+  }, [t, channels]);
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/60 p-3">
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">
-          {t("statusLabel")}
-        </label>
+        <label className="text-xs font-medium text-muted-foreground">{t("statusLabel")}</label>
         <Select
           items={statusItems}
           value={filters.status}
-          onValueChange={(v) =>
-            onChange({ ...filters, status: v as DealStatus | "all" })
-          }
+          onValueChange={(v) => onChange({ ...filters, status: v as BroadcastStatus | "all" })}
         >
           <SelectTrigger className="w-40 bg-muted">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t("statusAll")}</SelectItem>
-            <SelectItem value="open">{t("statusOpen")}</SelectItem>
-            <SelectItem value="won">{t("statusWon")}</SelectItem>
-            <SelectItem value="lost">{t("statusLost")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">
-          {t("responsibleLabel")}
-        </label>
-        <Select
-          items={responsibleItems}
-          value={filters.assignedTo === "" ? "__all__" : filters.assignedTo}
-          onValueChange={(v) =>
-            onChange({ ...filters, assignedTo: !v || v === "__all__" ? "" : v })
-          }
-        >
-          <SelectTrigger className="w-48 bg-muted">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{t("responsibleAll")}</SelectItem>
-            <SelectItem value="unassigned">{t("responsibleUnassigned")}</SelectItem>
-            {profiles.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.full_name || p.email}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">
-          {t("stageLabel")}
-        </label>
-        <Select
-          items={stageItems}
-          value={filters.stageId === "" ? "__all__" : filters.stageId}
-          onValueChange={(v) =>
-            onChange({ ...filters, stageId: !v || v === "__all__" ? "" : v })
-          }
-        >
-          <SelectTrigger className="w-48 bg-muted">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">{t("stageAll")}</SelectItem>
-            {stages.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name}
-              </SelectItem>
-            ))}
+            <SelectItem value="draft">{tStatus("draft")}</SelectItem>
+            <SelectItem value="scheduled">{tStatus("scheduled")}</SelectItem>
+            <SelectItem value="sending">{tStatus("sending")}</SelectItem>
+            <SelectItem value="paused">{tStatus("paused")}</SelectItem>
+            <SelectItem value="sent">{tStatus("sent")}</SelectItem>
+            <SelectItem value="failed">{tStatus("failed")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -195,7 +141,7 @@ export function PipelineFilterBar({
             render={
               <Button
                 variant="outline"
-                className="h-9 w-48 justify-between border-border bg-muted font-normal text-foreground"
+                className="h-9 w-52 justify-between border-border bg-muted font-normal text-foreground"
               />
             }
           >
@@ -255,7 +201,7 @@ export function PipelineFilterBar({
           items={periodItems}
           value={filters.periodKey}
           onValueChange={(v) =>
-            onChange({ ...filters, periodKey: (v || "all") as PipelineFilters["periodKey"] })
+            onChange({ ...filters, periodKey: (v || "all") as BroadcastFilters["periodKey"] })
           }
         >
           <SelectTrigger className="w-40 bg-muted">
@@ -296,13 +242,38 @@ export function PipelineFilterBar({
         </>
       )}
 
+      {channels.length > 1 && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground">{t("channelLabel")}</label>
+          <Select
+            items={channelItems}
+            value={filters.channelId === "" ? "__all__" : filters.channelId}
+            onValueChange={(v) =>
+              onChange({ ...filters, channelId: !v || v === "__all__" ? "" : v })
+            }
+          >
+            <SelectTrigger className="w-48 bg-muted">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">{t("channelAll")}</SelectItem>
+              {channels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {activeCount > 0 && (
         <div className="ml-auto flex items-center gap-2 self-end">
           <Badge variant="secondary">{t("activeFilters", { count: activeCount })}</Badge>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onChange(DEFAULT_PIPELINE_FILTERS)}
+            onClick={() => onChange(DEFAULT_BROADCAST_FILTERS)}
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="mr-1 h-3.5 w-3.5" />

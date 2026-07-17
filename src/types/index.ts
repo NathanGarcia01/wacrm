@@ -100,11 +100,14 @@ export interface Contact {
   avatar_url?: string;
   created_at: string;
   updated_at: string;
+  /** Present only when explicitly embedded via `contact_tags(tag_id)`. */
+  contact_tags?: { tag_id: string }[];
 }
 
 export interface Tag {
   id: string;
   user_id: string;
+  account_id?: string;
   name: string;
   color: string;
   created_at: string;
@@ -453,6 +456,10 @@ export interface Broadcast {
   /** What the user paid Meta per message, entered on the ROI card.
    *  Migration 033. */
   cost_per_message: number;
+  /** FK to whatsapp_channels — which number sent this broadcast.
+   *  Column exists in the live DB outside a checked-in migration; see
+   *  036_whatsapp_channels.sql's header note. */
+  channel_id?: string | null;
 }
 
 export interface BroadcastRecipient {

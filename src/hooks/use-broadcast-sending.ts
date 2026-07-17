@@ -26,6 +26,9 @@ export interface AudienceConfig {
   /** For type === 'pipeline_stage': contacts with an open deal in this stage. */
   pipelineId?: string;
   stageId?: string;
+  /** For type === 'pipeline_stage': further narrows to contacts that also
+   *  carry ANY of these tags. */
+  stageTagIds?: string[];
   /** Contacts carrying any of these tags are subtracted from the result. */
   excludeTagIds?: string[];
   /** Anti-duplicate guard — subtract contacts who already have a
@@ -129,7 +132,11 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     } else if (audience.type === 'csv' && audience.csvContacts) {
       contacts = await upsertCsvContacts(supabase, audience.csvContacts);
     } else if (audience.type === 'pipeline_stage' && audience.stageId) {
-      contacts = await resolvePipelineStageAudience(supabase, audience.stageId);
+      contacts = await resolvePipelineStageAudience(
+        supabase,
+        audience.stageId,
+        audience.stageTagIds,
+      );
     }
 
     // Apply exclude tags (works across all contact-derived audience
@@ -267,10 +274,13 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     return data ?? [];
   }
 
-  /** Contacts with an open deal sitting in the given pipeline stage. */
+  /** Contacts with an open deal sitting in the given pipeline stage,
+   *  optionally further narrowed to contacts carrying ANY of `stageTagIds`
+   *  — e.g. "Leads na etapa Qualificado COM tag Servidor Municipal". */
   async function resolvePipelineStageAudience(
     supabase: ReturnType<typeof createClient>,
     stageId: string,
+    stageTagIds?: string[],
   ): Promise<Contact[]> {
     const { data: matches, error: matchErr } = await supabase
       .from('deals')
@@ -279,7 +289,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       .eq('status', 'open');
     if (matchErr) throw new Error(`Pipeline-stage filter failed: ${matchErr.message}`);
 
-    const contactIds = [
+    let contactIds = [
       ...new Set(
         (matches ?? [])
           .map((m) => m.contact_id as string | null)
@@ -287,6 +297,17 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       ),
     ];
     if (contactIds.length === 0) return [];
+
+    if (stageTagIds && stageTagIds.length > 0) {
+      const { data: stageTagRows, error: stageTagErr } = await supabase
+        .from('contact_tags')
+        .select('contact_id')
+        .in('tag_id', stageTagIds);
+      if (stageTagErr) throw new Error(`Stage tag filter failed: ${stageTagErr.message}`);
+      const stageTagContactIds = new Set((stageTagRows ?? []).map((r) => r.contact_id));
+      contactIds = contactIds.filter((id) => stageTagContactIds.has(id));
+      if (contactIds.length === 0) return [];
+    }
 
     const { data, error } = await supabase
       .from('contacts')
@@ -353,6 +374,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             customField: payload.audience.customField,
             pipelineId: payload.audience.pipelineId,
             stageId: payload.audience.stageId,
+            stageTagIds: payload.audience.stageTagIds,
             excludeTagIds: payload.audience.excludeTagIds,
             excludeRecentlyMessaged: payload.audience.excludeRecentlyMessaged,
             excludeRecentDays: payload.audience.excludeRecentDays,

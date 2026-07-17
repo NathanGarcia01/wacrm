@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
-import { Broadcast } from '@/types';
+import { Broadcast, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -16,8 +16,16 @@ import {
 } from '@/components/ui/table';
 import { Radio, Plus, Loader2 } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/use-auth';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { resolvePeriod } from '@/lib/reports/period';
+import {
+  BroadcastFilterBar,
+  DEFAULT_BROADCAST_FILTERS,
+  type BroadcastFilters,
+  type WhatsAppChannelOption,
+} from '@/components/broadcasts/broadcast-filter-bar';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -62,9 +70,13 @@ export default function BroadcastsPage() {
   const tStatus = useTranslations('broadcasts.status');
   const router = useRouter();
   const canCreate = useCan('send-messages');
+  const { accountId } = useAuth();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
+  const [filters, setFilters] = useState<BroadcastFilters>(DEFAULT_BROADCAST_FILTERS);
 
   // Used to kick off polling only while something is actively sending.
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -89,6 +101,66 @@ export default function BroadcastsPage() {
   useEffect(() => {
     fetchBroadcasts();
   }, []);
+
+  // Tags for the audience-tag filter — same pattern as Pipelines/Contacts.
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase.from('tags').select('*').order('name');
+      if (!cancelled) setTags((data ?? []) as Tag[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
+
+  // Active WhatsApp channels — the channel filter only renders once the
+  // account actually has more than one (see BroadcastFilterBar).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/whatsapp/channels');
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const active: WhatsAppChannelOption[] = (data.channels ?? []).filter(
+          (c: { is_active: boolean }) => c.is_active,
+        );
+        setChannels(active);
+      } catch {
+        // Best-effort — leaving channels empty just hides the filter.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const period = useMemo(
+    () =>
+      filters.periodKey === 'all'
+        ? null
+        : resolvePeriod(filters.periodKey, filters.customFrom, filters.customTo),
+    [filters.periodKey, filters.customFrom, filters.customTo],
+  );
+
+  const filteredBroadcasts = useMemo(() => {
+    return broadcasts.filter((b) => {
+      if (filters.status !== 'all' && b.status !== filters.status) return false;
+      if (filters.channelId !== '' && b.channel_id !== filters.channelId) return false;
+      if (filters.tagIds.length > 0) {
+        const audienceTagIds = (b.audience_filter?.tagIds as string[] | undefined) ?? [];
+        if (!filters.tagIds.some((id) => audienceTagIds.includes(id))) return false;
+      }
+      if (period) {
+        const effectiveDate = b.scheduled_at ?? b.created_at;
+        if (effectiveDate < period.startISO || effectiveDate >= period.endISO) return false;
+      }
+      return true;
+    });
+  }, [broadcasts, filters, period]);
 
   const anySending = useMemo(
     () => broadcasts.some((b) => b.status === 'sending'),
@@ -216,83 +288,97 @@ export default function BroadcastsPage() {
           </GatedButton>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="text-muted-foreground">{t('columnName')}</TableHead>
-                <TableHead className="hidden text-muted-foreground md:table-cell">{t('columnTemplate')}</TableHead>
-                <TableHead className="hidden text-right text-muted-foreground sm:table-cell">
-                  {t('columnRecipients')}
-                </TableHead>
-                <TableHead className="hidden text-muted-foreground lg:table-cell">{t('columnDelivery')}</TableHead>
-                <TableHead className="hidden text-muted-foreground lg:table-cell">{t('columnRead')}</TableHead>
-                <TableHead className="text-muted-foreground">{t('columnStatus')}</TableHead>
-                <TableHead className="hidden text-muted-foreground sm:table-cell">{t('columnDate')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {broadcasts.map((broadcast) => {
-                const status = getBroadcastStatus(broadcast.status);
-                return (
-                  <TableRow
-                    key={broadcast.id}
-                    className="cursor-pointer border-border hover:bg-muted/50"
-                    onClick={() => router.push(`/broadcasts/${broadcast.id}`)}
-                  >
-                    <TableCell className="font-medium text-foreground">
-                      {broadcast.name}
-                    </TableCell>
-                    <TableCell className="hidden text-muted-foreground md:table-cell">
-                      {broadcast.template_name}
-                    </TableCell>
-                    <TableCell className="hidden text-right font-mono text-muted-foreground tabular-nums sm:table-cell">
-                      {broadcast.total_recipients}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <RateCell
-                        value={broadcast.delivered_count}
-                        total={broadcast.total_recipients}
-                        color="bg-primary"
-                      />
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <RateCell
-                        value={broadcast.read_count}
-                        total={broadcast.total_recipients}
-                        color="bg-blue-500"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
-                      >
-                        {status.pulse && (
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-75" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold" />
-                          </span>
-                        )}
-                        {tStatus(status.labelKey)}
-                      </span>
-                      {broadcast.status === 'sending' && broadcast.batch_size > 0 && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {t('batchOf', {
-                            current: broadcast.current_batch + 1,
-                            total: Math.max(1, Math.ceil(broadcast.total_recipients / broadcast.batch_size)),
-                          })}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden font-mono text-muted-foreground sm:table-cell">
-                      {new Date(broadcast.created_at).toLocaleDateString()}
-                    </TableCell>
+        <>
+          <BroadcastFilterBar
+            filters={filters}
+            onChange={setFilters}
+            tags={tags}
+            channels={channels}
+          />
+          {filteredBroadcasts.length === 0 ? (
+            <div className="flex h-40 flex-col items-center justify-center rounded-xl border border-border bg-card">
+              <p className="text-sm text-muted-foreground">{t('noBroadcastsMatchFilter')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-muted-foreground">{t('columnName')}</TableHead>
+                    <TableHead className="hidden text-muted-foreground md:table-cell">{t('columnTemplate')}</TableHead>
+                    <TableHead className="hidden text-right text-muted-foreground sm:table-cell">
+                      {t('columnRecipients')}
+                    </TableHead>
+                    <TableHead className="hidden text-muted-foreground lg:table-cell">{t('columnDelivery')}</TableHead>
+                    <TableHead className="hidden text-muted-foreground lg:table-cell">{t('columnRead')}</TableHead>
+                    <TableHead className="text-muted-foreground">{t('columnStatus')}</TableHead>
+                    <TableHead className="hidden text-muted-foreground sm:table-cell">{t('columnDate')}</TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredBroadcasts.map((broadcast) => {
+                    const status = getBroadcastStatus(broadcast.status);
+                    return (
+                      <TableRow
+                        key={broadcast.id}
+                        className="cursor-pointer border-border hover:bg-muted/50"
+                        onClick={() => router.push(`/broadcasts/${broadcast.id}`)}
+                      >
+                        <TableCell className="font-medium text-foreground">
+                          {broadcast.name}
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground md:table-cell">
+                          {broadcast.template_name}
+                        </TableCell>
+                        <TableCell className="hidden text-right font-mono text-muted-foreground tabular-nums sm:table-cell">
+                          {broadcast.total_recipients}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <RateCell
+                            value={broadcast.delivered_count}
+                            total={broadcast.total_recipients}
+                            color="bg-primary"
+                          />
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <RateCell
+                            value={broadcast.read_count}
+                            total={broadcast.total_recipients}
+                            color="bg-blue-500"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${status.classes}`}
+                          >
+                            {status.pulse && (
+                              <span className="relative flex h-1.5 w-1.5">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-gold opacity-75" />
+                                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-gold" />
+                              </span>
+                            )}
+                            {tStatus(status.labelKey)}
+                          </span>
+                          {broadcast.status === 'sending' && broadcast.batch_size > 0 && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {t('batchOf', {
+                                current: broadcast.current_batch + 1,
+                                total: Math.max(1, Math.ceil(broadcast.total_recipients / broadcast.batch_size)),
+                              })}
+                            </p>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden font-mono text-muted-foreground sm:table-cell">
+                          {new Date(broadcast.created_at).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

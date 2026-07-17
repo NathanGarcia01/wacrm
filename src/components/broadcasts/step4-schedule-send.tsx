@@ -51,6 +51,7 @@ interface AudienceConfig {
   tagIds?: string[];
   csvContacts?: { phone: string; name?: string }[];
   stageId?: string;
+  stageTagIds?: string[];
 }
 
 interface Step4Props {
@@ -201,11 +202,19 @@ export function Step4ScheduleSend({
             .select('contact_id')
             .eq('stage_id', audience.stageId)
             .eq('status', 'open');
-          const uniqueIds = new Set(
+          let uniqueIds = new Set(
             (data ?? [])
               .map((d) => d.contact_id as string | null)
               .filter((id): id is string => Boolean(id)),
           );
+          if (audience.stageTagIds && audience.stageTagIds.length > 0) {
+            const { data: stageTagRows } = await supabase
+              .from('contact_tags')
+              .select('contact_id')
+              .in('tag_id', audience.stageTagIds);
+            const stageTagContactIds = new Set((stageTagRows ?? []).map((r) => r.contact_id));
+            uniqueIds = new Set([...uniqueIds].filter((id) => stageTagContactIds.has(id)));
+          }
           setEstimatedReach(uniqueIds.size);
         } else {
           setEstimatedReach(0);

@@ -41,6 +41,10 @@ interface AudienceConfig {
   /** For type === 'pipeline_stage': contacts with an open deal in this stage. */
   pipelineId?: string;
   stageId?: string;
+  /** For type === 'pipeline_stage': further narrows to contacts that also
+   *  carry ANY of these tags — e.g. "Leads na etapa Qualificado COM tag
+   *  Servidor Municipal". Optional refinement, not required for validity. */
+  stageTagIds?: string[];
   excludeTagIds?: string[];
   /** Anti-duplicate guard — see #8: subtract contacts who already have a
    *  broadcast_recipients row with status='sent' in the last N days. */
@@ -294,6 +298,14 @@ export function Step2SelectAudience({
             .map((r) => r.contact_id as string | null)
             .filter((id): id is string => Boolean(id)),
         );
+        if (audience.stageTagIds && audience.stageTagIds.length > 0) {
+          const { data: stageTagRows } = await supabase
+            .from('contact_tags')
+            .select('contact_id')
+            .in('tag_id', audience.stageTagIds);
+          const stageTagContactIds = new Set((stageTagRows ?? []).map((r) => r.contact_id));
+          baseIds = new Set([...baseIds].filter((id) => stageTagContactIds.has(id)));
+        }
       } else {
         // Partially-configured audience — wait for the user to finish.
         setEstimatedCount(null);
@@ -365,6 +377,7 @@ export function Step2SelectAudience({
     audience.customField,
     audience.csvContacts,
     audience.stageId,
+    audience.stageTagIds,
     audience.excludeRecentlyMessaged,
     audience.excludeRecentDays,
     audience.excludeTagIds,
@@ -380,6 +393,14 @@ export function Step2SelectAudience({
       ? current.filter((id) => id !== tagId)
       : [...current, tagId];
     onUpdate({ ...audience, tagIds: updated });
+  }
+
+  function toggleStageTag(tagId: string) {
+    const current = audience.stageTagIds ?? [];
+    const updated = current.includes(tagId)
+      ? current.filter((id) => id !== tagId)
+      : [...current, tagId];
+    onUpdate({ ...audience, stageTagIds: updated });
   }
 
   function toggleExcludeTag(tagId: string) {
@@ -487,6 +508,8 @@ export function Step2SelectAudience({
                     option.type === 'pipeline_stage' ? audience.pipelineId : undefined,
                   stageId:
                     option.type === 'pipeline_stage' ? audience.stageId : undefined,
+                  stageTagIds:
+                    option.type === 'pipeline_stage' ? audience.stageTagIds : undefined,
                 });
               }}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
@@ -691,7 +714,12 @@ export function Step2SelectAudience({
               <select
                 value={audience.pipelineId ?? ''}
                 onChange={(e) =>
-                  onUpdate({ ...audience, pipelineId: e.target.value, stageId: undefined })
+                  onUpdate({
+                    ...audience,
+                    pipelineId: e.target.value,
+                    stageId: undefined,
+                    stageTagIds: undefined,
+                  })
                 }
                 className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               >
@@ -704,7 +732,9 @@ export function Step2SelectAudience({
               </select>
               <select
                 value={audience.stageId ?? ''}
-                onChange={(e) => onUpdate({ ...audience, stageId: e.target.value })}
+                onChange={(e) =>
+                  onUpdate({ ...audience, stageId: e.target.value, stageTagIds: undefined })
+                }
                 disabled={!audience.pipelineId || loadingPipelineStages}
                 className="h-9 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50"
               >
@@ -715,6 +745,41 @@ export function Step2SelectAudience({
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {audience.stageId && (
+            <div className="border-t border-border pt-3">
+              <div className="mb-2 flex items-center gap-2">
+                <p className="text-xs font-medium text-foreground">{t('stageTagFilterLabel')}</p>
+                <span className="text-xs text-muted-foreground">{t('stageTagFilterOptional')}</span>
+              </div>
+              {tags.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{t('noTagsForStageFilter')}</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => {
+                    const isSelected = audience.stageTagIds?.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => toggleStageTag(tag.id)}
+                        className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                          isSelected
+                            ? 'border-primary/30 bg-primary/10 text-primary'
+                            : 'border-border bg-muted text-muted-foreground hover:border-border'
+                        }`}
+                      >
+                        <span
+                          className="mr-1.5 h-2 w-2 rounded-full"
+                          style={{ backgroundColor: tag.color }}
+                        />
+                        {tag.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>

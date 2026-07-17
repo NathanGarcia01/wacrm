@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage, Deal, Profile } from "@/types";
+import type { Pipeline, PipelineStage, Deal, Profile, Tag } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
@@ -123,7 +123,7 @@ export default function PipelinesPage() {
       const { data } = await supabase
         .from("deals")
         .select(
-          "*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*), products:deal_products(id, commission_value)",
+          "*, contact:contacts(*, contact_tags(tag_id)), assignee:profiles!deals_assigned_to_fkey(*), products:deal_products(id, commission_value)",
         )
         .eq("pipeline_id", pipelineId)
         .order("created_at", { ascending: false });
@@ -140,6 +140,21 @@ export default function PipelinesPage() {
     (async () => {
       const { data } = await supabase.from("profiles").select("*").order("full_name");
       if (!cancelled) setProfiles((data ?? []) as Profile[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, supabase]);
+
+  // Tags for the pipeline filter bar — same ANY-match semantics as the
+  // Contacts page's tag filter.
+  const [tags, setTags] = useState<Tag[]>([]);
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("tags").select("*").order("name");
+      if (!cancelled) setTags((data ?? []) as Tag[]);
     })();
     return () => {
       cancelled = true;
@@ -397,6 +412,10 @@ export default function PipelinesPage() {
       )
         return false;
       if (filters.stageId !== "" && d.stage_id !== filters.stageId) return false;
+      if (filters.tagIds.length > 0) {
+        const contactTagIds = d.contact?.contact_tags?.map((ct) => ct.tag_id) ?? [];
+        if (!filters.tagIds.some((id) => contactTagIds.includes(id))) return false;
+      }
       if (period) {
         const effectiveDate = d.won_at ?? d.lost_at ?? d.created_at;
         if (effectiveDate < period.startISO || effectiveDate >= period.endISO) return false;
@@ -570,6 +589,7 @@ export default function PipelinesPage() {
             onChange={setFilters}
             profiles={profiles}
             stages={stages}
+            tags={tags}
           />
           {view === "board" ? (
             <>

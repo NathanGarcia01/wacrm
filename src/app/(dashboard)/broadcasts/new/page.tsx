@@ -48,6 +48,7 @@ export default function NewBroadcastPage() {
     csvContacts?: { phone: string; name?: string }[];
     pipelineId?: string;
     stageId?: string;
+    stageTagIds?: string[];
     excludeTagIds?: string[];
     excludeRecentlyMessaged?: boolean;
     excludeRecentDays?: number;
@@ -75,6 +76,7 @@ export default function NewBroadcastPage() {
           csvContacts: audience.csvContacts,
           pipelineId: audience.pipelineId,
           stageId: audience.stageId,
+          stageTagIds: audience.stageTagIds,
           excludeTagIds: audience.excludeTagIds,
           excludeRecentlyMessaged: audience.excludeRecentlyMessaged,
           excludeRecentDays: audience.excludeRecentDays,
@@ -134,6 +136,7 @@ export default function NewBroadcastPage() {
         tagIds: audience.tagIds,
         pipelineId: audience.pipelineId,
         stageId: audience.stageId,
+        stageTagIds: audience.stageTagIds,
       },
       status: 'draft',
       total_recipients: 0,
