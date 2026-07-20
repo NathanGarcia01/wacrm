@@ -1435,11 +1435,42 @@
       "quickReplies": "Respostas Rápidas",
       "nps": "Satisfação (NPS)",
       "members": "Membros da equipe",
-      "api": "Chaves de API"
+      "api": "Chaves de API",
+      "integrations": "Integrações"
     },
     "railGroups": {
       "account": "Conta",
       "workspace": "Workspace"
+    },
+    "integrations": {
+      "title": "Integrações",
+      "description": "Conecte serviços externos para automatizar seu fluxo de trabalho.",
+      "googleSheets": {
+        "cardTitle": "Google Sheets",
+        "cardDescription": "Sincroniza o pipeline em tempo real — cada etapa do funil vira uma aba na planilha.",
+        "connectButton": "Conectar com Google",
+        "disconnectButton": "Desconectar",
+        "connected": "Conectado",
+        "notConnected": "Não conectado",
+        "spreadsheetLabel": "Planilha do Google Sheets",
+        "spreadsheetPlaceholder": "Cole a URL da planilha",
+        "saveSpreadsheetButton": "Salvar planilha",
+        "createSpreadsheetButton": "Criar planilha automaticamente",
+        "orDivider": "ou",
+        "openSpreadsheet": "Abrir planilha",
+        "resyncButton": "Sincronizar agora",
+        "resyncing": "Sincronizando...",
+        "resyncSuccess": "{deals} negócios sincronizados em {tabs} abas.",
+        "resyncError": "Falha ao sincronizar",
+        "connectSuccess": "Conta Google conectada com sucesso!",
+        "connectError": "Falha ao conectar com o Google",
+        "disconnectSuccess": "Google Sheets desconectado.",
+        "spreadsheetSaved": "Planilha salva com sucesso.",
+        "spreadsheetSaveError": "Falha ao salvar a planilha",
+        "invalidUrl": "URL da planilha inválida.",
+        "noSpreadsheetHint": "Cole a URL de uma planilha existente ou crie uma nova automaticamente.",
+        "adminOnlyHint": "Apenas administradores da conta podem gerenciar integrações."
+      }
     },
     "overview": {
       "yourAccount": "Sua conta",

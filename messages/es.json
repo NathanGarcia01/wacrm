@@ -1435,11 +1435,42 @@
       "quickReplies": "Respuestas Rápidas",
       "nps": "Satisfacción (NPS)",
       "members": "Miembros del equipo",
-      "api": "Claves de API"
+      "api": "Claves de API",
+      "integrations": "Integraciones"
     },
     "railGroups": {
       "account": "Cuenta",
       "workspace": "Workspace"
+    },
+    "integrations": {
+      "title": "Integraciones",
+      "description": "Conecta servicios externos para automatizar tu flujo de trabajo.",
+      "googleSheets": {
+        "cardTitle": "Google Sheets",
+        "cardDescription": "Sincroniza tu pipeline en tiempo real — cada etapa del embudo se convierte en una pestaña de la hoja de cálculo.",
+        "connectButton": "Conectar con Google",
+        "disconnectButton": "Desconectar",
+        "connected": "Conectado",
+        "notConnected": "No conectado",
+        "spreadsheetLabel": "Hoja de cálculo de Google Sheets",
+        "spreadsheetPlaceholder": "Pega la URL de la hoja de cálculo",
+        "saveSpreadsheetButton": "Guardar hoja de cálculo",
+        "createSpreadsheetButton": "Crear hoja de cálculo automáticamente",
+        "orDivider": "o",
+        "openSpreadsheet": "Abrir hoja de cálculo",
+        "resyncButton": "Sincronizar ahora",
+        "resyncing": "Sincronizando...",
+        "resyncSuccess": "{deals} negocios sincronizados en {tabs} pestañas.",
+        "resyncError": "Error al sincronizar",
+        "connectSuccess": "¡Cuenta de Google conectada con éxito!",
+        "connectError": "Error al conectar con Google",
+        "disconnectSuccess": "Google Sheets desconectado.",
+        "spreadsheetSaved": "Hoja de cálculo guardada con éxito.",
+        "spreadsheetSaveError": "Error al guardar la hoja de cálculo",
+        "invalidUrl": "URL de la hoja de cálculo inválida.",
+        "noSpreadsheetHint": "Pega la URL de una hoja de cálculo existente o crea una nueva automáticamente.",
+        "adminOnlyHint": "Solo los administradores de la cuenta pueden gestionar integraciones."
+      }
     },
     "overview": {
       "yourAccount": "Tu cuenta",

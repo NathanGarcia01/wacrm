@@ -21,6 +21,7 @@ import { QuickRepliesSettings } from '@/components/settings/quick-replies-settin
 import { NpsSettings } from '@/components/settings/nps-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
+import { IntegrationsPanel } from '@/components/settings/integrations-panel';
 import {
   resolveSection,
   type SettingsSection,
@@ -71,6 +72,7 @@ export default function SettingsPage() {
     nps: <NpsSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
+    integrations: <IntegrationsPanel />,
   };
 
   return (

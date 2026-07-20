@@ -8,6 +8,7 @@ import {
   Package,
   Palette,
   PlugZap,
+  Plug,
   Shield,
   Star,
   Tags,
@@ -39,6 +40,7 @@ export const SETTINGS_SECTIONS = [
   'nps',
   'members',
   'api',
+  'integrations',
 ] as const;
 
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
@@ -78,6 +80,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   nps: { id: 'nps', icon: Star, group: 'workspace' },
   members: { id: 'members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', icon: KeyRound, group: 'workspace' },
+  integrations: { id: 'integrations', icon: Plug, group: 'workspace' },
 };
 
 /** `groupKey` resolves via `useTranslations('settings.railGroups')`;

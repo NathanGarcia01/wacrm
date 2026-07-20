@@ -1435,11 +1435,42 @@
       "quickReplies": "Quick Replies",
       "nps": "Satisfaction (NPS)",
       "members": "Team members",
-      "api": "API keys"
+      "api": "API keys",
+      "integrations": "Integrations"
     },
     "railGroups": {
       "account": "Account",
       "workspace": "Workspace"
+    },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Connect external services to automate your workflow.",
+      "googleSheets": {
+        "cardTitle": "Google Sheets",
+        "cardDescription": "Syncs your pipeline in real time — each funnel stage becomes a spreadsheet tab.",
+        "connectButton": "Connect with Google",
+        "disconnectButton": "Disconnect",
+        "connected": "Connected",
+        "notConnected": "Not connected",
+        "spreadsheetLabel": "Google Sheets spreadsheet",
+        "spreadsheetPlaceholder": "Paste the spreadsheet URL",
+        "saveSpreadsheetButton": "Save spreadsheet",
+        "createSpreadsheetButton": "Create spreadsheet automatically",
+        "orDivider": "or",
+        "openSpreadsheet": "Open spreadsheet",
+        "resyncButton": "Sync now",
+        "resyncing": "Syncing...",
+        "resyncSuccess": "{deals} deals synced across {tabs} tabs.",
+        "resyncError": "Failed to sync",
+        "connectSuccess": "Google account connected successfully!",
+        "connectError": "Failed to connect with Google",
+        "disconnectSuccess": "Google Sheets disconnected.",
+        "spreadsheetSaved": "Spreadsheet saved successfully.",
+        "spreadsheetSaveError": "Failed to save the spreadsheet",
+        "invalidUrl": "Invalid spreadsheet URL.",
+        "noSpreadsheetHint": "Paste an existing spreadsheet's URL or create a new one automatically.",
+        "adminOnlyHint": "Only account admins can manage integrations."
+      }
     },
     "overview": {
       "yourAccount": "Your account",
