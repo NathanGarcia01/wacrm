@@ -18,5 +18,9 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  return NextResponse.redirect(buildGoogleAuthUrl(account.accountId))
+  const authUrl = buildGoogleAuthUrl(account.accountId)
+  console.log('[google-sheets/connect] authorization URL:', authUrl)
+  console.log('[google-sheets/connect] GOOGLE_REDIRECT_URI env:', process.env.GOOGLE_REDIRECT_URI)
+
+  return NextResponse.redirect(authUrl)
 }
