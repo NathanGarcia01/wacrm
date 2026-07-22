@@ -11,12 +11,22 @@ export type TemplateSlug =
   | 'out_of_office'
   | 'lead_qualifier'
   | 'follow_up_reminder'
+  | 'welcome_receptive'
+  | 'followup_24h'
+  | 'deal_won_flow'
+  | 'keyword_qualifier'
+  | 'auto_redistribution'
 
 const TEMPLATE_SLUGS: readonly TemplateSlug[] = [
   'welcome_message',
   'out_of_office',
   'lead_qualifier',
   'follow_up_reminder',
+  'welcome_receptive',
+  'followup_24h',
+  'deal_won_flow',
+  'keyword_qualifier',
+  'auto_redistribution',
 ]
 
 export interface TemplateStepSeed {
@@ -143,6 +153,104 @@ export function buildAutomationTemplates(
           step_config: {
             text: t('followUpReminder.text1'),
           },
+        },
+      ],
+    },
+    welcome_receptive: {
+      slug: 'welcome_receptive',
+      name: t('welcomeReceptive.name'),
+      description: t('welcomeReceptive.description'),
+      trigger_type: 'new_contact_created',
+      trigger_config: {},
+      steps: [
+        {
+          step_type: 'send_message',
+          step_config: { text: t('welcomeReceptive.text1') },
+        },
+        {
+          step_type: 'add_tag',
+          step_config: { tag_id: '' },
+        },
+        {
+          step_type: 'create_deal',
+          step_config: { title: '', value: 0 },
+        },
+      ],
+    },
+    followup_24h: {
+      slug: 'followup_24h',
+      name: t('followup24h.name'),
+      description: t('followup24h.description'),
+      trigger_type: 'inactivity',
+      trigger_config: { hours: 24 },
+      steps: [
+        {
+          step_type: 'send_message',
+          step_config: { text: t('followup24h.text1') },
+        },
+        {
+          step_type: 'set_conversation_pending',
+          step_config: {},
+        },
+      ],
+    },
+    deal_won_flow: {
+      slug: 'deal_won_flow',
+      name: t('dealWonFlow.name'),
+      description: t('dealWonFlow.description'),
+      trigger_type: 'deal_won',
+      trigger_config: {},
+      steps: [
+        {
+          step_type: 'send_message',
+          step_config: { text: t('dealWonFlow.text1') },
+        },
+        // close_conversation also auto-fires the NPS survey (mirrors the
+        // manual-close flow) so this template needs no separate NPS step.
+        {
+          step_type: 'close_conversation',
+          step_config: {},
+        },
+      ],
+    },
+    keyword_qualifier: {
+      slug: 'keyword_qualifier',
+      name: t('keywordQualifier.name'),
+      description: t('keywordQualifier.description'),
+      trigger_type: 'keyword_match',
+      trigger_config: {
+        keywords: ['preço', 'orçamento', 'comprar', 'contratar'],
+        match_type: 'contains',
+      },
+      steps: [
+        {
+          step_type: 'condition',
+          step_config: { subject: 'tag_presence', operand: '' },
+        },
+        {
+          step_type: 'assign_conversation',
+          step_config: { mode: 'round_robin' },
+          parent_index: 0,
+          branch: 'yes',
+        },
+        {
+          step_type: 'close_conversation',
+          step_config: {},
+          parent_index: 0,
+          branch: 'no',
+        },
+      ],
+    },
+    auto_redistribution: {
+      slug: 'auto_redistribution',
+      name: t('autoRedistribution.name'),
+      description: t('autoRedistribution.description'),
+      trigger_type: 'conversation_opened',
+      trigger_config: {},
+      steps: [
+        {
+          step_type: 'assign_conversation',
+          step_config: { mode: 'round_robin' },
         },
       ],
     },

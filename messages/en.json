@@ -764,8 +764,8 @@
       "saveDraft": "Save Draft",
       "trigger": "Trigger",
       "triggerType": "Trigger type",
-      "keywordsLabel": "Keywords (comma-separated)",
-      "keywordsPlaceholder": "e.g. pricing, book a demo, talk to sales",
+      "keywordsLabel": "Keywords (one per line)",
+      "keywordsPlaceholder": "pricing\nbook a demo\ntalk to sales",
       "matchType": "Match type",
       "contains": "Contains",
       "exact": "Exact",
@@ -889,7 +889,39 @@
       "operandTagPlaceholder": "tag id",
       "urlLabel": "URL",
       "bodyTemplateLabel": "Body template (JSON)",
-      "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed."
+      "closeConversationHint": "Sets the conversation status to \"closed\". No configuration needed.",
+      "unassignAgentHint": "Removes the agent assigned to the conversation. No configuration needed.",
+      "openConversationHint": "Sets the conversation status to \"open\". No configuration needed.",
+      "setPendingHint": "Sets the conversation status to \"pending\". No configuration needed.",
+      "stageLabel": "Stage",
+      "selectStage": "Select a stage…",
+      "unknownStageOption": "{value} (unknown stage)",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "e.g. price, no response, chose a competitor",
+      "markDealWonHint": "Marks the contact's deal as won. No configuration needed.",
+      "markDealLostHint": "Marks the contact's deal as lost",
+      "splitPercentLabel": "Path A percentage",
+      "splitPercentHint": "The rest goes to Path B",
+      "splitPreview": "{percentA}% / {percentB}%",
+      "split": "Split",
+      "splitBranchA": "Path A ({percent}%)",
+      "splitBranchB": "Path B ({percent}%)",
+      "automationLabel": "Automation",
+      "selectAutomation": "Select an automation…",
+      "automationIdPlaceholder": "Automation id",
+      "unknownAutomationOption": "{value} (unknown automation)",
+      "stopAutomationHint": "Stops the automation run at this point. No configuration needed.",
+      "fromStageLabel": "From stage (optional)",
+      "toStageLabel": "To stage (optional)",
+      "buttonTextLabel": "Button text (optional)",
+      "buttonTextPlaceholder": "Leave blank for any button",
+      "minRatingLabel": "Minimum rating (optional)",
+      "minRatingPlaceholder": "1 to 5 — leave blank for any rating",
+      "inactivityHoursLabel": "Hours without a reply",
+      "assignToPreview": "Assign to: {name}",
+      "updateFieldPreview": "Update field: {field}",
+      "moveToStagePreview": "Move to stage: {stage}",
+      "updateValuePreview": "New value: {value}"
     },
     "relativeTime": {
       "never": "never",
@@ -963,6 +995,29 @@
         "name": "Follow-up Reminder",
         "description": "Sends a reminder if a contact doesn't reply within 24 hours.",
         "text1": "Just checking in — do you have any more questions? We're here to help!"
+      },
+      "welcomeReceptive": {
+        "name": "Inbound Welcome",
+        "description": "Welcomes every new contact, tags the source, and creates a pipeline card.",
+        "text1": "Hi! 👋 Thanks for reaching out. One of our agents will get back to you shortly."
+      },
+      "followup24h": {
+        "name": "24h Follow-up",
+        "description": "Re-engages contacts quiet for 24 hours and marks the conversation as pending.",
+        "text1": "Just checking in — any questions left? We're here to help!"
+      },
+      "dealWonFlow": {
+        "name": "Deal Won",
+        "description": "Thanks the customer when a deal is won, closes the conversation, and triggers the satisfaction survey.",
+        "text1": "Congrats on the partnership! 🎉 Thanks for doing business with us."
+      },
+      "keywordQualifier": {
+        "name": "Keyword Qualification",
+        "description": "Detects buying-intent keywords and decides between assigning an agent or closing."
+      },
+      "autoRedistribution": {
+        "name": "Auto Redistribution",
+        "description": "Whenever a conversation is reopened, automatically round-robins it across agents."
       }
     }
   },

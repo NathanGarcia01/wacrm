@@ -764,8 +764,8 @@
       "saveDraft": "Guardar Borrador",
       "trigger": "Disparador",
       "triggerType": "Tipo de disparador",
-      "keywordsLabel": "Palabras clave (separadas por comas)",
-      "keywordsPlaceholder": "ej: precios, agendar demo, hablar con ventas",
+      "keywordsLabel": "Palabras clave (una por línea)",
+      "keywordsPlaceholder": "precios\nagendar demo\nhablar con ventas",
       "matchType": "Tipo de coincidencia",
       "contains": "Contiene",
       "exact": "Exacta",
@@ -889,7 +889,39 @@
       "operandTagPlaceholder": "id del tag",
       "urlLabel": "URL",
       "bodyTemplateLabel": "Template del cuerpo (JSON)",
-      "closeConversationHint": "Establece el estado de la conversación como \"cerrada\". No necesita configuración."
+      "closeConversationHint": "Establece el estado de la conversación como \"cerrada\". No necesita configuración.",
+      "unassignAgentHint": "Elimina el agente asignado a la conversación. No necesita configuración.",
+      "openConversationHint": "Establece el estado de la conversación como \"abierta\". No necesita configuración.",
+      "setPendingHint": "Establece el estado de la conversación como \"pendiente\". No necesita configuración.",
+      "stageLabel": "Etapa",
+      "selectStage": "Selecciona una etapa…",
+      "unknownStageOption": "{value} (etapa desconocida)",
+      "reasonLabel": "Motivo",
+      "reasonPlaceholder": "ej: precio, sin respuesta, eligió a la competencia",
+      "markDealWonHint": "Marca el deal del contacto como ganado. No necesita configuración.",
+      "markDealLostHint": "Marca el deal del contacto como perdido",
+      "splitPercentLabel": "Porcentaje del Camino A",
+      "splitPercentHint": "El resto va al Camino B",
+      "splitPreview": "{percentA}% / {percentB}%",
+      "split": "División",
+      "splitBranchA": "Camino A ({percent}%)",
+      "splitBranchB": "Camino B ({percent}%)",
+      "automationLabel": "Automatización",
+      "selectAutomation": "Selecciona una automatización…",
+      "automationIdPlaceholder": "ID de la automatización",
+      "unknownAutomationOption": "{value} (automatización desconocida)",
+      "stopAutomationHint": "Detiene la ejecución de la automatización en este punto. No necesita configuración.",
+      "fromStageLabel": "Etapa de origen (opcional)",
+      "toStageLabel": "Etapa de destino (opcional)",
+      "buttonTextLabel": "Texto del botón (opcional)",
+      "buttonTextPlaceholder": "Deja en blanco para cualquier botón",
+      "minRatingLabel": "Nota mínima (opcional)",
+      "minRatingPlaceholder": "1 a 5 — deja en blanco para cualquier nota",
+      "inactivityHoursLabel": "Horas sin respuesta",
+      "assignToPreview": "Asignar a: {name}",
+      "updateFieldPreview": "Actualizar campo: {field}",
+      "moveToStagePreview": "Mover a etapa: {stage}",
+      "updateValuePreview": "Nuevo valor: {value}"
     },
     "relativeTime": {
       "never": "nunca",
@@ -963,6 +995,29 @@
         "name": "Recordatorio de Seguimiento",
         "description": "Envía un recordatorio si un contacto no responde en 24 horas.",
         "text1": "Solo quería saber — ¿tienes alguna otra duda? ¡Estamos aquí para ayudarte!"
+      },
+      "welcomeReceptive": {
+        "name": "Bienvenida Receptiva",
+        "description": "Da la bienvenida a todo contacto nuevo, marca el origen y crea una tarjeta en el pipeline.",
+        "text1": "¡Hola! 👋 Gracias por contactarnos. Uno de nuestros agentes te responderá pronto."
+      },
+      "followup24h": {
+        "name": "Seguimiento 24h",
+        "description": "Reengancha contactos inactivos por 24 horas y marca la conversación como pendiente.",
+        "text1": "Solo quería saber — ¿te quedó alguna duda? ¡Estamos aquí para ayudarte!"
+      },
+      "dealWonFlow": {
+        "name": "Deal Ganado",
+        "description": "Agradece cuando se gana un deal, cierra la conversación y dispara la encuesta de satisfacción.",
+        "text1": "¡Felicidades por la asociación! 🎉 Gracias por hacer negocios con nosotros."
+      },
+      "keywordQualifier": {
+        "name": "Calificación por Palabra Clave",
+        "description": "Detecta palabras clave de intención de compra y decide entre asignar un agente o cerrar."
+      },
+      "autoRedistribution": {
+        "name": "Redistribución Automática",
+        "description": "Cada vez que se reabre una conversación, la asigna automáticamente por rotación entre agentes."
       }
     }
   },

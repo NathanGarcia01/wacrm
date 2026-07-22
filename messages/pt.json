@@ -764,8 +764,8 @@
       "saveDraft": "Salvar Rascunho",
       "trigger": "Gatilho",
       "triggerType": "Tipo de gatilho",
-      "keywordsLabel": "Palavras-chave (separadas por vírgula)",
-      "keywordsPlaceholder": "ex: preços, agendar demo, falar com vendas",
+      "keywordsLabel": "Palavras-chave (uma por linha)",
+      "keywordsPlaceholder": "preços\nagendar demo\nfalar com vendas",
       "matchType": "Tipo de correspondência",
       "contains": "Contém",
       "exact": "Exata",
@@ -889,7 +889,39 @@
       "operandTagPlaceholder": "id da tag",
       "urlLabel": "URL",
       "bodyTemplateLabel": "Modelo do corpo (JSON)",
-      "closeConversationHint": "Define o status da conversa como \"encerrada\". Não precisa de configuração."
+      "closeConversationHint": "Define o status da conversa como \"encerrada\". Não precisa de configuração.",
+      "unassignAgentHint": "Remove o agente atribuído à conversa. Não precisa de configuração.",
+      "openConversationHint": "Define o status da conversa como \"aberta\". Não precisa de configuração.",
+      "setPendingHint": "Define o status da conversa como \"pendente\". Não precisa de configuração.",
+      "stageLabel": "Etapa",
+      "selectStage": "Selecione uma etapa…",
+      "unknownStageOption": "{value} (etapa desconhecida)",
+      "reasonLabel": "Motivo",
+      "reasonPlaceholder": "Ex: preço, sem resposta, escolheu concorrente",
+      "markDealWonHint": "Marca o deal do contato como ganho. Não precisa de configuração.",
+      "markDealLostHint": "Marca o deal do contato como perdido",
+      "splitPercentLabel": "Porcentagem do Caminho A",
+      "splitPercentHint": "O restante vai para o Caminho B",
+      "splitPreview": "{percentA}% / {percentB}%",
+      "split": "Divisão",
+      "splitBranchA": "Caminho A ({percent}%)",
+      "splitBranchB": "Caminho B ({percent}%)",
+      "automationLabel": "Automação",
+      "selectAutomation": "Selecione uma automação…",
+      "automationIdPlaceholder": "ID da automação",
+      "unknownAutomationOption": "{value} (automação desconhecida)",
+      "stopAutomationHint": "Interrompe a execução da automação neste ponto. Não precisa de configuração.",
+      "fromStageLabel": "Etapa de origem (opcional)",
+      "toStageLabel": "Etapa de destino (opcional)",
+      "buttonTextLabel": "Texto do botão (opcional)",
+      "buttonTextPlaceholder": "Deixe em branco para qualquer botão",
+      "minRatingLabel": "Nota mínima (opcional)",
+      "minRatingPlaceholder": "1 a 5 — deixe em branco para qualquer nota",
+      "inactivityHoursLabel": "Horas sem resposta",
+      "assignToPreview": "Atribuir para: {name}",
+      "updateFieldPreview": "Atualizar campo: {field}",
+      "moveToStagePreview": "Mover para etapa: {stage}",
+      "updateValuePreview": "Novo valor: {value}"
     },
     "relativeTime": {
       "never": "nunca",
@@ -963,6 +995,29 @@
         "name": "Lembrete de Follow-up",
         "description": "Envia um lembrete se um contato não responder em 24 horas.",
         "text1": "Só passando para saber — você tem mais alguma dúvida? Estamos à disposição!"
+      },
+      "welcomeReceptive": {
+        "name": "Boas-vindas Receptivo",
+        "description": "Dá boas-vindas a todo contato novo, marca a origem e cria um card no pipeline.",
+        "text1": "Oi! 👋 Obrigado por entrar em contato. Um de nossos atendentes já vai te responder."
+      },
+      "followup24h": {
+        "name": "Follow-up 24h",
+        "description": "Reengaja contatos parados há 24 horas e marca a conversa como pendente.",
+        "text1": "Só passando para saber — ficou alguma dúvida? Estamos à disposição para ajudar!"
+      },
+      "dealWonFlow": {
+        "name": "Deal Ganho",
+        "description": "Agradece quando um deal é ganho, encerra a conversa e dispara a pesquisa de satisfação.",
+        "text1": "Parabéns pela parceria! 🎉 Obrigado por fechar negócio com a gente."
+      },
+      "keywordQualifier": {
+        "name": "Qualificação por Palavra-chave",
+        "description": "Identifica palavras-chave de intenção de compra e decide entre atribuir a um atendente ou encerrar."
+      },
+      "autoRedistribution": {
+        "name": "Redistribuição Automática",
+        "description": "Sempre que uma conversa é reaberta, atribui automaticamente por rodízio entre os atendentes."
       }
     }
   },

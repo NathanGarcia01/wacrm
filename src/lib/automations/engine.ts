@@ -25,6 +25,7 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { sendNpsSurvey } from '@/lib/nps/send-survey'
 
 /**
  * Thrown by the `stop_automation` step to unwind out of any nested
@@ -793,6 +794,20 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .update({ status: 'closed', updated_at: new Date().toISOString() })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+      // Mirrors the manual-close NPS auto-send in message-thread.tsx —
+      // an automation-driven close should trigger the same survey.
+      // Best-effort: sendNpsSurvey() is a no-op if NPS is disabled or
+      // already sent, and a failure here must not fail this step.
+      resolveConversationId(args)
+        .then((conversationId) =>
+          sendNpsSurvey({
+            accountId: args.automation.account_id,
+            userId: args.automation.user_id,
+            conversationId,
+            triggerType: 'manual_close',
+          }),
+        )
+        .catch((err) => console.error('[automations] nps auto-send on close failed:', err))
       return 'conversation closed'
     }
 
