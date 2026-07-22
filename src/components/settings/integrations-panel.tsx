@@ -4,14 +4,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ExternalLink, RefreshCw, Unplug } from 'lucide-react';
+import { ExternalLink, RefreshCw, Unplug, Send } from 'lucide-react';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { SettingsPanelHead } from './settings-panel-head';
 import { useCan } from '@/hooks/use-can';
+import {
+  WEBHOOK_OUT_EVENTS,
+  type WebhookOutEvent,
+} from '@/lib/integrations/webhook-out-events';
 
 interface SpreadsheetStatus {
   connected: boolean;
@@ -235,6 +241,195 @@ export function IntegrationsPanel() {
           )}
         </CardContent>
       </Card>
+
+      <div className="mt-6">
+        <WebhookOutPanel canEdit={canEdit} />
+      </div>
     </section>
+  );
+}
+
+const WEBHOOK_OUT_EVENT_LABEL_KEY: Record<WebhookOutEvent, string> = {
+  MESSAGES_UPSERT: 'eventMessagesUpsert',
+  MESSAGE_SENT: 'eventMessageSent',
+  CONVERSATION_CREATED: 'eventConversationCreated',
+  CONTACT_CREATED: 'eventContactCreated',
+  DEAL_CREATED: 'eventDealCreated',
+  DEAL_WON: 'eventDealWon',
+  DEAL_LOST: 'eventDealLost',
+};
+
+interface WebhookOutStatus {
+  url: string;
+  events: WebhookOutEvent[];
+  is_active: boolean;
+}
+
+function WebhookOutPanel({ canEdit }: { canEdit: boolean }) {
+  const tw = useTranslations('settings.integrations.webhookOut');
+
+  const [loading, setLoading] = useState(true);
+  const [url, setUrl] = useState('');
+  const [events, setEvents] = useState<Set<WebhookOutEvent>>(new Set());
+  const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/integrations/webhook-out');
+      const data: WebhookOutStatus = await res.json();
+      setUrl(data.url ?? '');
+      setEvents(new Set(data.events ?? []));
+      setIsActive(data.is_active ?? true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  function toggleEvent(event: WebhookOutEvent) {
+    setEvents((prev) => {
+      const next = new Set(prev);
+      if (next.has(event)) next.delete(event);
+      else next.add(event);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    if (!url.trim()) {
+      toast.error(tw('urlRequired'));
+      return;
+    }
+    if (events.size === 0) {
+      toast.error(tw('eventsRequired'));
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/integrations/webhook-out', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: url.trim(),
+          events: Array.from(events),
+          is_active: isActive,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      toast.success(tw('saveSuccess'));
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : tw('saveError');
+      toast.error(reason);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    if (!url.trim()) {
+      toast.error(tw('urlRequired'));
+      return;
+    }
+    setTesting(true);
+    try {
+      const res = await fetch('/api/integrations/webhook-out/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (data.ok) {
+        toast.success(tw('testSuccess', { status: data.status }));
+      } else {
+        toast.error(tw('testFailure', { reason: data.error || `HTTP ${data.status}` }));
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'unknown error';
+      toast.error(tw('testFailure', { reason }));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-foreground">{tw('cardTitle')}</CardTitle>
+            <CardDescription className="text-muted-foreground">
+              {tw('cardDescription')}
+            </CardDescription>
+          </div>
+          {!loading ? (
+            <Badge variant={isActive ? 'default' : 'secondary'}>
+              {isActive ? tw('active') : tw('inactive')}
+            </Badge>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!canEdit ? (
+          <p className="text-xs text-muted-foreground">{tw('adminOnlyHint')}</p>
+        ) : null}
+
+        <div className="space-y-2">
+          <Label className="text-muted-foreground">{tw('urlLabel')}</Label>
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder={tw('urlPlaceholder')}
+            disabled={!canEdit || loading}
+            className="max-w-md"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-muted-foreground">{tw('eventsLabel')}</Label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {WEBHOOK_OUT_EVENTS.map((event) => (
+              <label
+                key={event}
+                className="flex items-center gap-2 text-sm text-foreground"
+              >
+                <Checkbox
+                  checked={events.has(event)}
+                  onCheckedChange={() => toggleEvent(event)}
+                  disabled={!canEdit || loading}
+                />
+                {tw(WEBHOOK_OUT_EVENT_LABEL_KEY[event])}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <Switch
+            checked={isActive}
+            onCheckedChange={(v) => setIsActive(!!v)}
+            disabled={!canEdit || loading}
+          />
+          {tw('activeToggleLabel')}
+        </label>
+
+        <div className="flex flex-wrap gap-2 pt-2">
+          <Button onClick={handleSave} disabled={!canEdit || loading || saving}>
+            {saving ? tw('saving') : tw('saveButton')}
+          </Button>
+          <Button variant="outline" onClick={handleTest} disabled={!canEdit || loading || testing}>
+            <Send className="mr-2 size-4" />
+            {testing ? tw('testing') : tw('testButton')}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

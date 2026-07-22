@@ -148,6 +148,12 @@ export const RATE_LIMITS = {
    *  instance deploy needs the Redis swap described at the top of
    *  this file (the per-key call sites don't change). */
   publicApi: { limit: 120, windowMs: 60_000 },
+  /** "Testar webhook" button in Integrações → Webhook de Saída. Each
+   *  click makes the server issue an outbound HTTP request to a
+   *  user-supplied URL — 10/min per user is enough for a person
+   *  iterating on their n8n/Zapier setup while bounding it as a
+   *  request-proxy / abuse vector against arbitrary third-party URLs. */
+  webhookOutTest: { limit: 10, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

@@ -15,6 +15,7 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import { dispatchWebhookOutEvent } from '@/lib/integrations/webhook-out'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -770,6 +771,45 @@ async function processMessage(
     console.error('Error inserting message:', msgError)
     return
   }
+
+  // Outbound webhook — repasses este evento para a URL externa (n8n,
+  // Zapier, Make...) configurada em Configurações → Integrações →
+  // Webhook de Saída, no formato compatível com a Evolution API. No-op
+  // if the account never configured one (see dispatchWebhookOutEvent).
+  // Fire-and-forget: must never block Meta's ack or fail the webhook
+  // over a slow/broken external endpoint.
+  void dispatchWebhookOutEvent(accountId, 'MESSAGES_UPSERT', async (webhookUrl) => {
+    const channelName = channelId
+      ? (
+          await supabaseAdmin()
+            .from('whatsapp_channels')
+            .select('name')
+            .eq('id', channelId)
+            .maybeSingle()
+        ).data?.name
+      : null
+    return {
+      event: 'MESSAGES_UPSERT',
+      instance: channelName ?? phoneNumberId,
+      data: {
+        key: {
+          remoteJid: `${contactRecord.phone}@s.whatsapp.net`,
+          fromMe: false,
+          id: message.id,
+        },
+        message: {
+          conversation: contentText,
+        },
+        messageType: contentType,
+        messageTimestamp: Date.now(),
+        pushName: contactRecord.name,
+      },
+      destination: webhookUrl,
+      date_time: new Date().toISOString(),
+      sender: contactRecord.phone,
+      server_url: process.env.NEXT_PUBLIC_SITE_URL,
+    }
+  }).catch((err) => console.error('[webhook-out] MESSAGES_UPSERT dispatch failed:', err))
 
   // Update conversation. A closed conversation reopens on a fresh
   // customer reply — the agent marked it done under the old context,
