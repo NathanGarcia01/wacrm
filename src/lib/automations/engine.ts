@@ -5,6 +5,9 @@ import type {
   AutomationTriggerType,
   ConditionStepConfig,
   DealStageChangedTriggerConfig,
+  ButtonClickedTriggerConfig,
+  NpsReceivedTriggerConfig,
+  InactivityTriggerConfig,
   KeywordMatchTriggerConfig,
   SendMessageStepConfig,
   SendTemplateStepConfig,
@@ -112,7 +115,7 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
     if (!automations || automations.length === 0) return
 
     for (const automation of automations as Automation[]) {
-      if (!triggerMatches(automation, input.context)) continue
+      if (!(await triggerMatches(automation, input.context, input.contactId))) continue
       try {
         await executeAutomation(automation, input)
       } catch (err) {
@@ -848,7 +851,11 @@ async function resolveOpenDealId(args: ExecuteArgs): Promise<string> {
   return data.id as string
 }
 
-function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {
+async function triggerMatches(
+  automation: Automation,
+  ctx: AutomationContext | undefined,
+  contactId: string | null | undefined,
+): Promise<boolean> {
   if (automation.trigger_type === 'keyword_match') {
     const cfg = automation.trigger_config as KeywordMatchTriggerConfig
     if (!cfg?.keywords || cfg.keywords.length === 0) return false
@@ -866,6 +873,40 @@ function triggerMatches(automation: Automation, ctx: AutomationContext | undefin
     const fromStage = ctx?.vars?.from_stage_id
     if (cfg?.to_stage_id && cfg.to_stage_id !== toStage) return false
     if (cfg?.from_stage_id && cfg.from_stage_id !== fromStage) return false
+    return true
+  }
+  if (automation.trigger_type === 'button_clicked') {
+    const cfg = automation.trigger_config as ButtonClickedTriggerConfig
+    if (!cfg?.button_text) return true
+    return cfg.button_text === ctx?.vars?.button_text
+  }
+  if (automation.trigger_type === 'nps_received') {
+    const cfg = automation.trigger_config as NpsReceivedTriggerConfig
+    const rating = ctx?.vars?.rating
+    if (typeof rating !== 'number') return false
+    if (typeof cfg?.min_rating === 'number' && rating < cfg.min_rating) return false
+    return true
+  }
+  if (automation.trigger_type === 'inactivity') {
+    const cfg = automation.trigger_config as InactivityTriggerConfig
+    const hoursCfg = Number(cfg?.hours) || 24
+    const elapsed = ctx?.vars?.inactive_hours
+    if (typeof elapsed !== 'number' || elapsed < hoursCfg) return false
+    // Dedup: don't re-fire for the same contact on every cron tick —
+    // only once per quiet period, reset when a new message lands (the
+    // cron passes the conversation's current last_message_at, so a
+    // fresh reply naturally produces a later cutoff than any past log).
+    const lastMessageAt = ctx?.vars?.last_message_at
+    if (contactId && typeof lastMessageAt === 'string') {
+      const db = supabaseAdmin()
+      const { count } = await db
+        .from('automation_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('automation_id', automation.id)
+        .eq('contact_id', contactId)
+        .gte('created_at', lastMessageAt)
+      if ((count ?? 0) > 0) return false
+    }
     return true
   }
   return true

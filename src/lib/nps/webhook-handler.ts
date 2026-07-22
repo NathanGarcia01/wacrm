@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { runAutomationsForTrigger } from "@/lib/automations/engine";
 import { sendTextMessage } from "@/lib/whatsapp/meta-api";
 import { sanitizePhoneForMeta } from "@/lib/whatsapp/phone-utils";
 
@@ -8,6 +9,7 @@ const DEFAULT_FOLLOW_UP_MESSAGE =
 interface HandleNpsResponseArgs {
   accountId: string;
   conversationId: string;
+  contactId: string;
   contactPhone: string;
   phoneNumberId: string;
   accessToken: string;
@@ -63,6 +65,15 @@ export async function handleNpsResponse(args: HandleNpsResponseArgs): Promise<bo
       // more confusing than silently dropping it on a DB error.
       return true;
     }
+
+    // nps_received automations — fire-and-forget, mirrors the other
+    // trigger dispatches in the webhook route.
+    runAutomationsForTrigger({
+      accountId: args.accountId,
+      triggerType: "nps_received",
+      contactId: args.contactId,
+      context: { conversation_id: args.conversationId, vars: { rating } },
+    }).catch((err) => console.error("[automations] nps_received dispatch failed:", err));
 
     await sendFollowUp(db, args);
     return true;

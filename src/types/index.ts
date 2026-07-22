@@ -519,7 +519,10 @@ export type AutomationTriggerType =
   | 'conversation_closed'
   | 'deal_stage_changed'
   | 'deal_won'
-  | 'deal_lost';
+  | 'deal_lost'
+  | 'button_clicked'
+  | 'nps_received'
+  | 'inactivity';
 
 export type AutomationStepType =
   | 'send_message'
@@ -569,12 +572,32 @@ export interface DealStageChangedTriggerConfig {
   from_stage_id?: string;
 }
 
+export interface ButtonClickedTriggerConfig {
+  /** Optional filter — only fires when the tapped button's label
+   *  matches exactly. When blank, any button tap fires it. */
+  button_text?: string;
+}
+
+export interface NpsReceivedTriggerConfig {
+  /** Optional filter — only fires when the rating is >= this value
+   *  (1-5). When blank, any rating fires it. */
+  min_rating?: number;
+}
+
+export interface InactivityTriggerConfig {
+  /** Hours of no customer reply before this fires. */
+  hours: number;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
   | DealStageChangedTriggerConfig
+  | ButtonClickedTriggerConfig
+  | NpsReceivedTriggerConfig
+  | InactivityTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {

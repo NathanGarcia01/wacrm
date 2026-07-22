@@ -874,6 +874,7 @@ async function processMessage(
     const npsConsumed = await handleNpsResponse({
       accountId,
       conversationId: conversation.id,
+      contactId: contactRecord.id,
       contactPhone: contactRecord.phone,
       phoneNumberId,
       accessToken,
@@ -896,6 +897,17 @@ async function processMessage(
       message.context?.id,
       message.button.text
     )
+    // button_clicked automations — fire-and-forget, same as the other
+    // trigger dispatches below.
+    runAutomationsForTrigger({
+      accountId,
+      triggerType: 'button_clicked',
+      contactId: contactRecord.id,
+      context: {
+        conversation_id: conversation.id,
+        vars: { button_text: message.button.text },
+      },
+    }).catch((err) => console.error('[automations] button_clicked dispatch failed:', err))
   }
 
   // ============================================================

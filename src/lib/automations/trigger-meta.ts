@@ -20,6 +20,9 @@ export interface TriggerMeta {
     | 'triggerDealStageChanged'
     | 'triggerDealWon'
     | 'triggerDealLost'
+    | 'triggerButtonClicked'
+    | 'triggerNpsReceived'
+    | 'triggerInactivity'
     | null
   rawLabel?: string
   /** Tailwind classes for the Badge pill on the list row. */
@@ -78,6 +81,18 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
   deal_lost: {
     labelKey: 'triggerDealLost',
     pillClass: 'border-red-500/30 bg-red-500/10 text-red-300',
+  },
+  button_clicked: {
+    labelKey: 'triggerButtonClicked',
+    pillClass: 'border-purple-500/30 bg-purple-500/10 text-purple-300',
+  },
+  nps_received: {
+    labelKey: 'triggerNpsReceived',
+    pillClass: 'border-gold/30 bg-gold-soft text-gold',
+  },
+  inactivity: {
+    labelKey: 'triggerInactivity',
+    pillClass: 'border-slate-500/30 bg-slate-500/10 text-muted-foreground',
   },
 }
 

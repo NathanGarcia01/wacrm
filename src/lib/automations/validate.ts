@@ -211,6 +211,10 @@ export function validateTriggerForActivation(
     if (!nonEmpty(cfg.tag_id)) {
       issues.push({ path: 'trigger.tag_id', message: 'tag is required' })
     }
+  } else if (triggerType === 'inactivity') {
+    if (typeof cfg.hours !== 'number' || !Number.isFinite(cfg.hours) || cfg.hours <= 0) {
+      issues.push({ path: 'trigger.hours', message: 'inactivity hours must be greater than 0' })
+    }
   }
 
   return issues
