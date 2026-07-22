@@ -38,6 +38,9 @@ import {
   XCircle,
   MessageCircle,
   Clock,
+  Shuffle,
+  PlayCircle,
+  StopCircle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -114,6 +117,9 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   update_deal_value: { labelKey: "stepUpdateDealValue", icon: DollarSign, border: "border-l-primary" },
   mark_deal_won: { labelKey: "stepMarkDealWon", icon: Trophy, border: "border-l-primary" },
   mark_deal_lost: { labelKey: "stepMarkDealLost", icon: XCircle, border: "border-l-primary" },
+  randomizer: { labelKey: "stepRandomizer", icon: Shuffle, border: "border-l-gold" },
+  start_automation: { labelKey: "stepStartAutomation", icon: PlayCircle, border: "border-l-primary" },
+  stop_automation: { labelKey: "stepStopAutomation", icon: StopCircle, border: "border-l-primary" },
 }
 
 const ADDABLE_STEPS: AutomationStepType[] = [

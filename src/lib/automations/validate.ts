@@ -43,7 +43,7 @@ function walk(steps: StepLike[], prefix: string, issues: ValidationIssue[]): voi
   steps.forEach((s, i) => {
     const path = `${prefix}steps[${i}]`
     validateOne(s, path, issues)
-    if (s.step_type === 'condition' && s.branches) {
+    if ((s.step_type === 'condition' || s.step_type === 'randomizer') && s.branches) {
       if (s.branches.yes) walk(s.branches.yes, `${path}.yes.`, issues)
       if (s.branches.no) walk(s.branches.no, `${path}.no.`, issues)
     }
@@ -128,6 +128,27 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       if (!nonEmpty(c.operand)) {
         issues.push({ path: `${path}.operand`, message: 'condition operand is required' })
       }
+      break
+    case 'randomizer':
+      if (
+        typeof c.split_percent !== 'number' ||
+        !Number.isFinite(c.split_percent) ||
+        c.split_percent < 0 ||
+        c.split_percent > 100
+      ) {
+        issues.push({
+          path: `${path}.split_percent`,
+          message: 'split percent must be a number between 0 and 100',
+        })
+      }
+      break
+    case 'start_automation':
+      if (!nonEmpty(c.automation_id)) {
+        issues.push({ path: `${path}.automation_id`, message: 'automation is required' })
+      }
+      break
+    case 'stop_automation':
+      // No config required.
       break
     case 'send_webhook':
       if (!nonEmpty(c.url)) {

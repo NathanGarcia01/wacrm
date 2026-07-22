@@ -536,6 +536,9 @@ export type AutomationStepType =
   | 'mark_deal_lost'
   | 'wait'
   | 'condition'
+  | 'randomizer'
+  | 'start_automation'
+  | 'stop_automation'
   | 'send_webhook'
   | 'open_conversation'
   | 'set_conversation_pending'
@@ -657,6 +660,16 @@ export interface SendWebhookStepConfig {
   body_template?: string;
 }
 
+export interface RandomizerStepConfig {
+  /** 0-100 — probability (%) of taking the "yes" branch; the rest goes
+   *  to "no". Reuses condition's yes/no branch scoping (A/B split). */
+  split_percent: number;
+}
+
+export interface StartAutomationStepConfig {
+  automation_id: string;
+}
+
 export type AutomationStepConfig =
   | SendMessageStepConfig
   | SendTemplateStepConfig
@@ -669,6 +682,8 @@ export type AutomationStepConfig =
   | MarkDealLostStepConfig
   | WaitStepConfig
   | ConditionStepConfig
+  | RandomizerStepConfig
+  | StartAutomationStepConfig
   | SendWebhookStepConfig
   | Record<string, never>
   | Record<string, unknown>;

@@ -17,9 +17,21 @@ import type {
   UpdateDealValueStepConfig,
   MarkDealLostStepConfig,
   AssignConversationStepConfig,
+  RandomizerStepConfig,
+  StartAutomationStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+
+/**
+ * Thrown by the `stop_automation` step to unwind out of any nested
+ * condition/randomizer branches in one shot. Caught at the top-level
+ * executeAutomation / resumePendingExecution callers and treated as a
+ * normal, successful stop — never surfaced as a failure in
+ * automation_logs (whose status already defaults to 'success' at
+ * creation, so an early, deliberate stop needs no extra write).
+ */
+class AutomationStopSignal extends Error {}
 
 // ------------------------------------------------------------
 // Public API
@@ -158,6 +170,10 @@ export async function resumePendingExecution(pending: {
     })
     await markPending(pending.id, 'done')
   } catch (err) {
+    if (err instanceof AutomationStopSignal) {
+      await markPending(pending.id, 'done')
+      return
+    }
     console.error('[automations] resume failed:', err)
     await markPending(pending.id, 'failed')
   }
@@ -193,16 +209,20 @@ async function executeAutomation(automation: Automation, input: DispatchInput) {
     return
   }
 
-  await executeStepsFrom({
-    automation,
-    contactId: input.contactId ?? null,
-    context: input.context ?? {},
-    parentStepId: null,
-    branch: null,
-    startPosition: 0,
-    logId: log.id,
-    triggerEvent: input.triggerType,
-  })
+  try {
+    await executeStepsFrom({
+      automation,
+      contactId: input.contactId ?? null,
+      context: input.context ?? {},
+      parentStepId: null,
+      branch: null,
+      startPosition: 0,
+      logId: log.id,
+      triggerEvent: input.triggerType,
+    })
+  } catch (err) {
+    if (!(err instanceof AutomationStopSignal)) throw err
+  }
 
   // Atomic counter update via the SQL function from migration 007.
   // Doing this with a client-side read-modify-write raced when the
@@ -290,15 +310,47 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
       return
     }
 
+    // `stop_automation` unwinds out of any nested condition/randomizer
+    // branches via AutomationStopSignal — caught at the top-level
+    // executeAutomation/resumePendingExecution callers and treated as a
+    // normal, successful stop (see class doc comment above).
+    if (step.step_type === 'stop_automation') {
+      results.push({
+        step_id: step.id,
+        step_type: step.step_type,
+        status: 'success',
+        detail: 'automation stopped',
+      })
+      if (args.parentStepId === null) {
+        await appendResults(args.logId, results, status, errorMessage)
+      } else {
+        await appendResults(args.logId, results, null, errorMessage)
+      }
+      throw new AutomationStopSignal()
+    }
+
     try {
-      if (step.step_type === 'condition') {
-        const cfg = step.step_config as ConditionStepConfig
-        const taken = await evaluateCondition(cfg, args)
+      if (step.step_type === 'condition' || step.step_type === 'randomizer') {
+        // randomizer reuses condition's yes/no branch scoping: instead of
+        // evaluating a condition, it flips a weighted coin. Keeps A/B
+        // testing on the existing schema without a branch-count migration.
+        let taken: boolean
+        let detail: string
+        if (step.step_type === 'randomizer') {
+          const cfg = step.step_config as RandomizerStepConfig
+          const pct = Math.min(100, Math.max(0, cfg.split_percent ?? 50))
+          taken = Math.random() * 100 < pct
+          detail = `branch=${taken ? 'yes' : 'no'} (split ${pct}%)`
+        } else {
+          const cfg = step.step_config as ConditionStepConfig
+          taken = await evaluateCondition(cfg, args)
+          detail = `branch=${taken ? 'yes' : 'no'}`
+        }
         results.push({
           step_id: step.id,
-          step_type: 'condition',
+          step_type: step.step_type,
           status: 'success',
-          detail: `branch=${taken ? 'yes' : 'no'}`,
+          detail,
         })
         // Recurse into the chosen branch at position 0 (children use their
         // own ordering within the branch scope).
@@ -320,6 +372,7 @@ async function executeStepsFrom(args: ExecuteArgs): Promise<void> {
         detail,
       })
     } catch (err) {
+      if (err instanceof AutomationStopSignal) throw err
       const msg = err instanceof Error ? err.message : String(err)
       results.push({
         step_id: step.id,
@@ -684,6 +737,37 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
       return 'conversation set to pending'
+    }
+
+    case 'start_automation': {
+      const cfg = step.step_config as StartAutomationStepConfig
+      if (!cfg.automation_id) throw new Error('start_automation needs automation_id')
+      // Cycle/depth guard: two automations that start each other (or a
+      // long chain) would otherwise recurse until the stack blows up.
+      // The chain of already-started automation ids rides along in
+      // context.vars so nested start_automation calls can see it.
+      const chain = (args.context.vars?.__automation_chain__ as string[] | undefined) ?? []
+      if (chain.includes(args.automation.id) || chain.length >= 5) {
+        return 'skipped: automation chain limit reached or cycle detected'
+      }
+      const { data: target } = await db
+        .from('automations')
+        .select('*')
+        .eq('id', cfg.automation_id)
+        .eq('account_id', args.automation.account_id)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (!target) return `automation ${cfg.automation_id} not found or inactive`
+      await executeAutomation(target as Automation, {
+        accountId: args.automation.account_id,
+        triggerType: (target as Automation).trigger_type,
+        contactId: args.contactId,
+        context: {
+          ...args.context,
+          vars: { ...(args.context.vars ?? {}), __automation_chain__: [...chain, args.automation.id] },
+        },
+      })
+      return `started automation ${cfg.automation_id}`
     }
 
     case 'send_webhook': {

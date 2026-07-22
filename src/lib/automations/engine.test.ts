@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
     fromCalls: [] as string[],
     updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
+    logUpdates: [] as Record<string, unknown>[],
   },
 }));
 
@@ -46,7 +47,10 @@ vi.mock("./admin-client", () => {
     if (table === "automations") return { data: state.automations, error: null };
     if (table === "automation_logs") {
       if (type === "insert") return { data: { id: "log1" }, error: null };
-      if (type === "update") return { data: null, error: null };
+      if (type === "update") {
+        state.logUpdates.push(ops.payload as Record<string, unknown>);
+        return { data: null, error: null };
+      }
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
@@ -107,6 +111,7 @@ beforeEach(() => {
   h.state.fromCalls = [];
   h.state.updateCalls = [];
   h.state.upsertCalls = [];
+  h.state.logUpdates = [];
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -221,6 +226,37 @@ describe("update_contact_field — custom fields", () => {
 
     expect(h.state.upsertCalls).toHaveLength(0);
     expect(h.state.updateCalls).toHaveLength(0);
+  });
+});
+
+describe("stop_automation", () => {
+  it("halts execution without marking the log as failed", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [automationWithUpdateStep()];
+    h.state.steps = [
+      {
+        id: "s-stop",
+        automation_id: "a1",
+        step_type: "stop_automation",
+        position: 0,
+        parent_step_id: null,
+        step_config: {},
+      },
+    ];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "new_message_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    // stop_automation must unwind via the internal signal, not surface
+    // as a step failure — the log's final status update should still
+    // read 'success'.
+    expect(h.state.logUpdates.length).toBeGreaterThan(0);
+    const lastUpdate = h.state.logUpdates[h.state.logUpdates.length - 1];
+    expect(lastUpdate.status).toBe("success");
   });
 });
 
