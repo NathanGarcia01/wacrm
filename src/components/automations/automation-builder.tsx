@@ -31,6 +31,13 @@ import {
   Loader2,
   ArrowDown,
   ArrowUp,
+  UserX,
+  ArrowRightLeft,
+  DollarSign,
+  Trophy,
+  XCircle,
+  MessageCircle,
+  Clock,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -99,7 +106,14 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   wait: { labelKey: "stepWait", icon: Hourglass, border: "border-l-border" },
   condition: { labelKey: "stepCondition", icon: GitBranch, border: "border-l-gold" },
   send_webhook: { labelKey: "stepSendWebhook", icon: Webhook, border: "border-l-primary" },
+  open_conversation: { labelKey: "stepOpenConversation", icon: MessageCircle, border: "border-l-primary" },
+  set_conversation_pending: { labelKey: "stepSetConversationPending", icon: Clock, border: "border-l-primary" },
   close_conversation: { labelKey: "stepCloseConversation", icon: CircleSlash, border: "border-l-primary" },
+  unassign_agent: { labelKey: "stepUnassignAgent", icon: UserX, border: "border-l-primary" },
+  update_deal_stage: { labelKey: "stepUpdateDealStage", icon: ArrowRightLeft, border: "border-l-primary" },
+  update_deal_value: { labelKey: "stepUpdateDealValue", icon: DollarSign, border: "border-l-primary" },
+  mark_deal_won: { labelKey: "stepMarkDealWon", icon: Trophy, border: "border-l-primary" },
+  mark_deal_lost: { labelKey: "stepMarkDealLost", icon: XCircle, border: "border-l-primary" },
 }
 
 const ADDABLE_STEPS: AutomationStepType[] = [

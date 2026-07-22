@@ -522,11 +522,18 @@ export type AutomationStepType =
   | 'add_tag'
   | 'remove_tag'
   | 'assign_conversation'
+  | 'unassign_agent'
   | 'update_contact_field'
   | 'create_deal'
+  | 'update_deal_stage'
+  | 'update_deal_value'
+  | 'mark_deal_won'
+  | 'mark_deal_lost'
   | 'wait'
   | 'condition'
   | 'send_webhook'
+  | 'open_conversation'
+  | 'set_conversation_pending'
   | 'close_conversation';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
@@ -597,6 +604,21 @@ export interface CreateDealStepConfig {
   value?: number;
 }
 
+export interface UpdateDealStageStepConfig {
+  /** Target stage. The engine resolves the contact's current open deal
+   *  and moves it here — pipeline_id is implied by that deal. */
+  stage_id: string;
+}
+
+export interface UpdateDealValueStepConfig {
+  value: number;
+}
+
+export interface MarkDealLostStepConfig {
+  /** Stored in deals.lost_reason; optional. */
+  reason?: string;
+}
+
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -629,6 +651,9 @@ export type AutomationStepConfig =
   | AssignConversationStepConfig
   | UpdateContactFieldStepConfig
   | CreateDealStepConfig
+  | UpdateDealStageStepConfig
+  | UpdateDealValueStepConfig
+  | MarkDealLostStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig

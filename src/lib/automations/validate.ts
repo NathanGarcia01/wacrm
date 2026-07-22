@@ -77,6 +77,9 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         })
       }
       break
+    case 'unassign_agent':
+      // No config required.
+      break
     case 'update_contact_field':
       if (!nonEmpty(c.field)) {
         issues.push({ path: `${path}.field`, message: 'field name is required' })
@@ -90,6 +93,22 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       // resolves the account's default pipeline + first stage, and
       // falls back to the contact's name/phone for the title, at
       // execution time when left blank (see src/lib/automations/engine.ts).
+      break
+    case 'update_deal_stage':
+      if (!nonEmpty(c.stage_id)) {
+        issues.push({ path: `${path}.stage_id`, message: 'stage is required' })
+      }
+      break
+    case 'update_deal_value':
+      if (typeof c.value !== 'number' || !Number.isFinite(c.value)) {
+        issues.push({ path: `${path}.value`, message: 'deal value must be a number' })
+      }
+      break
+    case 'mark_deal_won':
+      // No config required.
+      break
+    case 'mark_deal_lost':
+      // reason is optional.
       break
     case 'wait':
       if (typeof c.amount !== 'number' || !Number.isFinite(c.amount) || c.amount <= 0) {
@@ -127,6 +146,8 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.url`, message: 'webhook URL is not a valid URL' })
       }
       break
+    case 'open_conversation':
+    case 'set_conversation_pending':
     case 'close_conversation':
       // No config required.
       break

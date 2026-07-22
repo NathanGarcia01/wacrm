@@ -12,6 +12,9 @@ import type {
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   CreateDealStepConfig,
+  UpdateDealStageStepConfig,
+  UpdateDealValueStepConfig,
+  MarkDealLostStepConfig,
   AssignConversationStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
@@ -425,15 +428,30 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       if (!args.contactId) throw new Error('assign_conversation needs a contact')
       let agentId = cfg.agent_id
       if (cfg.mode === 'round_robin') {
-        // Pick any member of the account. The existing implementation
-        // only ever returned the automation's author; preserving that
-        // shape until a real round-robin algorithm replaces it.
         const { data: profiles } = await db
           .from('profiles')
           .select('user_id')
           .eq('account_id', args.automation.account_id)
-          .limit(1)
-        agentId = profiles?.[0]?.user_id
+        const memberIds = (profiles ?? [])
+          .map((p) => p.user_id as string)
+          .filter(Boolean)
+        if (memberIds.length === 0) return 'no agent resolved'
+        // Load-balance across the account's members: pick whoever
+        // currently carries the fewest non-closed conversations, rather
+        // than always the same first profile row.
+        const { data: assignedRows } = await db
+          .from('conversations')
+          .select('assigned_agent_id')
+          .eq('account_id', args.automation.account_id)
+          .in('assigned_agent_id', memberIds)
+          .neq('status', 'closed')
+        const load = new Map<string, number>(memberIds.map((id) => [id, 0]))
+        for (const row of assignedRows ?? []) {
+          const id = row.assigned_agent_id as string | null
+          if (id && load.has(id)) load.set(id, (load.get(id) ?? 0) + 1)
+        }
+        agentId = memberIds.reduce((best, id) =>
+          (load.get(id) ?? 0) < (load.get(best) ?? 0) ? id : best, memberIds[0])
       }
       if (!agentId) return 'no agent resolved'
       await db
@@ -442,6 +460,16 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
       return `assigned to ${agentId}`
+    }
+
+    case 'unassign_agent': {
+      if (!args.contactId) throw new Error('unassign_agent needs a contact')
+      await db
+        .from('conversations')
+        .update({ assigned_agent_id: null })
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+      return 'agent unassigned'
     }
 
     case 'update_contact_field': {
@@ -589,6 +617,74 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return 'deal created'
     }
 
+    case 'update_deal_stage': {
+      const cfg = step.step_config as UpdateDealStageStepConfig
+      if (!cfg.stage_id) throw new Error('update_deal_stage needs stage_id')
+      const dealId = await resolveOpenDealId(args)
+      await db
+        .from('deals')
+        .update({ stage_id: cfg.stage_id, updated_at: new Date().toISOString() })
+        .eq('id', dealId)
+        .eq('account_id', args.automation.account_id)
+      return `deal moved to stage ${cfg.stage_id}`
+    }
+
+    case 'update_deal_value': {
+      const cfg = step.step_config as UpdateDealValueStepConfig
+      if (typeof cfg.value !== 'number' || !Number.isFinite(cfg.value)) {
+        throw new Error('update_deal_value needs a numeric value')
+      }
+      const dealId = await resolveOpenDealId(args)
+      await db
+        .from('deals')
+        .update({ value: cfg.value, updated_at: new Date().toISOString() })
+        .eq('id', dealId)
+        .eq('account_id', args.automation.account_id)
+      return `deal value set to ${cfg.value}`
+    }
+
+    case 'mark_deal_won': {
+      const dealId = await resolveOpenDealId(args)
+      await db
+        .from('deals')
+        .update({ status: 'won', updated_at: new Date().toISOString() })
+        .eq('id', dealId)
+        .eq('account_id', args.automation.account_id)
+      return 'deal marked won'
+    }
+
+    case 'mark_deal_lost': {
+      const cfg = step.step_config as MarkDealLostStepConfig
+      const dealId = await resolveOpenDealId(args)
+      // lost_at is set by the deals_set_lost_at DB trigger (migration 027).
+      await db
+        .from('deals')
+        .update({ status: 'lost', lost_reason: cfg.reason ?? null, updated_at: new Date().toISOString() })
+        .eq('id', dealId)
+        .eq('account_id', args.automation.account_id)
+      return 'deal marked lost'
+    }
+
+    case 'open_conversation': {
+      if (!args.contactId) throw new Error('open_conversation needs a contact')
+      await db
+        .from('conversations')
+        .update({ status: 'open', updated_at: new Date().toISOString() })
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+      return 'conversation opened'
+    }
+
+    case 'set_conversation_pending': {
+      if (!args.contactId) throw new Error('set_conversation_pending needs a contact')
+      await db
+        .from('conversations')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+      return 'conversation set to pending'
+    }
+
     case 'send_webhook': {
       const cfg = step.step_config as SendWebhookStepConfig
       if (!cfg.url) throw new Error('send_webhook needs url')
@@ -640,6 +736,30 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
     .maybeSingle()
   if (error) throw new Error(`conversation lookup failed: ${error.message}`)
   if (!data?.id) throw new Error('no conversation for contact')
+  return data.id as string
+}
+
+/**
+ * Resolve the contact's current open deal for the deal-mutating steps
+ * (update_deal_stage, update_deal_value, mark_deal_won, mark_deal_lost).
+ * Picks the most recently created open deal when a contact somehow has
+ * more than one — mirrors the "one active deal" assumption create_deal's
+ * duplicate guard already enforces.
+ */
+async function resolveOpenDealId(args: ExecuteArgs): Promise<string> {
+  if (!args.contactId) throw new Error('step needs a contact')
+  const db = supabaseAdmin()
+  const { data, error } = await db
+    .from('deals')
+    .select('id')
+    .eq('account_id', args.automation.account_id)
+    .eq('contact_id', args.contactId)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(`deal lookup failed: ${error.message}`)
+  if (!data?.id) throw new Error('no open deal for contact')
   return data.id as string
 }
 
