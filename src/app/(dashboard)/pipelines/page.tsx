@@ -38,6 +38,7 @@ import { GatedButton } from "@/components/ui/gated-button";
 import { LossesPanel } from "@/components/pipelines/losses-panel";
 import { resolvePeriod } from "@/lib/reports/period";
 import { exportDealsToCsv } from "@/lib/pipelines/export-csv";
+import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 import { Download, LayoutGrid, TrendingDown } from "lucide-react";
 
 // Pipeline creation is admin-class (settings-tier write under
@@ -308,6 +309,8 @@ export default function PipelinesPage() {
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
+      const movedDeal = deals.find((d) => d.id === dealId);
+      const previousStageId = movedDeal?.stage_id;
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
@@ -319,9 +322,15 @@ export default function PipelinesPage() {
       if (error) {
         toast.error(t("moveFailed"));
         refreshDeals();
+        return;
+      }
+      if (movedDeal && previousStageId && previousStageId !== newStageId) {
+        fireAutomationTrigger("deal_stage_changed", movedDeal.contact_id, {
+          vars: { from_stage_id: previousStageId, to_stage_id: newStageId },
+        });
       }
     },
-    [supabase, refreshDeals],
+    [supabase, refreshDeals, deals],
   );
 
   const handleAddDeal = useCallback(

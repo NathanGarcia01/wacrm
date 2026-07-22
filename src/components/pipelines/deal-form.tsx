@@ -53,6 +53,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
+import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 
 const LOST_REASON_CHIPS = [
   "priceTooHigh",
@@ -387,6 +388,7 @@ export function DealForm({
       toast.error(t("updateStatusFailed"));
       return;
     }
+    fireAutomationTrigger("deal_lost", contactId, { vars: { reason: lostReason.trim() } });
     toast.success(t("markedAsLost"));
     setLostReasonOpen(false);
     onOpenChange(false);
@@ -413,6 +415,7 @@ export function DealForm({
     };
 
     if (deal) {
+      const previousStageId = deal.stage_id;
       const { error } = await supabase
         .from("deals")
         .update(payload)
@@ -421,6 +424,11 @@ export function DealForm({
         toast.error(t("saveFailed"));
         setSaving(false);
         return;
+      }
+      if (previousStageId !== stageId) {
+        fireAutomationTrigger("deal_stage_changed", contactId, {
+          vars: { from_stage_id: previousStageId, to_stage_id: stageId },
+        });
       }
     } else {
       const {
@@ -464,6 +472,9 @@ export function DealForm({
     if (error) {
       toast.error(t("updateStatusFailed"));
       return;
+    }
+    if (status === "won") {
+      fireAutomationTrigger("deal_won", contactId);
     }
     toast.success(
       status === "won" ? t("markedAsWon") : status === "lost" ? t("markedAsLost") : t("dealReopened"),

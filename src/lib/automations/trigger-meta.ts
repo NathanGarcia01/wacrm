@@ -15,6 +15,11 @@ export interface TriggerMeta {
     | 'triggerConversationAssigned'
     | 'triggerTagAdded'
     | 'triggerTimeBased'
+    | 'triggerConversationOpened'
+    | 'triggerConversationClosed'
+    | 'triggerDealStageChanged'
+    | 'triggerDealWon'
+    | 'triggerDealLost'
     | null
   rawLabel?: string
   /** Tailwind classes for the Badge pill on the list row. */
@@ -53,6 +58,26 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
   time_based: {
     labelKey: 'triggerTimeBased',
     pillClass: 'border-slate-500/30 bg-slate-500/10 text-muted-foreground',
+  },
+  conversation_opened: {
+    labelKey: 'triggerConversationOpened',
+    pillClass: 'border-teal-500/30 bg-teal-500/10 text-teal-300',
+  },
+  conversation_closed: {
+    labelKey: 'triggerConversationClosed',
+    pillClass: 'border-slate-500/30 bg-slate-500/10 text-muted-foreground',
+  },
+  deal_stage_changed: {
+    labelKey: 'triggerDealStageChanged',
+    pillClass: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
+  },
+  deal_won: {
+    labelKey: 'triggerDealWon',
+    pillClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  },
+  deal_lost: {
+    labelKey: 'triggerDealLost',
+    pillClass: 'border-red-500/30 bg-red-500/10 text-red-300',
   },
 }
 

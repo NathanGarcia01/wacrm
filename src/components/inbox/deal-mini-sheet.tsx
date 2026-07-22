@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { Deal, PipelineStage, Profile } from "@/types";
+import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 
 interface DealMiniSheetProps {
   open: boolean;
@@ -144,6 +145,7 @@ export function DealMiniSheet({
     const supabase = createClient();
 
     if (deal) {
+      const previousStageId = deal.stage_id;
       const { error } = await supabase
         .from("deals")
         .update({
@@ -157,6 +159,11 @@ export function DealMiniSheet({
       if (error) {
         toast.error(t("saveFailed"));
         return;
+      }
+      if (previousStageId !== stageId) {
+        fireAutomationTrigger("deal_stage_changed", contactId, {
+          vars: { from_stage_id: previousStageId, to_stage_id: stageId },
+        });
       }
       toast.success(t("dealUpdated"));
     } else {

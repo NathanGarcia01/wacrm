@@ -514,7 +514,12 @@ export type AutomationTriggerType =
   | 'new_contact_created'
   | 'conversation_assigned'
   | 'tag_added'
-  | 'time_based';
+  | 'time_based'
+  | 'conversation_opened'
+  | 'conversation_closed'
+  | 'deal_stage_changed'
+  | 'deal_won'
+  | 'deal_lost';
 
 export type AutomationStepType =
   | 'send_message'
@@ -554,11 +559,19 @@ export interface TimeBasedTriggerConfig {
   timezone?: string;
 }
 
+export interface DealStageChangedTriggerConfig {
+  /** Optional filter — only fires when the deal moves into this stage. */
+  to_stage_id?: string;
+  /** Optional filter — only fires when the deal moves out of this stage. */
+  from_stage_id?: string;
+}
+
 export type AutomationTriggerConfig =
   | Record<string, never>
   | KeywordMatchTriggerConfig
   | TagTriggerConfig
   | TimeBasedTriggerConfig
+  | DealStageChangedTriggerConfig
   | Record<string, unknown>;
 
 export interface SendMessageStepConfig {

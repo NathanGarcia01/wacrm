@@ -54,6 +54,7 @@ import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
+import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 
 interface ReplyDraft {
   id: string;
@@ -781,9 +782,16 @@ export function MessageThread({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ conversation_id: conversation.id }),
         }).catch((err) => console.error("[nps] auto-send on close failed:", err));
+        fireAutomationTrigger("conversation_closed", contact?.id, {
+          conversation_id: conversation.id,
+        });
+      } else if (status === "open") {
+        fireAutomationTrigger("conversation_opened", contact?.id, {
+          conversation_id: conversation.id,
+        });
       }
     },
-    [conversation, onStatusChange]
+    [conversation, onStatusChange, contact]
   );
 
   const handleOpenTemplates = useCallback(() => {
