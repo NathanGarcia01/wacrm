@@ -21,6 +21,8 @@ import {
   X,
   Loader2,
   Smile,
+  Smartphone,
+  Check,
 } from "lucide-react";
 import EmojiPicker, { Theme as EmojiTheme, type EmojiClickData } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -43,7 +45,7 @@ import {
   deleteAccountMedia,
   MEDIA_MAX_BYTES_BY_KIND,
 } from "@/lib/storage/upload-media";
-import type { QuickReply } from "@/types";
+import type { QuickReply, WhatsAppChannelOption } from "@/types";
 import { ReplyQuote } from "./reply-quote";
 
 // Matches the "/" token the cursor is currently inside — either at the
@@ -120,6 +122,11 @@ interface MessageComposerProps {
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
+  /** Active channels on the account — the picker only renders when there's
+   *  more than one to choose between. */
+  channels: WhatsAppChannelOption[];
+  activeChannelId: string | null;
+  onChannelChange: (channelId: string) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -141,8 +148,12 @@ export function MessageComposer({
   onOpenTemplates,
   replyTo,
   onClearReply,
+  channels,
+  activeChannelId,
+  onChannelChange,
 }: MessageComposerProps) {
   const t = useTranslations("inbox.composer");
+  const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -769,6 +780,39 @@ export function MessageComposer({
               )}
             />
           </div>
+
+          {/* Channel picker — only worth showing when there's more than
+              one active WhatsApp number to choose between. Selecting one
+              here applies to every send in this conversation. */}
+          {channels.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={inputsDisabled}
+                title={t("changeChannel")}
+                className="inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                <span className="hidden max-w-[6rem] truncate sm:inline">
+                  {activeChannel?.name ?? t("defaultChannel")}
+                </span>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border-border bg-popover">
+                {channels.map((c) => (
+                  <DropdownMenuItem
+                    key={c.id}
+                    onClick={() => onChannelChange(c.id)}
+                    className={cn(
+                      "text-sm",
+                      c.id === activeChannelId ? "text-primary" : "text-popover-foreground"
+                    )}
+                  >
+                    <span className="flex-1">{c.name}</span>
+                    {c.id === activeChannelId && <Check className="ml-2 h-3 w-3" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           <GatedButton
             size="sm"

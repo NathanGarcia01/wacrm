@@ -171,7 +171,9 @@
       "uploadFailed": "Error al subir el archivo.",
       "recordingTooLong": "Grabación demasiado larga (más de 16 MB).",
       "voiceRecordingNotSupported": "La grabación de voz no es compatible con este navegador.",
-      "microphoneAccessDenied": "Acceso al micrófono denegado o no disponible."
+      "microphoneAccessDenied": "Acceso al micrófono denegado o no disponible.",
+      "changeChannel": "Cambiar número de envío",
+      "defaultChannel": "Principal"
     },
     "list": {
       "searchPlaceholder": "Buscar conversaciones...",
@@ -320,6 +322,9 @@
       "reactionFailedReason": "Error en la reacción: {reason}",
       "waitForMessageToSend": "Espera a que el mensaje termine de enviarse",
       "failedToUpdateAssignment": "Error al actualizar la asignación",
+      "failedToUpdateChannel": "Error al actualizar el canal de envío",
+      "sendingVia": "Enviando por: {name}",
+      "defaultChannel": "Principal",
       "noMessagesYet": "Aún no hay mensajes",
       "sendTemplateToStart": "Envía un template para iniciar la conversación",
       "editFailed": "Error al editar el mensaje",

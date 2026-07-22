@@ -165,6 +165,15 @@ export interface Conversation {
   channel?: { name: string; display_phone_number: string | null } | null;
 }
 
+/** Active whatsapp_channels row, as returned by GET /api/whatsapp/channels —
+ *  drives the inbox's per-conversation channel picker. */
+export interface WhatsAppChannelOption {
+  id: string;
+  name: string;
+  display_phone_number: string | null;
+  is_default: boolean;
+}
+
 export type SenderType = 'customer' | 'agent' | 'bot';
 export type ContentType =
   | 'text'

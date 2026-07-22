@@ -17,6 +17,7 @@ import type {
   ConversationStatus,
   MessageTemplate,
   Profile,
+  WhatsAppChannelOption,
 } from "@/types";
 import {
   MessageSquare,
@@ -60,6 +61,10 @@ interface ReplyDraft {
   preview: string;
 }
 
+/** Device-local "last picked" channel — a quick-access hint only; the
+ *  source of truth for a given conversation is conversations.channel_id. */
+const ACTIVE_CHANNEL_STORAGE_KEY = "funilly.active_channel";
+
 function renderTemplateBody(body: string, params: string[]): string {
   return body.replace(/\{\{(\d+)\}\}/g, (_, raw) => {
     const idx = Number(raw) - 1;
@@ -78,6 +83,15 @@ interface MessageThreadProps {
   onAssignChange: (
     conversationId: string,
     assignedAgentId: string | null,
+  ) => void;
+  /** Fired after the channel picker (header badge or composer) persists a
+   *  new conversations.channel_id — lets the page mirror it into its own
+   *  conversation-list copy (channel_id + the joined name/display_phone_number)
+   *  without a full refetch. */
+  onChannelChange: (
+    conversationId: string,
+    channelId: string,
+    channel: { name: string; display_phone_number: string | null },
   ) => void;
   /** Fired by the "mark as read/unread" toggle in the thread header —
    *  the page owns the conversation list's copy of unread_count, so
@@ -176,6 +190,7 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onChannelChange,
   onUnreadChange,
   onBack,
   resyncToken = 0,
@@ -260,17 +275,81 @@ export function MessageThread({
     };
   }, []);
 
-  // Only worth showing "which number" on the header when there's more
-  // than one active channel to disambiguate between.
-  const [multiChannel, setMultiChannel] = useState(false);
+  // Full list of the account's active WhatsApp channels — drives both the
+  // header channel indicator and the composer's channel picker. Only
+  // worth showing/picking when there's more than one to disambiguate
+  // between (see `multiChannel` below).
+  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
   useEffect(() => {
-    const supabase = createClient();
-    supabase
-      .from("whatsapp_channels")
-      .select("id", { count: "exact", head: true })
-      .eq("is_active", true)
-      .then(({ count }) => setMultiChannel((count ?? 0) > 1));
+    let cancelled = false;
+    fetch("/api/whatsapp/channels")
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        const active: WhatsAppChannelOption[] = (data.channels ?? []).filter(
+          (c: { is_active: boolean }) => c.is_active,
+        );
+        setChannels(active);
+      })
+      .catch((err) => console.error("Failed to fetch whatsapp channels:", err));
+    return () => {
+      cancelled = true;
+    };
   }, []);
+  const multiChannel = channels.length > 1;
+
+  // The account's fallback channel when a conversation has no saved
+  // channel_id: whichever channel is flagged is_default, or — in the
+  // unlikely event none is — the last channel the user picked anywhere
+  // (localStorage), or simply the first active channel.
+  const defaultChannel = useMemo(() => {
+    const flagged = channels.find((c) => c.is_default);
+    if (flagged) return flagged;
+    let lastUsedId: string | null = null;
+    try {
+      lastUsedId = window.localStorage.getItem(ACTIVE_CHANNEL_STORAGE_KEY);
+    } catch {
+      // Private-browsing / storage-disabled — non-fatal, just skip the hint.
+    }
+    return channels.find((c) => c.id === lastUsedId) ?? channels[0] ?? null;
+  }, [channels]);
+
+  // Effective channel for this conversation: its own saved channel_id, or
+  // the account default. Every send from this thread uses this id.
+  const activeChannelId = conversation?.channel_id ?? defaultChannel?.id ?? null;
+  const activeChannel = channels.find((c) => c.id === activeChannelId) ?? null;
+
+  const handleChannelChange = useCallback(
+    async (channelId: string) => {
+      if (!conversation || channelId === activeChannelId) return;
+      const channel = channels.find((c) => c.id === channelId);
+      if (!channel) return;
+
+      try {
+        window.localStorage.setItem(ACTIVE_CHANNEL_STORAGE_KEY, channelId);
+      } catch {
+        // Non-fatal — the DB write below is the actual source of truth.
+      }
+
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update({ channel_id: channelId })
+        .eq("id", conversation.id);
+
+      if (error) {
+        console.error("Failed to update conversation channel:", error);
+        toast.error(t("failedToUpdateChannel"));
+        return;
+      }
+
+      onChannelChange(conversation.id, channelId, {
+        name: channel.name,
+        display_phone_number: channel.display_phone_number,
+      });
+    },
+    [conversation, activeChannelId, channels, onChannelChange, t],
+  );
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
@@ -564,6 +643,7 @@ export function MessageThread({
             message_type: "text",
             content_text: text,
             reply_to_message_id: replyToId,
+            channel_id: activeChannelId,
           }),
         });
 
@@ -589,7 +669,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage]
+    [conversation, onNewMessage, onUpdateMessage, activeChannelId]
   );
 
   const handleSendMedia = useCallback(
@@ -630,6 +710,7 @@ export function MessageThread({
             content_text: contentText,
             filename: payload.filename,
             reply_to_message_id: payload.replyToId,
+            channel_id: activeChannelId,
           }),
         });
 
@@ -655,7 +736,7 @@ export function MessageThread({
         void deleteAccountMedia(CHAT_MEDIA_BUCKET, payload.path).catch(() => {});
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, activeChannelId],
   );
 
   const handleToggleUnread = useCallback(async () => {
@@ -755,6 +836,7 @@ export function MessageThread({
             },
             template_params: values.body,
             content_text: renderedBody,
+            channel_id: activeChannelId,
           }),
         });
 
@@ -776,7 +858,7 @@ export function MessageThread({
         onUpdateMessage(tempId, { status: "failed" });
       }
     },
-    [conversation, onNewMessage, onUpdateMessage],
+    [conversation, onNewMessage, onUpdateMessage, activeChannelId],
   );
 
   // Build a quick id → Message map so reply quotes can be rendered without
@@ -1048,17 +1130,37 @@ export function MessageThread({
             {sessionInfo.remaining}
           </Badge>
 
-          {/* Which WhatsApp number this conversation is on — only shown
-              when the account actually has more than one to disambiguate. */}
-          {multiChannel && conversation.channel?.name && (
-            <Badge
-              variant="outline"
-              className="ml-1 hidden gap-1 border-border text-[10px] font-mono text-muted-foreground sm:inline-flex sm:ml-2"
-              title={conversation.channel.display_phone_number ?? conversation.channel.name}
-            >
-              <Smartphone className="h-3 w-3" />
-              {conversation.channel.name}
-            </Badge>
+          {/* Which WhatsApp number this conversation sends through — only
+              shown when the account actually has more than one to
+              disambiguate between. Clickable: opens the same channel
+              picker as the composer's. */}
+          {multiChannel && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="ml-1 hidden items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] font-mono text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex sm:ml-2"
+                title={
+                  activeChannel?.display_phone_number ?? activeChannel?.name ?? undefined
+                }
+              >
+                <Smartphone className="h-3 w-3" />
+                {t("sendingVia", { name: activeChannel?.name ?? t("defaultChannel") })}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="border-border bg-popover">
+                {channels.map((c) => (
+                  <DropdownMenuItem
+                    key={c.id}
+                    onClick={() => handleChannelChange(c.id)}
+                    className={cn(
+                      "text-sm",
+                      c.id === activeChannelId ? "text-primary" : "text-popover-foreground"
+                    )}
+                  >
+                    <span className="flex-1">{c.name}</span>
+                    {c.id === activeChannelId && <Check className="ml-2 h-3 w-3" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
@@ -1315,6 +1417,9 @@ export function MessageThread({
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
+        channels={channels}
+        activeChannelId={activeChannelId}
+        onChannelChange={handleChannelChange}
       />
 
       <TemplatePicker

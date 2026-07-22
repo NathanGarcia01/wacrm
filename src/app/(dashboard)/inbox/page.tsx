@@ -579,6 +579,26 @@ export default function InboxPage() {
     [activeConversation]
   );
 
+  const handleChannelChange = useCallback(
+    (
+      conversationId: string,
+      channelId: string,
+      channel: { name: string; display_phone_number: string | null },
+    ) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, channel_id: channelId, channel } : c,
+        ),
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) =>
+          prev ? { ...prev, channel_id: channelId, channel } : prev,
+        );
+      }
+    },
+    [activeConversation],
+  );
+
   // On mobile (<lg) we show a SINGLE pane — either the list or the
   // thread — rather than cramming both side-by-side. Selecting a
   // conversation slides the thread in; the thread's back button pops
@@ -643,6 +663,7 @@ export default function InboxPage() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
+            onChannelChange={handleChannelChange}
             onUnreadChange={handleUnreadChange}
             onBack={handleCloseConversation}
             resyncToken={resyncToken}

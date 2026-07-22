@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       template_params,
       template_message_params,
       reply_to_message_id,
+      channel_id,
     } = body
 
     if (!conversation_id || !message_type) {
@@ -166,11 +167,18 @@ export async function POST(request: Request) {
       )
     }
 
-    // Resolve which channel to send through: the conversation's own
-    // channel_id if it has one, else the account's default channel
-    // (falls further back to the legacy whatsapp_config row, then env
-    // vars — see src/lib/whatsapp/channels.ts).
-    const config = await resolveChannelById(supabase, conversation.channel_id, accountId)
+    // Resolve which channel to send through: an explicit channel_id from
+    // the caller (the inbox's per-conversation channel picker) takes
+    // priority over the conversation's stored channel_id, which in turn
+    // falls back to the account's default channel (then the legacy
+    // whatsapp_config row, then env vars — see src/lib/whatsapp/channels.ts).
+    const requestedChannelId =
+      typeof channel_id === 'string' && channel_id ? channel_id : null
+    const config = await resolveChannelById(
+      supabase,
+      requestedChannelId ?? conversation.channel_id,
+      accountId,
+    )
 
     if (!config) {
       return NextResponse.json(

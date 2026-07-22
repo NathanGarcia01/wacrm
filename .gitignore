@@ -39,6 +39,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Claude Code local-machine settings — not shared project config
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
