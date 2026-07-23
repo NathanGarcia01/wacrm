@@ -169,7 +169,7 @@ export function evaluateConditionPredicate(args: {
 // readable. Errors surface as thrown — the entry point catches.
 // ============================================================
 
-type AdminClient = ReturnType<typeof supabaseAdmin>;
+export type AdminClient = ReturnType<typeof supabaseAdmin>;
 
 async function loadActiveRunForContact(
   db: AdminClient,
@@ -210,7 +210,7 @@ async function loadActiveRunForContact(
   return rows[0] ?? null;
 }
 
-async function loadFlow(
+export async function loadFlow(
   db: AdminClient,
   flowId: string,
 ): Promise<FlowRow | null> {
@@ -235,7 +235,7 @@ async function loadFlow(
  * cleanly (every subsequent .get() returns undefined → the run
  * fails with node_not_found, same as the old per-node lookup).
  */
-async function loadAllNodes(
+export async function loadAllNodes(
   db: AdminClient,
   flowId: string,
 ): Promise<Map<string, FlowNodeRow>> {
@@ -254,7 +254,7 @@ async function loadAllNodes(
   return map;
 }
 
-async function logEvent(
+export async function logEvent(
   db: AdminClient,
   flowRunId: string,
   event_type:
@@ -538,7 +538,7 @@ function interpolateVars(template: string, vars: Record<string, unknown>): strin
   });
 }
 
-async function endRun(
+export async function endRun(
   db: AdminClient,
   runId: string,
   status: "completed" | "handed_off" | "timed_out" | "failed",

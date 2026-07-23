@@ -48,15 +48,23 @@ export async function GET(request: Request) {
   const admin = supabaseAdmin()
   const now = new Date()
 
-  // Pull all currently-active runs along with their parent flow's
-  // fallback_policy. Joined in one query — the small set of active
-  // runs per tenant keeps this cheap.
+  // Pull all currently-active CONVERSATIONAL runs along with their
+  // parent flow's fallback_policy. Joined in one query — the small set
+  // of active runs per tenant keeps this cheap.
+  //
+  // run_mode scoping matters: a workflow-mode run can legitimately sit
+  // "active" for days while parked at a `wait` node (see
+  // src/lib/flows/workflow-engine.ts) — that suspension is tracked by
+  // `flow_pending_executions`, not by staleness-since-last-advance.
+  // Applying this chatbot-abandonment sweep to workflow runs would
+  // incorrectly time them out mid-wait.
   const { data: runs, error } = await admin
     .from('flow_runs')
     .select(
       'id, flow_id, user_id, contact_id, last_advanced_at, flows ( fallback_policy )',
     )
     .eq('status', 'active')
+    .eq('run_mode', 'conversational')
 
   if (error) {
     console.error('[flows-cron] active-run scan failed:', error.message)
