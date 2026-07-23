@@ -1,3 +1,4 @@
+import Link from "next/link"
 import type { AdminAccountRow, Plan, SubscriptionStatus } from "@/lib/admin/types"
 import { STATUS_META } from "@/lib/admin/types"
 import { trialDaysRemaining } from "@/lib/admin/trial"
@@ -50,11 +51,16 @@ export function AccountsTable({ rows, plans }: { rows: AdminAccountRow[]; plans:
             return (
               <tr key={row.id} className="border-b border-[#22242A] last:border-0">
                 <td className="px-4 py-3">
-                  <div className="font-medium text-white">{row.name}</div>
+                  <Link
+                    href={`/admin/accounts/${row.id}`}
+                    className="font-medium text-white hover:text-[#34D399] hover:underline"
+                  >
+                    {row.name}
+                  </Link>
                   {row.is_internal && (
-                    <span className="text-[10px] font-medium tracking-wide text-[#60A5FA] uppercase">
+                    <div className="text-[10px] font-medium tracking-wide text-[#60A5FA] uppercase">
                       Interna
-                    </span>
+                    </div>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -106,7 +112,7 @@ export function AccountsTable({ rows, plans }: { rows: AdminAccountRow[]; plans:
   )
 }
 
-function StatusBadge({ status }: { status: SubscriptionStatus }) {
+export function StatusBadge({ status }: { status: SubscriptionStatus }) {
   const meta = STATUS_META[status]
   return (
     <span

@@ -12,6 +12,7 @@
 import { supabaseAdmin } from './admin-client'
 import type {
   AccountSubscription,
+  AccountUsageStats,
   AdminAccountRow,
   ChurnSummary,
   ExecutiveMetrics,
@@ -19,6 +20,7 @@ import type {
   MrrSummary,
   NewAccountsPoint,
   Plan,
+  SubscriptionEventRow,
   SubscriptionStatus,
 } from './types'
 
@@ -432,4 +434,119 @@ export async function getNewAccountsPerMonth(months = 12): Promise<NewAccountsPo
 
 function monthKey(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/** Single account for the detail page — same embed/shaping as
+ *  getAccountsPage, just narrowed to one row instead of a page. */
+export async function getAccountById(accountId: string): Promise<AdminAccountRow | null> {
+  const admin = supabaseAdmin()
+  const { data, error } = await admin
+    .from('accounts')
+    .select(
+      'id, name, owner_user_id, created_at, is_internal, subscriptions!subscriptions_account_id_fkey(*), profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)',
+    )
+    .eq('id', accountId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return null
+
+  const plans = await getPlans()
+  const plansById = new Map(plans.map((p) => [p.id, p]))
+  const raw = data as unknown as RawAccountRow
+  const lastSignInByUserId = await getLastSignInAtByUserIds([raw.owner_user_id])
+
+  return shapeAccountRow(raw, plansById, lastSignInByUserId)
+}
+
+const EVENTS_PAGE_SIZE = 30
+
+/**
+ * `subscription_events` isn't only admin-panel actions — it also
+ * carries raw Stripe webhook payloads (event_type values like
+ * `setup_intent.setup_failed`, full Stripe object as payload), so the
+ * shape of `payload` varies a lot row to row. The caller renders it
+ * generically (event_type + date + a raw payload disclosure) rather
+ * than assuming a fixed shape.
+ */
+export async function getSubscriptionEvents(
+  accountId: string,
+  page = 1,
+): Promise<{ rows: SubscriptionEventRow[]; total: number; pageSize: number }> {
+  const admin = supabaseAdmin()
+  const from = (page - 1) * EVENTS_PAGE_SIZE
+  const to = from + EVENTS_PAGE_SIZE - 1
+
+  const { data, error, count } = await admin
+    .from('subscription_events')
+    .select('id, event_type, payload, processed_at', { count: 'exact' })
+    .eq('account_id', accountId)
+    .order('processed_at', { ascending: false, nullsFirst: false })
+    .range(from, to)
+  if (error) throw new Error(error.message)
+
+  return {
+    rows: (data ?? []) as SubscriptionEventRow[],
+    total: count ?? 0,
+    pageSize: EVENTS_PAGE_SIZE,
+  }
+}
+
+/**
+ * Usage counts for the account detail page. `conversations`/
+ * `broadcasts`/`deals` carry `account_id` directly (migration 017);
+ * `messages` doesn't, so it's counted via an inner join on
+ * `conversations` — verified against the live schema before relying
+ * on it (this table's columns aren't in any checked-in migration).
+ */
+export async function getAccountUsageStats(accountId: string): Promise<AccountUsageStats> {
+  const admin = supabaseAdmin()
+  const [
+    { count: conversations, error: convError },
+    { count: broadcasts, error: bcError },
+    { count: deals, error: dealsError },
+    { count: messages, error: msgError },
+  ] = await Promise.all([
+    admin
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('account_id', accountId),
+    admin.from('broadcasts').select('id', { count: 'exact', head: true }).eq('account_id', accountId),
+    admin.from('deals').select('id', { count: 'exact', head: true }).eq('account_id', accountId),
+    admin
+      .from('messages')
+      .select('id, conversations!inner(account_id)', { count: 'exact', head: true })
+      .eq('conversations.account_id', accountId),
+  ])
+  if (convError) throw new Error(convError.message)
+  if (bcError) throw new Error(bcError.message)
+  if (dealsError) throw new Error(dealsError.message)
+  if (msgError) throw new Error(msgError.message)
+
+  return {
+    conversations: conversations ?? 0,
+    messages: messages ?? 0,
+    broadcasts: broadcasts ?? 0,
+    deals: deals ?? 0,
+  }
+}
+
+export interface AccountMember {
+  user_id: string
+  full_name: string | null
+  email: string | null
+  account_role: string
+}
+
+/** Full member list for the account detail page — `shapeAccountRow`
+ *  only keeps the owner out of this same `profiles` embed, since the
+ *  list view has no room to show everyone. */
+export async function getAccountMembers(accountId: string): Promise<AccountMember[]> {
+  const admin = supabaseAdmin()
+  const { data, error } = await admin
+    .from('profiles')
+    .select('user_id, full_name, email, account_role')
+    .eq('account_id', accountId)
+    .order('account_role', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as AccountMember[]
 }

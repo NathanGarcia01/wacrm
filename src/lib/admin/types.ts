@@ -102,6 +102,23 @@ export interface NewAccountsPoint {
   count: number
 }
 
+export interface SubscriptionEventRow {
+  id: string
+  event_type: string
+  /** Shape varies — admin-panel actions use
+   *  `{triggered_by, account_name, owner_email, ...}`; raw Stripe
+   *  webhook events store the full Stripe object. Rendered generically. */
+  payload: Record<string, unknown> | null
+  processed_at: string | null
+}
+
+export interface AccountUsageStats {
+  conversations: number
+  messages: number
+  broadcasts: number
+  deals: number
+}
+
 export interface MrrSnapshotRow {
   snapshot_date: string
   mrr_cents: number

@@ -1,41 +1,18 @@
-import type { ReactNode } from "react"
 import { Clock, DollarSign, Users } from "lucide-react"
 import { formatCurrency } from "@/lib/currency"
 import type { ExecutiveMetrics } from "@/lib/admin/types"
-
-function Tile({
-  label,
-  value,
-  sub,
-  icon,
-}: {
-  label: string
-  value: string
-  sub?: ReactNode
-  icon: ReactNode
-}) {
-  return (
-    <div className="rounded-xl border border-[#22242A] bg-[#141417] p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-white/50">{label}</p>
-        <span className="text-white/30">{icon}</span>
-      </div>
-      <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-white">{value}</p>
-      {sub && <div className="mt-1 text-xs">{sub}</div>}
-    </div>
-  )
-}
+import { StatTile } from "./stat-tile"
 
 export function KpiRow({ metrics }: { metrics: ExecutiveMetrics }) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-      <Tile
+      <StatTile
         label="ARR"
         value={formatCurrency(metrics.arrCents / 100, "BRL")}
         icon={<DollarSign className="h-4 w-4" />}
         sub={<span className="text-white/30">MRR × 12</span>}
       />
-      <Tile
+      <StatTile
         label="LTV médio estimado"
         value={metrics.ltvCents !== null ? formatCurrency(metrics.ltvCents / 100, "BRL") : "—"}
         icon={<DollarSign className="h-4 w-4" />}
@@ -45,12 +22,12 @@ export function KpiRow({ metrics }: { metrics: ExecutiveMetrics }) {
           )
         }
       />
-      <Tile
+      <StatTile
         label="Contas ativas"
         value={String(metrics.activeCount)}
         icon={<Users className="h-4 w-4" />}
       />
-      <Tile
+      <StatTile
         label="Em trial"
         value={String(metrics.trialingCount)}
         icon={<Clock className="h-4 w-4" />}
