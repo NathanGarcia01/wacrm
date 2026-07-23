@@ -144,12 +144,24 @@ export type ConditionOperator =
   | "present"
   | "absent";
 
-export type ConditionSubject = "var" | "tag" | "contact_field";
+/**
+ * `message_content` / `time_of_day` are workflow-mode-only additions
+ * (Fase E4) mirroring automations' `ConditionSubject` (src/types/index.ts)
+ * — `var` / `tag` / `contact_field` predate the unification and remain
+ * conversational-engine subjects too.
+ */
+export type ConditionSubject =
+  | "var"
+  | "tag"
+  | "contact_field"
+  | "message_content"
+  | "time_of_day";
 
 /**
  * Routes the run based on a predicate over the contact's tags,
- * profile fields, or stored vars. Always auto-advances — no Meta
- * call, no customer-side input.
+ * profile fields, stored vars, the triggering message's text, or the
+ * time of day. Always auto-advances — no Meta call, no customer-side
+ * input.
  */
 export interface ConditionNodeConfig {
   subject: ConditionSubject;
@@ -157,10 +169,19 @@ export interface ConditionNodeConfig {
    * For `var`: the key in flow_runs.vars.
    * For `tag`: the tag UUID (matched against contact_tags).
    * For `contact_field`: one of 'name' | 'email' | 'phone' | 'company'.
+   * For `time_of_day`: a "HH:mm-HH:mm" window (supports over-midnight
+   * ranges like "18:00-09:00") — mirrors automations' `operand`.
+   * Unused for `message_content` (the subject IS the message text).
    */
   subject_key: string;
   operator: ConditionOperator;
-  /** Compared against `subject` for `equals`/`contains`. Ignored for `present`/`absent`. */
+  /**
+   * Compared against `subject` for `equals`/`contains`. Ignored for
+   * `present`/`absent`/`time_of_day`. For `message_content`, always a
+   * case-insensitive substring match against the triggering message's
+   * text — mirrors automations' fixed `.includes()` behaviour
+   * regardless of `operator`.
+   */
   value?: string;
   /** Node to advance to when the predicate evaluates true. */
   true_next: string;
@@ -356,6 +377,23 @@ export interface CloseConversationNodeConfig {
 }
 
 /**
+ * POSTs a JSON payload to an external URL, then auto-advances —
+ * mirrors automations' `send_webhook` step (`SendWebhookStepConfig`
+ * in src/types/index.ts). `body_template` supports the same
+ * `{{ vars.* }}` interpolation as other steps; left blank, the
+ * executor sends the run's full context as JSON, same fallback as
+ * automations/engine.ts. A non-2xx response throws (surfaces in
+ * flow_run_events), matching automations' behaviour. Only meaningful
+ * on run_mode='workflow'.
+ */
+export interface SendWebhookNodeConfig {
+  url: string;
+  headers?: Record<string, string>;
+  body_template?: string;
+  next_node_key: string;
+}
+
+/**
  * Total union — every concrete node_type the v1 engine understands.
  * Add new node types here and the engine's switch will flag missing
  * cases via TypeScript's exhaustiveness check.
@@ -387,6 +425,7 @@ export type FlowNodeConfig =
   | { node_type: "open_conversation"; config: OpenConversationNodeConfig }
   | { node_type: "set_conversation_pending"; config: SetConversationPendingNodeConfig }
   | { node_type: "close_conversation"; config: CloseConversationNodeConfig }
+  | { node_type: "send_webhook"; config: SendWebhookNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 

@@ -112,6 +112,7 @@ describe("defaultConfigFor", () => {
     "open_conversation",
     "set_conversation_pending",
     "close_conversation",
+    "send_webhook",
     "handoff",
     "end",
   ];
@@ -197,5 +198,10 @@ describe("defaultConfigFor", () => {
 
   it("close_conversation's default only carries the auto-advance target", () => {
     expect(defaultConfigFor("close_conversation", stubT)).toEqual({ next_node_key: "" });
+  });
+
+  it("send_webhook defaults to an empty url", () => {
+    const cfg = defaultConfigFor("send_webhook", stubT) as { url?: string };
+    expect(cfg.url).toBe("");
   });
 });

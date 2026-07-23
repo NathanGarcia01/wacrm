@@ -2309,6 +2309,7 @@
       "open_conversation": "Open conversation",
       "set_conversation_pending": "Set conversation pending",
       "close_conversation": "Close conversation",
+      "send_webhook": "Send webhook",
       "handoff": "Hand off to agent",
       "end": "End"
     },
@@ -2344,7 +2345,9 @@
       "updateContactFieldSummary": "Updates a contact field",
       "openConversationSummary": "Opens the conversation",
       "setConversationPendingSummary": "Sets the conversation to pending",
-      "closeConversationSummary": "Closes the conversation"
+      "closeConversationSummary": "Closes the conversation",
+      "messageContentSummary": "Message contains \"{value}\"",
+      "timeOfDaySummary": "Time is within {range}"
     },
     "editorState": {
       "defaultListButtonLabel": "See options",
@@ -2509,7 +2512,19 @@
       "assignModeRoundRobinOption": "Round-robin",
       "assignAgentLabel": "Agent",
       "assignAgentPlaceholder": "Choose an agent…",
-      "assignAgentUuidPlaceholder": "Agent UUID"
+      "assignAgentUuidPlaceholder": "Agent UUID",
+      "subjectMessageContentOption": "Message content",
+      "subjectTimeOfDayOption": "Time of day",
+      "timeOfDayRangeLabel": "Time window",
+      "timeOfDayRangePlaceholder": "e.g. 18:00-09:00",
+      "messageContentValueLabel": "Message contains",
+      "messageContentValuePlaceholder": "e.g. cancel",
+      "webhookUrlLabel": "URL",
+      "webhookUrlPlaceholder": "https://example.com/webhook",
+      "webhookHeadersLabel": "Headers (JSON, optional)",
+      "webhookHeadersPlaceholder": "{\"Authorization\": \"Bearer ...\"}",
+      "webhookHeadersInvalidJson": "Invalid JSON.",
+      "webhookBodyLabel": "Body (optional — blank sends the run's context)"
     }
   },
   "aiGenerate": {

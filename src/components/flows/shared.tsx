@@ -24,6 +24,7 @@ import {
   FolderInput,
   FolderOutput,
   GitFork,
+  Globe,
   Handshake,
   Inbox,
   ListChecks,
@@ -75,6 +76,7 @@ export type NodeType =
   | "open_conversation"
   | "set_conversation_pending"
   | "close_conversation"
+  | "send_webhook"
   | "handoff"
   | "end";
 
@@ -191,6 +193,10 @@ export const NODE_META: Record<
   close_conversation: {
     icon: FolderOutput,
     color: "text-muted-foreground",
+  },
+  send_webhook: {
+    icon: Globe,
+    color: "text-indigo-400",
   },
   handoff: {
     icon: UserPlus,
@@ -312,6 +318,13 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
     case "condition": {
       const subjectKey =
         typeof cfg.subject_key === "string" ? cfg.subject_key : "";
+      if (cfg.subject === "message_content") {
+        const value = typeof cfg.value === "string" ? cfg.value : "";
+        return value ? t("messageContentSummary", { value: truncate(value, 24) }) : null;
+      }
+      if (cfg.subject === "time_of_day") {
+        return subjectKey ? t("timeOfDaySummary", { range: subjectKey }) : null;
+      }
       if (!subjectKey) return null;
       const subject =
         cfg.subject === "tag"
@@ -398,6 +411,10 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
       return t("setConversationPendingSummary");
     case "close_conversation":
       return t("closeConversationSummary");
+    case "send_webhook": {
+      const url = typeof cfg.url === "string" ? cfg.url : "";
+      return url ? truncate(url, 60) : null;
+    }
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;

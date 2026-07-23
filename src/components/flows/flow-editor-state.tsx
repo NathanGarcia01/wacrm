@@ -229,6 +229,8 @@ export function defaultConfigFor(
       return { next_node_key: "" };
     case "close_conversation":
       return { next_node_key: "" };
+    case "send_webhook":
+      return { url: "", body_template: "", next_node_key: "" };
     case "handoff":
       return { note: "" };
     case "end":

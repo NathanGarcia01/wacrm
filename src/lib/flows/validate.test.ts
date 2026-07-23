@@ -957,6 +957,134 @@ describe("validateFlowForActivation — unassign_agent / open_conversation / set
   }
 });
 
+describe("validateFlowForActivation — send_webhook", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "sw" } },
+    { node_key: "sw", node_type: "send_webhook", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ url: "https://example.com/hook", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a missing url", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "sw" && i.field === "url"),
+    ).toBe(true);
+  });
+
+  it("flags an invalid url", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ url: "not-a-url", next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "sw" && i.field === "url"),
+    ).toBe(true);
+  });
+
+  it("flags missing next_node_key", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ url: "https://example.com/hook" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "sw" && i.field === "next_node_key"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — condition on message_content", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "c" } },
+    { node_key: "c", node_type: "condition", config: cfg },
+    { node_key: "a", node_type: "handoff", config: {} },
+    { node_key: "b", node_type: "handoff", config: {} },
+  ];
+
+  it("passes with just a value (no subject_key/operator needed)", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        subject: "message_content",
+        value: "cancel",
+        true_next: "a",
+        false_next: "b",
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a missing value", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ subject: "message_content", true_next: "a", false_next: "b" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "c" && i.field === "value"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — condition on time_of_day", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "c" } },
+    { node_key: "c", node_type: "condition", config: cfg },
+    { node_key: "a", node_type: "handoff", config: {} },
+    { node_key: "b", node_type: "handoff", config: {} },
+  ];
+
+  it("passes with a valid HH:mm-HH:mm window (no operator/value needed)", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        subject: "time_of_day",
+        subject_key: "18:00-09:00",
+        true_next: "a",
+        false_next: "b",
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a malformed window", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        subject: "time_of_day",
+        subject_key: "not-a-window",
+        true_next: "a",
+        false_next: "b",
+      }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "c" && i.field === "subject_key"),
+    ).toBe(true);
+  });
+
+  it("flags a missing window", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ subject: "time_of_day", true_next: "a", false_next: "b" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "c" && i.field === "subject_key"),
+    ).toBe(true);
+  });
+});
+
 describe("reachableFromEntry", () => {
   it("walks the graph from the entry", () => {
     const set = reachableFromEntry("start", validNodes);

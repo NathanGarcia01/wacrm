@@ -630,53 +630,86 @@ function validateNode(
 
     case "condition": {
       const cfg = node.config as {
-        subject?: "var" | "tag" | "contact_field";
+        subject?: "var" | "tag" | "contact_field" | "message_content" | "time_of_day";
         subject_key?: string;
         operator?: "equals" | "contains" | "present" | "absent";
         value?: string;
         true_next?: string;
         false_next?: string;
       };
-      if (!cfg.subject || !["var", "tag", "contact_field"].includes(cfg.subject)) {
+      const knownSubjects = [
+        "var",
+        "tag",
+        "contact_field",
+        "message_content",
+        "time_of_day",
+      ];
+      if (!cfg.subject || !knownSubjects.includes(cfg.subject)) {
         issues.push({
           severity: "error",
           scope: "node",
           node_key: node.node_key,
           field: "subject",
-          message: "Condition needs a subject (var / tag / contact_field).",
+          message: "Condition needs a subject (var / tag / contact_field / message_content / time_of_day).",
         });
       }
-      if (!cfg.subject_key?.trim()) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "subject_key",
-          message: "Condition needs a subject_key (var name, tag id, or field name).",
-        });
-      }
-      if (
-        !cfg.operator ||
-        !["equals", "contains", "present", "absent"].includes(cfg.operator)
-      ) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "operator",
-          message: "Condition needs an operator.",
-        });
-      } else if (
-        (cfg.operator === "equals" || cfg.operator === "contains") &&
-        (cfg.value === undefined || cfg.value === "")
-      ) {
-        issues.push({
-          severity: "warning",
-          scope: "node",
-          node_key: node.node_key,
-          field: "value",
-          message: `Operator "${cfg.operator}" usually expects a comparison value — empty value will only match empty subjects.`,
-        });
+      // message_content has no subject_key (the subject IS the message
+      // text) — it's always a substring match on `value`, mirroring
+      // automations' fixed .includes() behaviour regardless of operator.
+      if (cfg.subject === "message_content") {
+        if (!cfg.value?.trim()) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "value",
+            message: "Condition on message content needs a substring to match.",
+          });
+        }
+      } else if (cfg.subject === "time_of_day") {
+        // "HH:mm-HH:mm" — mirrors automations' `operand` format.
+        if (!cfg.subject_key || !/^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/.test(cfg.subject_key)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "subject_key",
+            message: 'Condition on time of day needs a "HH:mm-HH:mm" window.',
+          });
+        }
+      } else {
+        if (!cfg.subject_key?.trim()) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "subject_key",
+            message: "Condition needs a subject_key (var name, tag id, or field name).",
+          });
+        }
+        if (
+          !cfg.operator ||
+          !["equals", "contains", "present", "absent"].includes(cfg.operator)
+        ) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "operator",
+            message: "Condition needs an operator.",
+          });
+        } else if (
+          (cfg.operator === "equals" || cfg.operator === "contains") &&
+          (cfg.value === undefined || cfg.value === "")
+        ) {
+          issues.push({
+            severity: "warning",
+            scope: "node",
+            node_key: node.node_key,
+            field: "value",
+            message: `Operator "${cfg.operator}" usually expects a comparison value — empty value will only match empty subjects.`,
+          });
+        }
       }
       for (const branch of ["true_next", "false_next"] as const) {
         const key = cfg[branch];
@@ -1078,6 +1111,49 @@ function validateNode(
       break;
     }
 
+    case "send_webhook": {
+      const cfg = node.config as { url?: string; next_node_key?: string };
+      if (!cfg.url?.trim()) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "url",
+          message: "Send-webhook needs a URL.",
+        });
+      } else {
+        try {
+          new URL(cfg.url);
+        } catch {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "url",
+            message: `"${cfg.url}" isn't a valid URL.`,
+          });
+        }
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Send-webhook must point to a next node.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Send-webhook points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+
     case "stop_flow":
     case "handoff":
     case "end":
@@ -1142,6 +1218,7 @@ function outgoingEdges(node: NodeInput): string[] {
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "send_webhook":
     case "wait": {
       const cfg = node.config as { next_node_key?: string };
       return cfg.next_node_key ? [cfg.next_node_key] : [];

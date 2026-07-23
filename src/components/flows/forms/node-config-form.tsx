@@ -312,6 +312,16 @@ export function NodeConfigForm({
         />
       );
 
+    case "send_webhook":
+      return (
+        <SendWebhookForm
+          cfg={cfg as SendWebhookCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "handoff":
       return (
         <TextRow
@@ -789,7 +799,7 @@ function WaitForm({
 // ============================================================
 
 interface ConditionCfg {
-  subject?: "var" | "tag" | "contact_field";
+  subject?: "var" | "tag" | "contact_field" | "message_content" | "time_of_day";
   subject_key?: string;
   operator?: "equals" | "contains" | "present" | "absent";
   value?: string;
@@ -821,6 +831,8 @@ function ConditionForm({
   const subject = cfg.subject ?? "var";
   const operator = cfg.operator ?? "equals";
   const showValue = operator === "equals" || operator === "contains";
+  const isMessageContent = subject === "message_content";
+  const isTimeOfDay = subject === "time_of_day";
 
   // Base UI's <Select> only resolves the trigger's displayed label from
   // its `items` map (or from the popup's <SelectItem> children once the
@@ -832,6 +844,8 @@ function ConditionForm({
       var: t("subjectVarOption"),
       tag: t("subjectTagOption"),
       contact_field: t("subjectFieldOption"),
+      message_content: t("subjectMessageContentOption"),
+      time_of_day: t("subjectTimeOfDayOption"),
     }),
     [t],
   );
@@ -864,98 +878,124 @@ function ConditionForm({
               <SelectItem value="var">{t("subjectVarOption")}</SelectItem>
               <SelectItem value="tag">{t("subjectTagOption")}</SelectItem>
               <SelectItem value="contact_field">{t("subjectFieldOption")}</SelectItem>
+              <SelectItem value="message_content">{t("subjectMessageContentOption")}</SelectItem>
+              <SelectItem value="time_of_day">{t("subjectTimeOfDayOption")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <div className="md:col-span-2">
-          <label className="mb-1 block text-xs text-muted-foreground">
-            {subject === "var"
-              ? t("varNameLabel")
-              : subject === "tag"
-                ? t("tagLabel")
-                : t("fieldLabel")}
-          </label>
-          {subject === "tag" && tags.length > 0 ? (
-            <Select
-              value={cfg.subject_key ?? ""}
-              onValueChange={(v) => onUpdateConfig({ subject_key: v })}
-            >
-              <SelectTrigger className="bg-muted">
-                <SelectValue placeholder={t("chooseTagPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {tags.map((tag) => (
-                  <SelectItem key={tag.id} value={tag.id}>
-                    {tag.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : subject === "contact_field" ? (
-            <Select
-              value={cfg.subject_key ?? ""}
-              onValueChange={(v) => onUpdateConfig({ subject_key: v })}
-            >
-              <SelectTrigger className="bg-muted">
-                <SelectValue placeholder={t("chooseFieldPlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">{tCommon("name")}</SelectItem>
-                <SelectItem value="email">{tCommon("email")}</SelectItem>
-                <SelectItem value="phone">{tCommon("phone")}</SelectItem>
-                <SelectItem value="company">{t("fieldCompany")}</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input
-              value={cfg.subject_key ?? ""}
-              onChange={(e) =>
-                onUpdateConfig({ subject_key: e.target.value })
-              }
-              placeholder={subject === "var" ? t("varKeyPlaceholder") : t("tagUuidPlaceholder")}
-              className="bg-muted font-mono text-xs"
-            />
-          )}
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "grid grid-cols-1 gap-3",
-          showValue ? "md:grid-cols-2" : "",
-        )}
-      >
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">{t("operatorLabel")}</label>
-          <Select
-            items={operatorItems}
-            value={operator}
-            onValueChange={(v) =>
-              onUpdateConfig({ operator: v as ConditionCfg["operator"] })
-            }
-          >
-            <SelectTrigger className="bg-muted">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="present">{t("opPresent")}</SelectItem>
-              <SelectItem value="absent">{t("opAbsent")}</SelectItem>
-              <SelectItem value="equals">{t("opEquals")}</SelectItem>
-              <SelectItem value="contains">{t("opContains")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {showValue && (
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">{t("valueLabel")}</label>
-            <Input
-              value={cfg.value ?? ""}
-              onChange={(e) => onUpdateConfig({ value: e.target.value })}
-              className="bg-muted"
-            />
+        {!isMessageContent && (
+          <div className="md:col-span-2">
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {subject === "var"
+                ? t("varNameLabel")
+                : subject === "tag"
+                  ? t("tagLabel")
+                  : isTimeOfDay
+                    ? t("timeOfDayRangeLabel")
+                    : t("fieldLabel")}
+            </label>
+            {subject === "tag" && tags.length > 0 ? (
+              <Select
+                value={cfg.subject_key ?? ""}
+                onValueChange={(v) => onUpdateConfig({ subject_key: v })}
+              >
+                <SelectTrigger className="bg-muted">
+                  <SelectValue placeholder={t("chooseTagPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tag.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : subject === "contact_field" ? (
+              <Select
+                value={cfg.subject_key ?? ""}
+                onValueChange={(v) => onUpdateConfig({ subject_key: v })}
+              >
+                <SelectTrigger className="bg-muted">
+                  <SelectValue placeholder={t("chooseFieldPlaceholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">{tCommon("name")}</SelectItem>
+                  <SelectItem value="email">{tCommon("email")}</SelectItem>
+                  <SelectItem value="phone">{tCommon("phone")}</SelectItem>
+                  <SelectItem value="company">{t("fieldCompany")}</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                value={cfg.subject_key ?? ""}
+                onChange={(e) =>
+                  onUpdateConfig({ subject_key: e.target.value })
+                }
+                placeholder={
+                  isTimeOfDay
+                    ? t("timeOfDayRangePlaceholder")
+                    : subject === "var"
+                      ? t("varKeyPlaceholder")
+                      : t("tagUuidPlaceholder")
+                }
+                className="bg-muted font-mono text-xs"
+              />
+            )}
           </div>
         )}
       </div>
+
+      {isMessageContent ? (
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("messageContentValueLabel")}
+          </label>
+          <Input
+            value={cfg.value ?? ""}
+            onChange={(e) => onUpdateConfig({ value: e.target.value })}
+            placeholder={t("messageContentValuePlaceholder")}
+            className="bg-muted"
+          />
+        </div>
+      ) : isTimeOfDay ? null : (
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-3",
+            showValue ? "md:grid-cols-2" : "",
+          )}
+        >
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("operatorLabel")}</label>
+            <Select
+              items={operatorItems}
+              value={operator}
+              onValueChange={(v) =>
+                onUpdateConfig({ operator: v as ConditionCfg["operator"] })
+              }
+            >
+              <SelectTrigger className="bg-muted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="present">{t("opPresent")}</SelectItem>
+                <SelectItem value="absent">{t("opAbsent")}</SelectItem>
+                <SelectItem value="equals">{t("opEquals")}</SelectItem>
+                <SelectItem value="contains">{t("opContains")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {showValue && (
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">{t("valueLabel")}</label>
+              <Input
+                value={cfg.value ?? ""}
+                onChange={(e) => onUpdateConfig({ value: e.target.value })}
+                className="bg-muted"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <NextNodeRow
@@ -1672,6 +1712,105 @@ function UpdateContactFieldForm({
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}
         label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+// ============================================================
+// send_webhook — workflow-mode only. Mirrors automations'
+// `send_webhook` step (SendWebhookStepConfig in src/types/index.ts).
+// Headers are edited as raw JSON text since a key-value list editor
+// isn't warranted for what's expected to be a rarely-used advanced
+// field — same trade-off as the raw-UUID fallbacks elsewhere in this
+// file.
+// ============================================================
+
+interface SendWebhookCfg {
+  url?: string;
+  headers?: Record<string, string>;
+  body_template?: string;
+  next_node_key?: string;
+}
+
+function SendWebhookForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: SendWebhookCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const [headersText, setHeadersText] = useState(() =>
+    cfg.headers ? JSON.stringify(cfg.headers, null, 2) : "",
+  );
+  const [headersError, setHeadersError] = useState(false);
+
+  const commitHeaders = (text: string) => {
+    setHeadersText(text);
+    if (!text.trim()) {
+      setHeadersError(false);
+      onUpdateConfig({ headers: undefined });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text) as Record<string, string>;
+      setHeadersError(false);
+      onUpdateConfig({ headers: parsed });
+    } catch {
+      setHeadersError(true);
+    }
+  };
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("webhookUrlLabel")}
+        </label>
+        <Input
+          value={cfg.url ?? ""}
+          onChange={(e) => onUpdateConfig({ url: e.target.value })}
+          placeholder={t("webhookUrlPlaceholder")}
+          className="bg-muted font-mono text-xs"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("webhookHeadersLabel")}
+        </label>
+        <textarea
+          value={headersText}
+          onChange={(e) => commitHeaders(e.target.value)}
+          placeholder={t("webhookHeadersPlaceholder")}
+          rows={3}
+          className={cn(
+            "w-full rounded-md border bg-muted px-3 py-2 font-mono text-xs",
+            headersError ? "border-destructive" : "border-border",
+          )}
+        />
+        {headersError && (
+          <p className="mt-1 text-[10px] text-destructive">
+            {t("webhookHeadersInvalidJson")}
+          </p>
+        )}
+      </div>
+      <TextRow
+        label={t("webhookBodyLabel")}
+        value={cfg.body_template ?? ""}
+        onChange={(v) => onUpdateConfig({ body_template: v })}
+        rows={3}
+      />
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("afterSendAdvanceLabel")}
       />
     </>
   );

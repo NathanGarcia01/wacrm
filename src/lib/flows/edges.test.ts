@@ -278,6 +278,23 @@ describe("deriveCanvasEdges — conversation/contact node types (single next, li
   });
 });
 
+describe("deriveCanvasEdges — send_webhook (single next, like send_message)", () => {
+  it("derives a `next` edge", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "sw",
+          node_type: "send_webhook",
+          config: { url: "https://x.com/hook", next_node_key: "e" },
+        },
+        { node_key: "e", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({ source: "sw", target: "e", sourceHandle: "next" });
+  });
+});
+
 describe("deriveCanvasEdges — send_buttons (per-button)", () => {
   it("emits one edge per button, labeled with the button title", () => {
     const edges = deriveCanvasEdges(
@@ -480,6 +497,9 @@ describe("outgoingSlots", () => {
     ).toEqual(["next"]);
     expect(
       each({ node_key: "x", node_type: "close_conversation", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "send_webhook", config: {} }),
     ).toEqual(["next"]);
   });
 

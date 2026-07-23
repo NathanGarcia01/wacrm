@@ -653,6 +653,7 @@ const ADD_NODE_TYPES: NodeType[] = [
   "open_conversation",
   "set_conversation_pending",
   "close_conversation",
+  "send_webhook",
   "handoff",
   "end",
 ];
