@@ -88,6 +88,25 @@ async function main() {
     process.exit(1);
   }
 
+  // Printed BEFORE the password prompt so it's obvious which project
+  // is about to receive it — confirm this matches your production
+  // Supabase project before typing anything.
+  console.log(`Conectando em: ${SUPABASE_URL}`);
+
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Fail fast if migration 041_admin_users.sql hasn't been applied
+  // yet, instead of prompting for a password and only discovering the
+  // table doesn't exist afterward.
+  const { error: probeError } = await admin.from("admin_users").select("id", { count: "exact", head: true });
+  if (probeError) {
+    console.error(
+      `Não foi possível ler a tabela admin_users (${probeError.message}). ` +
+        "Aplique supabase/migrations/041_admin_users.sql nesse projeto antes de continuar.",
+    );
+    process.exit(1);
+  }
+
   const password = await promptHiddenPassword(`Senha para ${email}: `);
   if (password.length < 8) {
     console.error("Password must be at least 8 characters.");
@@ -99,7 +118,6 @@ async function main() {
     process.exit(1);
   }
 
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const passwordHash = await hashPassword(password);
 
   const { data, error } = await admin
@@ -116,7 +134,19 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("Admin user ready:", data);
+  // Re-fetch in a separate request (not just trusting the upsert's own
+  // return value) — proves the row is actually readable back from the
+  // same project, not just that the request object looked right.
+  const { data: verify, error: verifyError } = await admin
+    .from("admin_users")
+    .select("id, email, name, role")
+    .eq("id", data.id)
+    .maybeSingle();
+
+  console.log("\n================ SUCCESS ================");
+  console.log("Admin user row (from upsert):", data);
+  console.log("Admin user row (re-fetched)  :", verifyError ? `ERROR: ${verifyError.message}` : verify);
+  console.log("===========================================\n");
 }
 
 main();
