@@ -1372,6 +1372,21 @@
       "orContinueWith": "or continue with",
       "continueWithGoogle": "Continue with Google",
       "secureConnection": "Secure, encrypted connection"
+    },
+    "resetPassword": {
+      "title": "Create new password",
+      "hint": "Enter your new password below",
+      "newPasswordLabel": "New password",
+      "confirmPasswordLabel": "Confirm new password",
+      "passwordPlaceholder": "At least 6 characters",
+      "confirmPasswordPlaceholder": "Repeat your new password",
+      "passwordsDontMatch": "Passwords do not match",
+      "passwordTooShort": "Password must be at least 6 characters",
+      "updateButton": "Reset password",
+      "updating": "Updating...",
+      "successTitle": "Password updated",
+      "successMessage": "Your password has been reset successfully. You can now sign in with your new password.",
+      "goToLogin": "Go to sign in"
     }
   },
   "settings": {

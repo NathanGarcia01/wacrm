@@ -1372,6 +1372,21 @@
       "orContinueWith": "o continúa con",
       "continueWithGoogle": "Continuar con Google",
       "secureConnection": "Conexión segura y cifrada"
+    },
+    "resetPassword": {
+      "title": "Crear nueva contraseña",
+      "hint": "Ingresa tu nueva contraseña a continuación",
+      "newPasswordLabel": "Nueva contraseña",
+      "confirmPasswordLabel": "Confirmar nueva contraseña",
+      "passwordPlaceholder": "Al menos 6 caracteres",
+      "confirmPasswordPlaceholder": "Repite tu nueva contraseña",
+      "passwordsDontMatch": "Las contraseñas no coinciden",
+      "passwordTooShort": "La contraseña debe tener al menos 6 caracteres",
+      "updateButton": "Restablecer contraseña",
+      "updating": "Actualizando...",
+      "successTitle": "Contraseña actualizada",
+      "successMessage": "Tu contraseña se restableció con éxito. Ya puedes iniciar sesión con tu nueva contraseña.",
+      "goToLogin": "Ir a iniciar sesión"
     }
   },
   "settings": {
