@@ -154,6 +154,11 @@ export const RATE_LIMITS = {
    *  iterating on their n8n/Zapier setup while bounding it as a
    *  request-proxy / abuse vector against arbitrary third-party URLs. */
   webhookOutTest: { limit: 10, windowMs: 60_000 },
+  /** Post-signup welcome email trigger (public, per-IP). The route
+   *  itself only sends for accounts created in the last few minutes
+   *  (see /api/auth/welcome-email), so this is belt-and-braces against
+   *  someone hammering the endpoint rather than the main defense. */
+  welcomeEmail: { limit: 5, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

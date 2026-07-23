@@ -63,7 +63,7 @@ function SignupPageInner() {
       ? `${window.location.origin}/join/${encodeURIComponent(inviteToken)}`
       : undefined;
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -78,6 +78,19 @@ function SignupPageInner() {
       setError(error.message);
       setLoading(false);
       return;
+    }
+
+    // Fire-and-forget — the welcome email must never block or fail
+    // the signup flow. The route looks up the email/name itself from
+    // the user id, so nothing sensitive is sent from the client.
+    if (data.user) {
+      fetch("/api/auth/welcome-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: data.user.id }),
+      }).catch(() => {
+        // Best-effort; a network hiccup here shouldn't surface to the user.
+      });
     }
 
     setSuccess(true);
