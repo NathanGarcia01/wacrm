@@ -2303,6 +2303,12 @@
       "update_deal_value": "Update deal value",
       "mark_deal_won": "Mark deal won",
       "mark_deal_lost": "Mark deal lost",
+      "assign_conversation": "Assign conversation",
+      "unassign_agent": "Unassign conversation agent",
+      "update_contact_field": "Update contact field",
+      "open_conversation": "Open conversation",
+      "set_conversation_pending": "Set conversation pending",
+      "close_conversation": "Close conversation",
       "handoff": "Hand off to agent",
       "end": "End"
     },
@@ -2331,7 +2337,14 @@
       "updateDealStageSummary": "Moves deal to stage",
       "updateDealValueSummary": "Sets deal value",
       "markDealWonSummary": "Marks deal won",
-      "markDealLostSummary": "Marks deal lost"
+      "markDealLostSummary": "Marks deal lost",
+      "assignConversationSpecificSummary": "Assigns to a specific agent",
+      "assignConversationRoundRobinSummary": "Assigns via round-robin",
+      "unassignAgentSummary": "Clears the assigned agent",
+      "updateContactFieldSummary": "Updates a contact field",
+      "openConversationSummary": "Opens the conversation",
+      "setConversationPendingSummary": "Sets the conversation to pending",
+      "closeConversationSummary": "Closes the conversation"
     },
     "editorState": {
       "defaultListButtonLabel": "See options",
@@ -2490,7 +2503,13 @@
       "dealDefaultStagePlaceholder": "Leave blank to use the first stage",
       "dealStageUuidPlaceholder": "Stage UUID",
       "dealValueLabel": "Value",
-      "dealLostReasonLabel": "Lost reason (optional)"
+      "dealLostReasonLabel": "Lost reason (optional)",
+      "assignModeLabel": "Assignment mode",
+      "assignModeSpecificOption": "Specific agent",
+      "assignModeRoundRobinOption": "Round-robin",
+      "assignAgentLabel": "Agent",
+      "assignAgentPlaceholder": "Choose an agent…",
+      "assignAgentUuidPlaceholder": "Agent UUID"
     }
   },
   "aiGenerate": {

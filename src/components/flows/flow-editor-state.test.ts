@@ -106,6 +106,12 @@ describe("defaultConfigFor", () => {
     "update_deal_value",
     "mark_deal_won",
     "mark_deal_lost",
+    "assign_conversation",
+    "unassign_agent",
+    "update_contact_field",
+    "open_conversation",
+    "set_conversation_pending",
+    "close_conversation",
     "handoff",
     "end",
   ];
@@ -178,5 +184,18 @@ describe("defaultConfigFor", () => {
 
   it("mark_deal_won's default only carries the auto-advance target", () => {
     expect(defaultConfigFor("mark_deal_won", stubT)).toEqual({ next_node_key: "" });
+  });
+
+  it("assign_conversation defaults to specific mode with no agent picked", () => {
+    const cfg = defaultConfigFor("assign_conversation", stubT) as {
+      mode?: string;
+      agent_id?: string;
+    };
+    expect(cfg.mode).toBe("specific");
+    expect(cfg.agent_id).toBe("");
+  });
+
+  it("close_conversation's default only carries the auto-advance target", () => {
+    expect(defaultConfigFor("close_conversation", stubT)).toEqual({ next_node_key: "" });
   });
 });

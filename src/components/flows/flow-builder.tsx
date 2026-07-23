@@ -602,6 +602,12 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "update_deal_value",
     "mark_deal_won",
     "mark_deal_lost",
+    "assign_conversation",
+    "unassign_agent",
+    "update_contact_field",
+    "open_conversation",
+    "set_conversation_pending",
+    "close_conversation",
     "handoff",
     "end",
   ];

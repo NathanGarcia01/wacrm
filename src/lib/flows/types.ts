@@ -292,6 +292,70 @@ export interface MarkDealLostNodeConfig {
 }
 
 /**
+ * Assigns (or round-robin load-balances) the conversation's agent —
+ * mirrors automations' `assign_conversation` step
+ * (`AssignConversationStepConfig` in src/types/index.ts). `round_robin`
+ * picks whoever on the account currently carries the fewest non-closed
+ * conversations, same tie-break as automations/engine.ts. Only
+ * meaningful on run_mode='workflow'.
+ */
+export interface AssignConversationNodeConfig {
+  mode: "specific" | "round_robin";
+  agent_id?: string;
+  next_node_key: string;
+}
+
+/**
+ * Clears the conversation's assigned agent — mirrors automations'
+ * `unassign_agent` step. Only meaningful on run_mode='workflow'.
+ */
+export interface UnassignAgentNodeConfig {
+  next_node_key: string;
+}
+
+/**
+ * Writes a contact field (built-in column or `custom:<id>` custom
+ * field) — mirrors automations' `update_contact_field` step
+ * (`UpdateContactFieldStepConfig`). `value` supports the same
+ * `{{ vars.* }}` / `{{ message.text }}` interpolation the executor
+ * already resolves for other steps. Only meaningful on
+ * run_mode='workflow'.
+ */
+export interface UpdateContactFieldNodeConfig {
+  field: string;
+  value: string;
+  next_node_key: string;
+}
+
+/**
+ * Sets the contact's conversation to `open` — mirrors automations'
+ * `open_conversation` step. Only meaningful on run_mode='workflow'.
+ */
+export interface OpenConversationNodeConfig {
+  next_node_key: string;
+}
+
+/**
+ * Sets the contact's conversation to `pending` — mirrors automations'
+ * `set_conversation_pending` step. Only meaningful on
+ * run_mode='workflow'.
+ */
+export interface SetConversationPendingNodeConfig {
+  next_node_key: string;
+}
+
+/**
+ * Closes the contact's conversation and best-effort fires the NPS
+ * survey, exactly like automations' `close_conversation` step (see
+ * `resolveConversationId` + `sendNpsSurvey` in
+ * src/lib/automations/engine.ts — a survey-send failure must never
+ * fail this step). Only meaningful on run_mode='workflow'.
+ */
+export interface CloseConversationNodeConfig {
+  next_node_key: string;
+}
+
+/**
  * Total union — every concrete node_type the v1 engine understands.
  * Add new node types here and the engine's switch will flag missing
  * cases via TypeScript's exhaustiveness check.
@@ -317,6 +381,12 @@ export type FlowNodeConfig =
   | { node_type: "update_deal_value"; config: UpdateDealValueNodeConfig }
   | { node_type: "mark_deal_won"; config: MarkDealWonNodeConfig }
   | { node_type: "mark_deal_lost"; config: MarkDealLostNodeConfig }
+  | { node_type: "assign_conversation"; config: AssignConversationNodeConfig }
+  | { node_type: "unassign_agent"; config: UnassignAgentNodeConfig }
+  | { node_type: "update_contact_field"; config: UpdateContactFieldNodeConfig }
+  | { node_type: "open_conversation"; config: OpenConversationNodeConfig }
+  | { node_type: "set_conversation_pending"; config: SetConversationPendingNodeConfig }
+  | { node_type: "close_conversation"; config: CloseConversationNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 

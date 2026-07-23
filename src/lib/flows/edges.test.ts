@@ -229,6 +229,55 @@ describe("deriveCanvasEdges — deal-mutation node types (single next, like send
   });
 });
 
+describe("deriveCanvasEdges — conversation/contact node types (single next, like send_message)", () => {
+  it("derives a `next` edge from assign_conversation, unassign_agent, update_contact_field, open_conversation, set_conversation_pending, close_conversation", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "ac",
+          node_type: "assign_conversation",
+          config: { mode: "round_robin", next_node_key: "ua" },
+        },
+        {
+          node_key: "ua",
+          node_type: "unassign_agent",
+          config: { next_node_key: "ucf" },
+        },
+        {
+          node_key: "ucf",
+          node_type: "update_contact_field",
+          config: { field: "name", value: "x", next_node_key: "oc" },
+        },
+        {
+          node_key: "oc",
+          node_type: "open_conversation",
+          config: { next_node_key: "scp" },
+        },
+        {
+          node_key: "scp",
+          node_type: "set_conversation_pending",
+          config: { next_node_key: "cc" },
+        },
+        {
+          node_key: "cc",
+          node_type: "close_conversation",
+          config: { next_node_key: "e" },
+        },
+        { node_key: "e", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
+      "ac->ua",
+      "ua->ucf",
+      "ucf->oc",
+      "oc->scp",
+      "scp->cc",
+      "cc->e",
+    ]);
+    expect(edges.every((e) => e.sourceHandle === "next")).toBe(true);
+  });
+});
+
 describe("deriveCanvasEdges — send_buttons (per-button)", () => {
   it("emits one edge per button, labeled with the button title", () => {
     const edges = deriveCanvasEdges(
@@ -413,6 +462,24 @@ describe("outgoingSlots", () => {
     ).toEqual(["next"]);
     expect(
       each({ node_key: "x", node_type: "mark_deal_lost", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "assign_conversation", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "unassign_agent", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "update_contact_field", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "open_conversation", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "set_conversation_pending", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "close_conversation", config: {} }),
     ).toEqual(["next"]);
   });
 

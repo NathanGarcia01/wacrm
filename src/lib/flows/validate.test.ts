@@ -849,6 +849,114 @@ describe("validateFlowForActivation — mark_deal_lost", () => {
   });
 });
 
+describe("validateFlowForActivation — assign_conversation", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "ac" } },
+    { node_key: "ac", node_type: "assign_conversation", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes in round_robin mode without an agent_id", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ mode: "round_robin", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("passes in specific mode with an agent_id", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ mode: "specific", agent_id: "u1", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags specific mode without an agent_id", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ mode: "specific", next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "ac" && i.field === "agent_id"),
+    ).toBe(true);
+  });
+
+  it("flags a missing/invalid mode", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "ac" && i.field === "mode"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — update_contact_field", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "ucf" } },
+    { node_key: "ucf", node_type: "update_contact_field", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ field: "name", value: "x", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a missing field", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ value: "x", next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "ucf" && i.field === "field"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — unassign_agent / open_conversation / set_conversation_pending / close_conversation", () => {
+  const types = [
+    "unassign_agent",
+    "open_conversation",
+    "set_conversation_pending",
+    "close_conversation",
+  ] as const;
+
+  for (const nodeType of types) {
+    it(`${nodeType} passes with just a next_node_key`, () => {
+      const issues = validateFlowForActivation(
+        { ...validFlow, entry_node_id: "s" },
+        [
+          { node_key: "s", node_type: "start", config: { next_node_key: "n" } },
+          { node_key: "n", node_type: nodeType, config: { next_node_key: "h" } },
+          { node_key: "h", node_type: "handoff", config: {} },
+        ],
+      );
+      expect(issues).toEqual([]);
+    });
+
+    it(`${nodeType} flags missing next_node_key`, () => {
+      const issues = validateFlowForActivation(
+        { ...validFlow, entry_node_id: "s" },
+        [
+          { node_key: "s", node_type: "start", config: { next_node_key: "n" } },
+          { node_key: "n", node_type: nodeType, config: {} },
+        ],
+      );
+      expect(
+        issues.some((i) => i.node_key === "n" && i.field === "next_node_key"),
+      ).toBe(true);
+    });
+  }
+});
+
 describe("reachableFromEntry", () => {
   it("walks the graph from the entry", () => {
     const set = reachableFromEntry("start", validNodes);

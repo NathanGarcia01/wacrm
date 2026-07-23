@@ -975,6 +975,109 @@ function validateNode(
       break;
     }
 
+    case "assign_conversation": {
+      const cfg = node.config as {
+        mode?: "specific" | "round_robin";
+        agent_id?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.mode || !["specific", "round_robin"].includes(cfg.mode)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "mode",
+          message: "Assign-conversation needs a mode (specific or round_robin).",
+        });
+      } else if (cfg.mode === "specific" && !cfg.agent_id) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "agent_id",
+          message: "Assign-conversation in specific mode needs an agent.",
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Assign-conversation must point to a next node.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Assign-conversation points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+
+    case "update_contact_field": {
+      const cfg = node.config as {
+        field?: string;
+        value?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.field?.trim()) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "field",
+          message: "Update-contact-field needs a field to write.",
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Update-contact-field must point to a next node.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Update-contact-field points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+
+    case "unassign_agent":
+    case "open_conversation":
+    case "set_conversation_pending":
+    case "close_conversation": {
+      const cfg = node.config as { next_node_key?: string };
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `${node.node_type} must point to a next node.`,
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `${node.node_type} points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+
     case "stop_flow":
     case "handoff":
     case "end":
@@ -1033,6 +1136,12 @@ function outgoingEdges(node: NodeInput): string[] {
     case "update_deal_value":
     case "mark_deal_won":
     case "mark_deal_lost":
+    case "assign_conversation":
+    case "unassign_agent":
+    case "update_contact_field":
+    case "open_conversation":
+    case "set_conversation_pending":
+    case "close_conversation":
     case "wait": {
       const cfg = node.config as { next_node_key?: string };
       return cfg.next_node_key ? [cfg.next_node_key] : [];

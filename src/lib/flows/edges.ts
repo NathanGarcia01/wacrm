@@ -69,6 +69,12 @@ export function deriveCanvasEdges(
       case "update_deal_value":
       case "mark_deal_won":
       case "mark_deal_lost":
+      case "assign_conversation":
+      case "unassign_agent":
+      case "update_contact_field":
+      case "open_conversation":
+      case "set_conversation_pending":
+      case "close_conversation":
       case "wait": {
         const next = (cfg as { next_node_key?: string }).next_node_key;
         if (next && knownKeys.has(next)) {
@@ -211,6 +217,12 @@ export function outgoingSlots(
     case "update_deal_value":
     case "mark_deal_won":
     case "mark_deal_lost":
+    case "assign_conversation":
+    case "unassign_agent":
+    case "update_contact_field":
+    case "open_conversation":
+    case "set_conversation_pending":
+    case "close_conversation":
     case "wait":
       return [{ id: "next", label: t("next") }];
 
@@ -294,6 +306,12 @@ export function applyEdgeConnection(
     case "update_deal_value":
     case "mark_deal_won":
     case "mark_deal_lost":
+    case "assign_conversation":
+    case "unassign_agent":
+    case "update_contact_field":
+    case "open_conversation":
+    case "set_conversation_pending":
+    case "close_conversation":
     case "wait":
       if (sourceHandle === "next") return { next_node_key: targetKey };
       return null;
@@ -397,6 +415,12 @@ function patchedConfigWithoutKey(
     case "update_deal_value":
     case "mark_deal_won":
     case "mark_deal_lost":
+    case "assign_conversation":
+    case "unassign_agent":
+    case "update_contact_field":
+    case "open_conversation":
+    case "set_conversation_pending":
+    case "close_conversation":
     case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key;
       if (next !== deletedKey) return null;

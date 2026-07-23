@@ -278,6 +278,40 @@ export function NodeConfigForm({
         />
       );
 
+    case "assign_conversation":
+      return (
+        <AssignConversationForm
+          cfg={cfg as AssignConversationCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "unassign_agent":
+    case "open_conversation":
+    case "set_conversation_pending":
+    case "close_conversation":
+      return (
+        <NextNodeRow
+          value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onChange={(v) => onUpdateConfig({ next_node_key: v })}
+          label={t("thenAdvanceLabel")}
+        />
+      );
+
+    case "update_contact_field":
+      return (
+        <UpdateContactFieldForm
+          cfg={cfg as UpdateContactFieldCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "handoff":
       return (
         <TextRow
@@ -1425,6 +1459,212 @@ function MarkDealLostForm({
         label={t("dealLostReasonLabel")}
         value={cfg.reason ?? ""}
         onChange={(v) => onUpdateConfig({ reason: v })}
+      />
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+// ============================================================
+// assign_conversation / unassign_agent / update_contact_field /
+// open_conversation / set_conversation_pending / close_conversation —
+// workflow-mode only. Mirror automations' conversation/contact steps
+// (AssignConversationStepConfig, UpdateContactFieldStepConfig in
+// src/types/index.ts). close_conversation also best-effort fires the
+// NPS survey, same as automations/engine.ts — see workflow-engine.ts
+// (Fase E3).
+// ============================================================
+
+interface AssignConversationCfg {
+  mode?: "specific" | "round_robin";
+  agent_id?: string;
+  next_node_key?: string;
+}
+
+interface UserMember {
+  user_id: string;
+  full_name: string;
+}
+
+function AssignConversationForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: AssignConversationCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const members = useAccountMembers();
+  const mode = cfg.mode ?? "specific";
+
+  const modeItems = useMemo(
+    () => ({
+      specific: t("assignModeSpecificOption"),
+      round_robin: t("assignModeRoundRobinOption"),
+    }),
+    [t],
+  );
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("assignModeLabel")}
+        </label>
+        <Select
+          items={modeItems}
+          value={mode}
+          onValueChange={(v) =>
+            onUpdateConfig({ mode: v as AssignConversationCfg["mode"] })
+          }
+        >
+          <SelectTrigger className="bg-muted">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="specific">{t("assignModeSpecificOption")}</SelectItem>
+            <SelectItem value="round_robin">{t("assignModeRoundRobinOption")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {mode === "specific" && (
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("assignAgentLabel")}
+          </label>
+          {members.length > 0 ? (
+            <Select
+              value={cfg.agent_id ?? ""}
+              onValueChange={(v) => onUpdateConfig({ agent_id: v })}
+            >
+              <SelectTrigger className="bg-muted">
+                <SelectValue placeholder={t("assignAgentPlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {members.map((m) => (
+                  <SelectItem key={m.user_id} value={m.user_id}>
+                    {m.full_name || m.user_id}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              value={cfg.agent_id ?? ""}
+              onChange={(e) => onUpdateConfig({ agent_id: e.target.value })}
+              placeholder={t("assignAgentUuidPlaceholder")}
+              className="bg-muted font-mono text-xs"
+            />
+          )}
+        </div>
+      )}
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+/** Mirrors useUserTags/useUserFlows — falls back to a raw UUID input
+ *  if the endpoint is unreachable. */
+function useAccountMembers(): UserMember[] {
+  const [members, setMembers] = useState<UserMember[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/account/members").catch(() => null);
+        if (!res || !res.ok) return;
+        const json = (await res.json()) as {
+          members?: Array<{ user_id: string; full_name: string }>;
+        };
+        if (!cancelled) {
+          setMembers(
+            (json.members ?? []).map((m) => ({
+              user_id: m.user_id,
+              full_name: m.full_name,
+            })),
+          );
+        }
+      } catch {
+        // Members endpoint absent — caller falls back to raw input.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return members;
+}
+
+interface UpdateContactFieldCfg {
+  field?: string;
+  value?: string;
+  next_node_key?: string;
+}
+
+function UpdateContactFieldForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: UpdateContactFieldCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const tCommon = useTranslations("common");
+
+  const fieldItems = useMemo(
+    () => ({
+      name: tCommon("name"),
+      email: tCommon("email"),
+      company: t("fieldCompany"),
+    }),
+    [t, tCommon],
+  );
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("chooseFieldPlaceholder")}
+        </label>
+        <Select
+          items={fieldItems}
+          value={cfg.field ?? "name"}
+          onValueChange={(v) => onUpdateConfig({ field: v })}
+        >
+          <SelectTrigger className="bg-muted">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">{tCommon("name")}</SelectItem>
+            <SelectItem value="email">{tCommon("email")}</SelectItem>
+            <SelectItem value="company">{t("fieldCompany")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <TextRow
+        label={t("valueLabel")}
+        value={cfg.value ?? ""}
+        onChange={(v) => onUpdateConfig({ value: v })}
       />
       <NextNodeRow
         value={cfg.next_node_key ?? ""}

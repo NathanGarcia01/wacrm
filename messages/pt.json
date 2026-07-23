@@ -2303,6 +2303,12 @@
       "update_deal_value": "Alterar valor do negócio",
       "mark_deal_won": "Marcar negócio como ganho",
       "mark_deal_lost": "Marcar negócio como perdido",
+      "assign_conversation": "Atribuir conversa",
+      "unassign_agent": "Remover atendente da conversa",
+      "update_contact_field": "Atualizar campo do contato",
+      "open_conversation": "Abrir conversa",
+      "set_conversation_pending": "Marcar conversa como pendente",
+      "close_conversation": "Fechar conversa",
       "handoff": "Transferir para atendente",
       "end": "Fim"
     },
@@ -2331,7 +2337,14 @@
       "updateDealStageSummary": "Move negócio para etapa",
       "updateDealValueSummary": "Define valor do negócio",
       "markDealWonSummary": "Marca negócio como ganho",
-      "markDealLostSummary": "Marca negócio como perdido"
+      "markDealLostSummary": "Marca negócio como perdido",
+      "assignConversationSpecificSummary": "Atribui a um atendente específico",
+      "assignConversationRoundRobinSummary": "Atribui por rodízio (round-robin)",
+      "unassignAgentSummary": "Remove o atendente atribuído",
+      "updateContactFieldSummary": "Atualiza campo do contato",
+      "openConversationSummary": "Abre a conversa",
+      "setConversationPendingSummary": "Marca a conversa como pendente",
+      "closeConversationSummary": "Fecha a conversa"
     },
     "editorState": {
       "defaultListButtonLabel": "Ver opções",
@@ -2490,7 +2503,13 @@
       "dealDefaultStagePlaceholder": "Deixe em branco para usar a primeira etapa",
       "dealStageUuidPlaceholder": "UUID da etapa",
       "dealValueLabel": "Valor",
-      "dealLostReasonLabel": "Motivo da perda (opcional)"
+      "dealLostReasonLabel": "Motivo da perda (opcional)",
+      "assignModeLabel": "Modo de atribuição",
+      "assignModeSpecificOption": "Atendente específico",
+      "assignModeRoundRobinOption": "Rodízio (round-robin)",
+      "assignAgentLabel": "Atendente",
+      "assignAgentPlaceholder": "Escolha um atendente…",
+      "assignAgentUuidPlaceholder": "UUID do atendente"
     }
   },
   "aiGenerate": {

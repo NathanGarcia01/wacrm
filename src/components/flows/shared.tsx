@@ -21,6 +21,8 @@ import {
   Clock,
   DollarSign,
   Flag,
+  FolderInput,
+  FolderOutput,
   GitFork,
   Handshake,
   Inbox,
@@ -29,11 +31,14 @@ import {
   MessageCircle,
   OctagonX,
   Paperclip,
+  PauseCircle,
   PlayCircle,
   Rocket,
   Shuffle,
   Tag,
   Trophy,
+  UserCog,
+  UserMinus,
   UserPlus,
   Workflow,
 } from "lucide-react";
@@ -64,6 +69,12 @@ export type NodeType =
   | "update_deal_value"
   | "mark_deal_won"
   | "mark_deal_lost"
+  | "assign_conversation"
+  | "unassign_agent"
+  | "update_contact_field"
+  | "open_conversation"
+  | "set_conversation_pending"
+  | "close_conversation"
   | "handoff"
   | "end";
 
@@ -156,6 +167,30 @@ export const NODE_META: Record<
   mark_deal_lost: {
     icon: Ban,
     color: "text-destructive",
+  },
+  assign_conversation: {
+    icon: UserCog,
+    color: "text-gold",
+  },
+  unassign_agent: {
+    icon: UserMinus,
+    color: "text-muted-foreground",
+  },
+  update_contact_field: {
+    icon: UserCog,
+    color: "text-teal-400",
+  },
+  open_conversation: {
+    icon: FolderInput,
+    color: "text-sky-400",
+  },
+  set_conversation_pending: {
+    icon: PauseCircle,
+    color: "text-amber-400",
+  },
+  close_conversation: {
+    icon: FolderOutput,
+    color: "text-muted-foreground",
   },
   handoff: {
     icon: UserPlus,
@@ -345,6 +380,24 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
       const reason = typeof cfg.reason === "string" ? cfg.reason : "";
       return reason ? `${t("markDealLostSummary")}: ${truncate(reason, 40)}` : t("markDealLostSummary");
     }
+    case "assign_conversation": {
+      const mode = cfg.mode === "round_robin" ? "round_robin" : "specific";
+      return mode === "round_robin"
+        ? t("assignConversationRoundRobinSummary")
+        : t("assignConversationSpecificSummary");
+    }
+    case "unassign_agent":
+      return t("unassignAgentSummary");
+    case "update_contact_field": {
+      const field = typeof cfg.field === "string" ? cfg.field : "";
+      return field ? `${t("updateContactFieldSummary")}: ${field}` : t("updateContactFieldSummary");
+    }
+    case "open_conversation":
+      return t("openConversationSummary");
+    case "set_conversation_pending":
+      return t("setConversationPendingSummary");
+    case "close_conversation":
+      return t("closeConversationSummary");
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;

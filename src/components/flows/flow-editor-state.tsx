@@ -217,6 +217,18 @@ export function defaultConfigFor(
       return { next_node_key: "" };
     case "mark_deal_lost":
       return { reason: "", next_node_key: "" };
+    case "assign_conversation":
+      return { mode: "specific", agent_id: "", next_node_key: "" };
+    case "unassign_agent":
+      return { next_node_key: "" };
+    case "update_contact_field":
+      return { field: "name", value: "", next_node_key: "" };
+    case "open_conversation":
+      return { next_node_key: "" };
+    case "set_conversation_pending":
+      return { next_node_key: "" };
+    case "close_conversation":
+      return { next_node_key: "" };
     case "handoff":
       return { note: "" };
     case "end":

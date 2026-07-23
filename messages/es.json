@@ -2303,6 +2303,12 @@
       "update_deal_value": "Actualizar valor del negocio",
       "mark_deal_won": "Marcar negocio como ganado",
       "mark_deal_lost": "Marcar negocio como perdido",
+      "assign_conversation": "Asignar conversación",
+      "unassign_agent": "Quitar agente de la conversación",
+      "update_contact_field": "Actualizar campo del contacto",
+      "open_conversation": "Abrir conversación",
+      "set_conversation_pending": "Marcar conversación como pendiente",
+      "close_conversation": "Cerrar conversación",
       "handoff": "Transferir a un agente",
       "end": "Fin"
     },
@@ -2331,7 +2337,14 @@
       "updateDealStageSummary": "Mueve el negocio a la etapa",
       "updateDealValueSummary": "Define el valor del negocio",
       "markDealWonSummary": "Marca el negocio como ganado",
-      "markDealLostSummary": "Marca el negocio como perdido"
+      "markDealLostSummary": "Marca el negocio como perdido",
+      "assignConversationSpecificSummary": "Asigna a un agente específico",
+      "assignConversationRoundRobinSummary": "Asigna por turnos (round-robin)",
+      "unassignAgentSummary": "Quita el agente asignado",
+      "updateContactFieldSummary": "Actualiza un campo del contacto",
+      "openConversationSummary": "Abre la conversación",
+      "setConversationPendingSummary": "Marca la conversación como pendiente",
+      "closeConversationSummary": "Cierra la conversación"
     },
     "editorState": {
       "defaultListButtonLabel": "Ver opciones",
@@ -2490,7 +2503,13 @@
       "dealDefaultStagePlaceholder": "Deja en blanco para usar la primera etapa",
       "dealStageUuidPlaceholder": "UUID de la etapa",
       "dealValueLabel": "Valor",
-      "dealLostReasonLabel": "Motivo de la pérdida (opcional)"
+      "dealLostReasonLabel": "Motivo de la pérdida (opcional)",
+      "assignModeLabel": "Modo de asignación",
+      "assignModeSpecificOption": "Agente específico",
+      "assignModeRoundRobinOption": "Turnos (round-robin)",
+      "assignAgentLabel": "Agente",
+      "assignAgentPlaceholder": "Elige un agente…",
+      "assignAgentUuidPlaceholder": "UUID del agente"
     }
   },
   "aiGenerate": {
