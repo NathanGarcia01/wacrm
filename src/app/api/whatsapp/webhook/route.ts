@@ -10,6 +10,7 @@ import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { runFlowsForTrigger } from '@/lib/flows/workflow-engine'
 import { handleNpsResponse } from '@/lib/nps/webhook-handler'
 import {
   handleTemplateWebhookChange,
@@ -897,17 +898,25 @@ async function processMessage(
       message.context?.id,
       message.button.text
     )
-    // button_clicked automations — fire-and-forget, same as the other
-    // trigger dispatches below.
-    runAutomationsForTrigger({
+    // button_clicked automations/workflow-flows — fire-and-forget, same
+    // as the other trigger dispatches below. Ungated by flowConsumed:
+    // a button tap is itself the event, not content the flow runner
+    // could have "consumed" as a menu reply.
+    const buttonClickedInput = {
       accountId,
-      triggerType: 'button_clicked',
+      triggerType: 'button_clicked' as const,
       contactId: contactRecord.id,
       context: {
         conversation_id: conversation.id,
         vars: { button_text: message.button.text },
       },
-    }).catch((err) => console.error('[automations] button_clicked dispatch failed:', err))
+    }
+    runAutomationsForTrigger(buttonClickedInput).catch((err) =>
+      console.error('[automations] button_clicked dispatch failed:', err),
+    )
+    runFlowsForTrigger(buttonClickedInput).catch((err) =>
+      console.error('[workflow-engine] button_clicked dispatch failed:', err),
+    )
   }
 
   // ============================================================
@@ -977,7 +986,7 @@ async function processMessage(
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
   for (const triggerType of automationTriggers) {
-    runAutomationsForTrigger({
+    const dispatchInput = {
       accountId,
       triggerType,
       contactId: contactRecord.id,
@@ -985,7 +994,17 @@ async function processMessage(
         message_text: inboundText,
         conversation_id: conversation.id,
       },
-    }).catch((err) => console.error('[automations] dispatch failed:', err))
+    }
+    runAutomationsForTrigger(dispatchInput).catch((err) =>
+      console.error('[automations] dispatch failed:', err),
+    )
+    // Same flowConsumed gate as automationTriggers' construction above —
+    // new_message_received/keyword_match only ever land in this array
+    // when !flowConsumed, so workflow-mode flows never double-fire
+    // against a message the conversational engine already consumed.
+    runFlowsForTrigger(dispatchInput).catch((err) =>
+      console.error('[workflow-engine] dispatch failed:', err),
+    )
   }
 }
 

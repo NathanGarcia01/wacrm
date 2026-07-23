@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { runAutomationsForTrigger } from "@/lib/automations/engine";
+import { runFlowsForTrigger } from "@/lib/flows/workflow-engine";
 import { sendTextMessage } from "@/lib/whatsapp/meta-api";
 import { sanitizePhoneForMeta } from "@/lib/whatsapp/phone-utils";
 
@@ -66,14 +67,20 @@ export async function handleNpsResponse(args: HandleNpsResponseArgs): Promise<bo
       return true;
     }
 
-    // nps_received automations — fire-and-forget, mirrors the other
-    // trigger dispatches in the webhook route.
-    runAutomationsForTrigger({
+    // nps_received automations/workflow-flows — fire-and-forget, mirrors
+    // the other trigger dispatches in the webhook route.
+    const dispatchInput = {
       accountId: args.accountId,
-      triggerType: "nps_received",
+      triggerType: "nps_received" as const,
       contactId: args.contactId,
       context: { conversation_id: args.conversationId, vars: { rating } },
-    }).catch((err) => console.error("[automations] nps_received dispatch failed:", err));
+    };
+    runAutomationsForTrigger(dispatchInput).catch((err) =>
+      console.error("[automations] nps_received dispatch failed:", err),
+    );
+    runFlowsForTrigger(dispatchInput).catch((err) =>
+      console.error("[workflow-engine] nps_received dispatch failed:", err),
+    );
 
     await sendFollowUp(db, args);
     return true;

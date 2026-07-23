@@ -9,6 +9,7 @@ import {
 import { resolveChannelById } from '@/lib/whatsapp/channels'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { runFlowsForTrigger } from '@/lib/flows/workflow-engine'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -403,15 +404,21 @@ export async function POST(request: Request) {
     // Fire-and-forget: a slow or failing automation must not block the
     // send response.
     if (isFirstOutboundMessage) {
-      runAutomationsForTrigger({
+      const dispatchInput = {
         accountId,
-        triggerType: 'first_outbound_message',
+        triggerType: 'first_outbound_message' as const,
         contactId: contact.id,
         context: {
           message_text: content_text || '',
           conversation_id,
         },
-      }).catch((err) => console.error('[automations] dispatch failed:', err))
+      }
+      runAutomationsForTrigger(dispatchInput).catch((err) =>
+        console.error('[automations] dispatch failed:', err),
+      )
+      runFlowsForTrigger(dispatchInput).catch((err) =>
+        console.error('[workflow-engine] dispatch failed:', err),
+      )
     }
 
     // Pause any active Flow run for this contact — the agent stepping
