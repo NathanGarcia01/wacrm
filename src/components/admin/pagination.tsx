@@ -5,15 +5,19 @@ export function Pagination({
   page,
   totalPages,
   status,
+  otherParams = {},
 }: {
   page: number
   totalPages: number
   status: string | null
+  /** Non-status filters to preserve across page links — see
+   *  accounts-filters.tsx. */
+  otherParams?: Record<string, string>
 }) {
   if (totalPages <= 1) return null
 
   function hrefFor(p: number) {
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(otherParams)
     if (status) params.set("status", status)
     params.set("page", String(p))
     return `/admin?${params.toString()}`

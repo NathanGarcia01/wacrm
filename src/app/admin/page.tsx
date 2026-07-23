@@ -5,6 +5,7 @@ import {
   getMrrSnapshots,
   getMrrSummary,
   getNewAccountsPerMonth,
+  getPlans,
   getStatusDistribution,
   getTrialsExpiringSoonCount,
 } from "@/lib/admin/data"
@@ -14,6 +15,7 @@ import { MrrCard } from "@/components/admin/mrr-card"
 import { ChurnCard } from "@/components/admin/churn-card"
 import { DistributionBar } from "@/components/admin/distribution-bar"
 import { FilterPills } from "@/components/admin/filter-pills"
+import { AccountsFilters } from "@/components/admin/accounts-filters"
 import { AccountsTable } from "@/components/admin/accounts-table"
 import { Pagination } from "@/components/admin/pagination"
 import { MrrChart } from "@/components/admin/mrr-chart"
@@ -24,7 +26,15 @@ import { NewAccountsChart } from "@/components/admin/new-accounts-chart"
 const TRIAL_ALERT_DAYS = 7
 
 interface PageProps {
-  searchParams: Promise<{ status?: string; page?: string }>
+  searchParams: Promise<{
+    status?: string
+    page?: string
+    search?: string
+    plan?: string
+    trialExpiring?: string
+    from?: string
+    to?: string
+  }>
 }
 
 export default async function AdminPage({ searchParams }: PageProps) {
@@ -34,16 +44,43 @@ export default async function AdminPage({ searchParams }: PageProps) {
     (STATUS_FILTERS.find((f) => f.key === filterKey)?.status ?? null) as SubscriptionStatus | null
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1)
 
-  const [accountsPage, distribution, mrr, churn, snapshots, newAccountsByMonth, trialsExpiringSoonCount] =
-    await Promise.all([
-      getAccountsPage(page, filterStatus),
-      getStatusDistribution(),
-      getMrrSummary(),
-      getChurnSummary(),
-      getMrrSnapshots(),
-      getNewAccountsPerMonth(),
-      getTrialsExpiringSoonCount(TRIAL_ALERT_DAYS),
-    ])
+  // Preserved across status-pill / pagination links so switching one
+  // filter doesn't silently drop the others — see filter-pills.tsx /
+  // pagination.tsx.
+  const otherParams: Record<string, string> = {}
+  if (params.search) otherParams.search = params.search
+  if (params.plan) otherParams.plan = params.plan
+  if (params.trialExpiring) otherParams.trialExpiring = params.trialExpiring
+  if (params.from) otherParams.from = params.from
+  if (params.to) otherParams.to = params.to
+
+  const accountsFilterOptions = {
+    search: params.search,
+    planId: params.plan,
+    trialExpiringWithinDays: params.trialExpiring === "1" ? 7 : undefined,
+    createdFrom: params.from,
+    createdTo: params.to,
+  }
+
+  const [
+    accountsPage,
+    distribution,
+    mrr,
+    churn,
+    snapshots,
+    newAccountsByMonth,
+    trialsExpiringSoonCount,
+    plans,
+  ] = await Promise.all([
+    getAccountsPage(page, filterStatus, accountsFilterOptions),
+    getStatusDistribution(),
+    getMrrSummary(),
+    getChurnSummary(),
+    getMrrSnapshots(),
+    getNewAccountsPerMonth(),
+    getTrialsExpiringSoonCount(TRIAL_ALERT_DAYS),
+    getPlans(),
+  ])
 
   const executiveMetrics = computeExecutiveMetrics(
     mrr,
@@ -79,9 +116,15 @@ export default async function AdminPage({ searchParams }: PageProps) {
         <MrrChart snapshots={snapshots} />
 
         <div className="flex flex-col gap-4">
-          <FilterPills active={filterKey} />
+          <AccountsFilters plans={plans} />
+          <FilterPills active={filterKey} otherParams={otherParams} />
           <AccountsTable rows={accountsPage.rows} />
-          <Pagination page={page} totalPages={totalPages} status={filterStatus} />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            status={filterStatus}
+            otherParams={otherParams}
+          />
         </div>
       </main>
     </div>

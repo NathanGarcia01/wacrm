@@ -2,12 +2,23 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { STATUS_FILTERS } from "@/lib/admin/types"
 
-export function FilterPills({ active }: { active: string }) {
+export function FilterPills({
+  active,
+  otherParams = {},
+}: {
+  active: string
+  /** Non-status filters (search/plan/date range/trial toggle) to
+   *  preserve when switching status pills — see accounts-filters.tsx. */
+  otherParams?: Record<string, string>
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       {STATUS_FILTERS.map((f) => {
         const isActive = f.key === active
-        const href = f.key === "all" ? "/admin" : `/admin?status=${f.key}`
+        const params = new URLSearchParams(otherParams)
+        if (f.key !== "all") params.set("status", f.key)
+        const qs = params.toString()
+        const href = qs ? `/admin?${qs}` : "/admin"
         return (
           <Link
             key={f.key}

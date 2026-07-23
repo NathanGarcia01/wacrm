@@ -39,22 +39,112 @@ interface AccountsPageResult {
   pageSize: number
 }
 
+export interface AccountsFilterOptions {
+  /** Matches against owner `full_name` or `email` (ilike, two
+   *  separate queries merged in JS — see getAccountsPage). */
+  search?: string
+  planId?: string
+  /** Narrows to `status='trialing'` accounts whose `trial_end` falls
+   *  within the next N days. */
+  trialExpiringWithinDays?: number
+  /** `accounts.created_at >=` this ISO date. */
+  createdFrom?: string
+  /** `accounts.created_at <=` this ISO date. */
+  createdTo?: string
+}
+
+interface RawAccountRow {
+  id: string
+  name: string
+  owner_user_id: string
+  created_at: string
+  is_internal: boolean
+  // account_id is UNIQUE on subscriptions, so PostgREST returns a
+  // single object (or null) here, never an array — don't index [0].
+  subscriptions: AccountSubscription | null
+  profiles: { user_id: string; full_name: string | null; email: string | null; account_role: string }[] | null
+}
+
+/** Shapes one raw embedded-query row into the panel's `AdminAccountRow`
+ *  — shared by the list page and (Phase D) the account detail page so
+ *  both produce identically-shaped data from one code path. */
+function shapeAccountRow(
+  r: RawAccountRow,
+  plansById: Map<string, Plan>,
+  lastSignInByUserId: Map<string, string | null>,
+): AdminAccountRow {
+  const sub = r.subscriptions
+  const profiles = r.profiles ?? []
+  const owner =
+    profiles.find((p) => p.user_id === r.owner_user_id) ??
+    profiles.find((p) => p.account_role === 'owner') ??
+    null
+
+  return {
+    id: r.id,
+    name: r.name,
+    owner_user_id: r.owner_user_id,
+    created_at: r.created_at,
+    is_internal: r.is_internal,
+    subscription: sub,
+    owner: owner ? { user_id: owner.user_id, full_name: owner.full_name, email: owner.email } : null,
+    plan: sub ? (plansById.get(sub.plan_id) ?? null) : null,
+    seatsUsed: profiles.length,
+    lastSignInAt: lastSignInByUserId.get(r.owner_user_id) ?? null,
+  }
+}
+
+/**
+ * `auth.users.last_sign_in_at` for a batch of owner ids — the natural
+ * "último acesso" source since Supabase already tracks it natively,
+ * no app-side activity table needed. One Admin API call per distinct
+ * id (no bulk "getUsersByIds" in supabase-js); fine at panel scale
+ * (≤50 rows/page). If this ever needs to scale further, cache the
+ * value in a column synced by the same cron that runs mrr-snapshot.
+ */
+export async function getLastSignInAtByUserIds(
+  userIds: string[],
+): Promise<Map<string, string | null>> {
+  const admin = supabaseAdmin()
+  const uniqueIds = [...new Set(userIds)]
+  const results = await Promise.all(
+    uniqueIds.map(async (id) => {
+      try {
+        const { data, error } = await admin.auth.admin.getUserById(id)
+        if (error || !data?.user) return [id, null] as const
+        return [id, data.user.last_sign_in_at ?? null] as const
+      } catch {
+        return [id, null] as const
+      }
+    }),
+  )
+  return new Map(results)
+}
+
 /**
  * Page of accounts + their subscription/owner, newest first.
  * `filterStatus` (a `subscriptions.status` value) restricts to
  * accounts whose subscription has that status — implemented with the
  * `!inner` join hint so the filter narrows the parent `accounts` rows
- * too, not just the embedded subscription.
+ * too, not just the embedded subscription. `options` layers on top:
+ * plan and trial-expiring filters share the same `!inner` embed
+ * (composable with `filterStatus` since they all target the same
+ * `subscriptions` relation); search and date-range filter `accounts`
+ * directly.
  */
 export async function getAccountsPage(
   page: number,
   filterStatus: SubscriptionStatus | null,
+  options: AccountsFilterOptions = {},
 ): Promise<AccountsPageResult> {
   const admin = supabaseAdmin()
   const from = (page - 1) * ACCOUNTS_PAGE_SIZE
   const to = from + ACCOUNTS_PAGE_SIZE - 1
 
-  const subscriptionEmbed = filterStatus
+  const needsSubscriptionInner = Boolean(
+    filterStatus || options.planId || options.trialExpiringWithinDays,
+  )
+  const subscriptionEmbed = needsSubscriptionInner
     ? 'subscriptions!subscriptions_account_id_fkey!inner(*)'
     : 'subscriptions!subscriptions_account_id_fkey(*)'
 
@@ -65,48 +155,70 @@ export async function getAccountsPage(
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })
-    .range(from, to)
 
   if (filterStatus) {
     query = query.eq('subscriptions.status', filterStatus)
   }
+  if (options.planId) {
+    query = query.eq('subscriptions.plan_id', options.planId)
+  }
+  if (options.trialExpiringWithinDays) {
+    const now = new Date().toISOString()
+    const cutoff = new Date(
+      Date.now() + options.trialExpiringWithinDays * 24 * 60 * 60 * 1000,
+    ).toISOString()
+    query = query
+      .eq('subscriptions.status', 'trialing')
+      .gte('subscriptions.trial_end', now)
+      .lte('subscriptions.trial_end', cutoff)
+  }
+  if (options.createdFrom) {
+    query = query.gte('created_at', options.createdFrom)
+  }
+  if (options.createdTo) {
+    query = query.lte('created_at', options.createdTo)
+  }
 
-  const { data, error, count } = await query
+  // Search by owner name/email: two simple ilike queries merged in JS
+  // rather than one `.or()` string — avoids having to escape commas/
+  // parens out of arbitrary admin-typed input for PostgREST's filter
+  // grammar.
+  if (options.search?.trim()) {
+    const likeQ = `%${options.search.trim()}%`
+    const [{ data: byName, error: nameError }, { data: byEmail, error: emailError }] =
+      await Promise.all([
+        admin.from('profiles').select('account_id').ilike('full_name', likeQ),
+        admin.from('profiles').select('account_id').ilike('email', likeQ),
+      ])
+    if (nameError) throw new Error(nameError.message)
+    if (emailError) throw new Error(emailError.message)
+    const accountIds = [
+      ...new Set(
+        [...(byName ?? []), ...(byEmail ?? [])]
+          .map((r) => r.account_id as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ]
+    if (accountIds.length === 0) {
+      return { rows: [], total: 0, pageSize: ACCOUNTS_PAGE_SIZE }
+    }
+    query = query.in('id', accountIds)
+  }
+
+  const { data, error, count } = await query.range(from, to)
   if (error) throw new Error(error.message)
 
   const plans = await getPlans()
   const plansById = new Map(plans.map((p) => [p.id, p]))
 
-  const rows: AdminAccountRow[] = (data ?? []).map((row) => {
-    const r = row as unknown as {
-      id: string
-      name: string
-      owner_user_id: string
-      created_at: string
-      is_internal: boolean
-      // account_id is UNIQUE on subscriptions, so PostgREST returns a
-      // single object (or null) here, never an array — don't index [0].
-      subscriptions: AccountSubscription | null
-      profiles: { user_id: string; full_name: string | null; email: string | null; account_role: string }[] | null
-    }
-    const sub = r.subscriptions
-    const profiles = r.profiles ?? []
-    const owner =
-      profiles.find((p) => p.user_id === r.owner_user_id) ??
-      profiles.find((p) => p.account_role === 'owner') ??
-      null
+  const rawRows = (data ?? []) as unknown as RawAccountRow[]
+  const lastSignInByUserId = await getLastSignInAtByUserIds(
+    rawRows.map((r) => r.owner_user_id),
+  )
 
-    return {
-      id: r.id,
-      name: r.name,
-      owner_user_id: r.owner_user_id,
-      created_at: r.created_at,
-      is_internal: r.is_internal,
-      subscription: sub,
-      owner: owner ? { user_id: owner.user_id, full_name: owner.full_name, email: owner.email } : null,
-      plan: sub ? (plansById.get(sub.plan_id) ?? null) : null,
-    }
-  })
+  const rows: AdminAccountRow[] = rawRows.map((r) =>
+    shapeAccountRow(r, plansById, lastSignInByUserId),
+  )
 
   return { rows, total: count ?? 0, pageSize: ACCOUNTS_PAGE_SIZE }
 }

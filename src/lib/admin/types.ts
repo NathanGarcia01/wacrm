@@ -58,6 +58,11 @@ export interface AdminAccountRow {
   subscription: AccountSubscription | null
   owner: AccountOwner | null
   plan: Plan | null
+  /** Count of `profiles` rows for this account — "seats used" against
+   *  `subscription.seats` ("seats contracted"). */
+  seatsUsed: number
+  /** Owner's `auth.users.last_sign_in_at`, null if never signed in. */
+  lastSignInAt: string | null
 }
 
 export interface MrrByPlanEntry {

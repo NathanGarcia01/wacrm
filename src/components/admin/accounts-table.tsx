@@ -1,5 +1,7 @@
 import type { AdminAccountRow, SubscriptionStatus } from "@/lib/admin/types"
 import { STATUS_META } from "@/lib/admin/types"
+import { trialDaysRemaining } from "@/lib/admin/trial"
+import { formatCurrency } from "@/lib/currency"
 import { AccountActions } from "./account-actions"
 
 function fmtDate(iso: string | null): string {
@@ -22,14 +24,17 @@ export function AccountsTable({ rows }: { rows: AdminAccountRow[] }) {
 
   return (
     <div className="overflow-x-auto rounded-xl border border-[#22242A] bg-[#141417]">
-      <table className="w-full min-w-[960px] text-left text-sm">
+      <table className="w-full min-w-[1280px] text-left text-sm">
         <thead>
           <tr className="border-b border-[#22242A] text-xs text-white/40">
             <th className="px-4 py-3 font-medium">Account</th>
             <th className="px-4 py-3 font-medium">Owner</th>
             <th className="px-4 py-3 font-medium">Plano</th>
             <th className="px-4 py-3 font-medium">Status</th>
+            <th className="px-4 py-3 font-medium">Trial vence em</th>
             <th className="px-4 py-3 font-medium">Seats</th>
+            <th className="px-4 py-3 font-medium">Valor mensal</th>
+            <th className="px-4 py-3 font-medium">Último acesso</th>
             <th className="px-4 py-3 font-medium">Fim do período</th>
             <th className="px-4 py-3 font-medium">Criado em</th>
             <th className="px-4 py-3 text-right font-medium">Ações</th>
@@ -38,6 +43,10 @@ export function AccountsTable({ rows }: { rows: AdminAccountRow[] }) {
         <tbody>
           {rows.map((row) => {
             const sub = row.subscription
+            const daysLeft = sub?.status === "trialing" ? trialDaysRemaining(sub.trial_end) : null
+            const monthlyCents =
+              sub && row.plan ? sub.seats * row.plan.price_per_seat_cents : null
+
             return (
               <tr key={row.id} className="border-b border-[#22242A] last:border-0">
                 <td className="px-4 py-3">
@@ -65,8 +74,23 @@ export function AccountsTable({ rows }: { rows: AdminAccountRow[] }) {
                     </div>
                   )}
                 </td>
+                <td className="px-4 py-3 font-mono tabular-nums">
+                  {daysLeft === null ? (
+                    <span className="text-white/30">—</span>
+                  ) : (
+                    <span className={daysLeft < 3 ? "font-semibold text-[#F87171]" : "text-white/70"}>
+                      {daysLeft <= 0 ? "vencido" : `${daysLeft}d`}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 font-mono tabular-nums text-white/70">
-                  {sub?.seats ?? "—"}
+                  {sub ? `${row.seatsUsed}/${sub.seats}` : "—"}
+                </td>
+                <td className="px-4 py-3 font-mono tabular-nums text-white/70">
+                  {monthlyCents !== null ? formatCurrency(monthlyCents / 100, "BRL") : "—"}
+                </td>
+                <td className="px-4 py-3 text-white/70">
+                  {row.lastSignInAt ? fmtDate(row.lastSignInAt) : "Nunca"}
                 </td>
                 <td className="px-4 py-3 text-white/70">{fmtDate(sub?.current_period_end ?? null)}</td>
                 <td className="px-4 py-3 text-white/70">{fmtDate(row.created_at)}</td>
