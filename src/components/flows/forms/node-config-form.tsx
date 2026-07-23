@@ -190,6 +190,16 @@ export function NodeConfigForm({
         />
       );
 
+    case "randomizer":
+      return (
+        <RandomizerForm
+          cfg={cfg as RandomizerCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "set_tag":
       return (
         <SetTagForm
@@ -198,6 +208,23 @@ export function NodeConfigForm({
           currentKey={node.node_key}
           onUpdateConfig={onUpdateConfig}
         />
+      );
+
+    case "start_flow":
+      return (
+        <StartFlowForm
+          cfg={cfg as StartFlowCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "stop_flow":
+      return (
+        <p className="text-xs text-muted-foreground">
+          {t("stopFlowNodeHint")}
+        </p>
       );
 
     case "handoff":
@@ -866,6 +893,69 @@ function ConditionForm({
 }
 
 // ============================================================
+// randomizer — workflow-mode only. Structurally identical to
+// condition's branch shape (true_next/false_next); see
+// RandomizerNodeConfig in src/lib/flows/types.ts.
+// ============================================================
+
+interface RandomizerCfg {
+  split_percent?: number;
+  true_next?: string;
+  false_next?: string;
+}
+
+function RandomizerForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: RandomizerCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const pct = cfg.split_percent ?? 50;
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("randomizerSplitLabel")}
+        </label>
+        <Input
+          type="number"
+          min={0}
+          max={100}
+          value={pct}
+          onChange={(e) =>
+            onUpdateConfig({
+              split_percent: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
+            })
+          }
+          className="bg-muted"
+        />
+      </div>
+      <NextNodeRow
+        value={cfg.true_next ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ true_next: v })}
+        label={t("randomizerGroupALabel", { pct })}
+      />
+      <NextNodeRow
+        value={cfg.false_next ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ false_next: v })}
+        label={t("randomizerGroupBLabel", { pct: 100 - pct })}
+      />
+    </>
+  );
+}
+
+// ============================================================
 // set_tag
 // ============================================================
 
@@ -984,6 +1074,101 @@ function useUserTags(): UserTag[] {
     };
   }, []);
   return tags;
+}
+
+// ============================================================
+// start_flow — workflow-mode only. Fires another flow by id, then
+// continues in this one; see StartFlowNodeConfig in
+// src/lib/flows/types.ts.
+// ============================================================
+
+interface StartFlowCfg {
+  flow_id?: string;
+  next_node_key?: string;
+}
+
+interface UserFlow {
+  id: string;
+  name: string;
+}
+
+function StartFlowForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: StartFlowCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const flows = useUserFlows();
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("startFlowLabel")}
+        </label>
+        {flows.length > 0 ? (
+          <Select
+            value={cfg.flow_id ?? ""}
+            onValueChange={(v) => onUpdateConfig({ flow_id: v })}
+          >
+            <SelectTrigger className="bg-muted">
+              <SelectValue placeholder={t("startFlowPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              {flows.map((flow) => (
+                <SelectItem key={flow.id} value={flow.id}>
+                  {flow.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={cfg.flow_id ?? ""}
+            onChange={(e) => onUpdateConfig({ flow_id: e.target.value })}
+            placeholder={t("startFlowPlaceholder")}
+            className="bg-muted font-mono text-xs"
+          />
+        )}
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+/** Mirrors useUserTags — falls back to raw UUID input if the
+ *  endpoint is unreachable. */
+function useUserFlows(): UserFlow[] {
+  const [flows, setFlows] = useState<UserFlow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/flows").catch(() => null);
+        if (!res || !res.ok) return;
+        const json = (await res.json()) as { flows?: UserFlow[] };
+        if (!cancelled) setFlows(json.flows ?? []);
+      } catch {
+        // Flows endpoint absent — caller falls back to raw input.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return flows;
 }
 
 // ============================================================

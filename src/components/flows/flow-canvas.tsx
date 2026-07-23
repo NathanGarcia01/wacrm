@@ -638,7 +638,10 @@ const ADD_NODE_TYPES: NodeType[] = [
   "collect_input",
   "wait",
   "condition",
+  "randomizer",
   "set_tag",
+  "start_flow",
+  "stop_flow",
   "handoff",
   "end",
 ];

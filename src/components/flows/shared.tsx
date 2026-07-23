@@ -24,8 +24,11 @@ import {
   ListChecks,
   ListPlus,
   MessageCircle,
+  OctagonX,
   Paperclip,
   PlayCircle,
+  Rocket,
+  Shuffle,
   Tag,
   UserPlus,
   Workflow,
@@ -48,7 +51,10 @@ export type NodeType =
   | "collect_input"
   | "wait"
   | "condition"
+  | "randomizer"
   | "set_tag"
+  | "start_flow"
+  | "stop_flow"
   | "handoff"
   | "end";
 
@@ -106,9 +112,21 @@ export const NODE_META: Record<
     icon: GitFork,
     color: "text-fuchsia-400",
   },
+  randomizer: {
+    icon: Shuffle,
+    color: "text-fuchsia-400",
+  },
   set_tag: {
     icon: Tag,
     color: "text-pink-400",
+  },
+  start_flow: {
+    icon: Rocket,
+    color: "text-sky-400",
+  },
+  stop_flow: {
+    icon: OctagonX,
+    color: "text-destructive",
   },
   handoff: {
     icon: UserPlus,
@@ -258,6 +276,10 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
           : "";
       return subject === "tag" ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
+    case "randomizer": {
+      const pct = typeof cfg.split_percent === "number" ? cfg.split_percent : 50;
+      return t("randomizerSummary", { pct });
+    }
     case "set_tag": {
       const mode = cfg.mode === "remove" ? t("modeRemove") : t("modeAdd");
       const tagId = typeof cfg.tag_id === "string" ? cfg.tag_id : "";
@@ -266,6 +288,14 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
       // multiple set_tag nodes at a glance.
       return tagId ? `${mode} tag ${tagId.slice(0, 8)}…` : `${mode} tag ${t("noneSelected")}`;
     }
+    case "start_flow": {
+      const flowId = typeof cfg.flow_id === "string" ? cfg.flow_id : "";
+      // No flow name available without an async lookup here — same
+      // trade-off as set_tag's UUID-prefix display above.
+      return flowId ? `${t("startFlowSummary")} ${flowId.slice(0, 8)}…` : null;
+    }
+    case "stop_flow":
+      return t("stopFlowSummary");
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;

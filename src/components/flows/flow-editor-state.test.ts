@@ -97,7 +97,10 @@ describe("defaultConfigFor", () => {
     "collect_input",
     "wait",
     "condition",
+    "randomizer",
     "set_tag",
+    "start_flow",
+    "stop_flow",
     "handoff",
     "end",
   ];
@@ -147,5 +150,14 @@ describe("defaultConfigFor", () => {
     };
     expect(cfg.amount).toBeGreaterThan(0);
     expect(["minutes", "hours", "days"]).toContain(cfg.unit);
+  });
+
+  it("randomizer defaults to a 50/50 split", () => {
+    const cfg = defaultConfigFor("randomizer", stubT) as { split_percent?: number };
+    expect(cfg.split_percent).toBe(50);
+  });
+
+  it("stop_flow's default is an empty object (terminal — no config)", () => {
+    expect(defaultConfigFor("stop_flow", stubT)).toEqual({});
   });
 });

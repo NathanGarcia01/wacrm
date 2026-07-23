@@ -2294,7 +2294,10 @@
       "collect_input": "Recopilar respuesta",
       "wait": "Esperar",
       "condition": "Si / si no",
+      "randomizer": "División aleatoria (A/B)",
       "set_tag": "Etiquetar contacto",
+      "start_flow": "Iniciar otro flujo",
+      "stop_flow": "Detener flujo",
       "handoff": "Transferir a un agente",
       "end": "Fin"
     },
@@ -2315,7 +2318,10 @@
       "waitMinutes": "{count, plural, one {# minuto} other {# minutos}}",
       "waitHours": "{count, plural, one {# hora} other {# horas}}",
       "waitDays": "{count, plural, one {# día} other {# días}}",
-      "waitSummary": "Espera {duration}"
+      "waitSummary": "Espera {duration}",
+      "randomizerSummary": "Divide {pct}%",
+      "startFlowSummary": "Inicia flujo",
+      "stopFlowSummary": "Detiene el flujo"
     },
     "editorState": {
       "defaultListButtonLabel": "Ver opciones",
@@ -2459,7 +2465,13 @@
       "waitUnitLabel": "Unidad",
       "waitUnitMinutes": "Minutos",
       "waitUnitHours": "Horas",
-      "waitUnitDays": "Días"
+      "waitUnitDays": "Días",
+      "randomizerSplitLabel": "División (%)",
+      "randomizerGroupALabel": "Grupo A ({pct}%)",
+      "randomizerGroupBLabel": "Grupo B ({pct}%)",
+      "startFlowLabel": "Flujo a iniciar",
+      "startFlowPlaceholder": "Elige un flujo",
+      "stopFlowNodeHint": "Termina esta ejecución del flujo de inmediato."
     }
   },
   "aiGenerate": {

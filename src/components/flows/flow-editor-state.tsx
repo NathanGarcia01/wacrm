@@ -199,8 +199,14 @@ export function defaultConfigFor(
         true_next: "",
         false_next: "",
       };
+    case "randomizer":
+      return { split_percent: 50, true_next: "", false_next: "" };
     case "set_tag":
       return { mode: "add", tag_id: "", next_node_key: "" };
+    case "start_flow":
+      return { flow_id: "", next_node_key: "" };
+    case "stop_flow":
+      return {};
     case "handoff":
       return { note: "" };
     case "end":

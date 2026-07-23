@@ -593,7 +593,10 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "collect_input",
     "wait",
     "condition",
+    "randomizer",
     "set_tag",
+    "start_flow",
+    "stop_flow",
     "handoff",
     "end",
   ];

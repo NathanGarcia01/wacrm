@@ -196,6 +196,46 @@ export interface WaitNodeConfig {
 }
 
 /**
+ * Random A/B split — workflow-mode equivalent of automations'
+ * `randomizer` step. Structurally identical to `condition` (two
+ * named branches), just evaluated by a coin flip instead of a
+ * predicate — reuses the exact same true_next/false_next branch
+ * mechanics everywhere `condition` is handled (edges.ts, validate.ts).
+ * Only meaningful on run_mode='workflow' flows.
+ */
+export interface RandomizerNodeConfig {
+  /** 0-100 — chance (%) of taking the true_next branch. */
+  split_percent: number;
+  true_next: string;
+  false_next: string;
+}
+
+/**
+ * Fires another flow (by id) synchronously, then continues in THIS
+ * flow at next_node_key — mirrors automations' `start_automation`
+ * step (fire-and-continue in the caller, not a hand-off/suspend).
+ * Cycle/depth-guarded the same way: a chain of already-started flow
+ * ids rides along in flow_runs.vars so a loop of flows starting each
+ * other can't recurse forever. Only meaningful on run_mode='workflow'.
+ */
+export interface StartFlowNodeConfig {
+  flow_id: string;
+  next_node_key: string;
+}
+
+/**
+ * Terminal — ends the run, same outcome as `end` but tagged
+ * distinctly in flow_run_events/end_reason so "explicit stop
+ * mid-branch" reads differently from "reached a natural end node" in
+ * the audit trail. Mirrors automations' `stop_automation` (which
+ * exists only to unwind out of a branch early — automations' "ran out
+ * of steps" and "stop_automation" already produce the same final log
+ * status; this preserves that same non-distinction in outcome while
+ * keeping the reason visible for debugging).
+ */
+export type StopFlowNodeConfig = Record<string, never>;
+
+/**
  * Total union — every concrete node_type the v1 engine understands.
  * Add new node types here and the engine's switch will flag missing
  * cases via TypeScript's exhaustiveness check.
@@ -212,7 +252,10 @@ export type FlowNodeConfig =
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "wait"; config: WaitNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
+  | { node_type: "randomizer"; config: RandomizerNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
+  | { node_type: "start_flow"; config: StartFlowNodeConfig }
+  | { node_type: "stop_flow"; config: StopFlowNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 

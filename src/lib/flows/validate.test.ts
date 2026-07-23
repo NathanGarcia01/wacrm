@@ -584,6 +584,107 @@ describe("validateFlowForActivation — wait", () => {
   });
 });
 
+describe("validateFlowForActivation — randomizer", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "r" } },
+    { node_key: "r", node_type: "randomizer", config: cfg },
+    { node_key: "a", node_type: "handoff", config: {} },
+    { node_key: "b", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated randomizer node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ split_percent: 30, true_next: "a", false_next: "b" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags split_percent out of 0-100 range", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ split_percent: 150, true_next: "a", false_next: "b" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "r" && i.field === "split_percent"),
+    ).toBe(true);
+  });
+
+  it("flags missing true_next/false_next", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ split_percent: 50 }),
+    );
+    expect(issues.some((i) => i.field === "true_next")).toBe(true);
+    expect(issues.some((i) => i.field === "false_next")).toBe(true);
+  });
+
+  it("contributes both branches to reachability", () => {
+    const set = reachableFromEntry(
+      "s",
+      nodesWith({ split_percent: 50, true_next: "a", false_next: "b" }),
+    );
+    expect(set).toEqual(new Set(["s", "r", "a", "b"]));
+  });
+});
+
+describe("validateFlowForActivation — start_flow", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "sf" } },
+    { node_key: "sf", node_type: "start_flow", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated start_flow node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ flow_id: "11111111-1111-1111-1111-111111111111", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing flow_id", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "sf" && i.field === "flow_id"),
+    ).toBe(true);
+  });
+
+  it("flags next_node_key pointing at a non-existent node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ flow_id: "x", next_node_key: "ghost" }),
+    );
+    expect(
+      issues.some(
+        (i) =>
+          i.node_key === "sf" &&
+          i.field === "next_node_key" &&
+          i.message.includes("ghost"),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — stop_flow", () => {
+  it("is a valid terminal node with no config required", () => {
+    const nodes = [
+      { node_key: "s", node_type: "start", config: { next_node_key: "x" } },
+      { node_key: "x", node_type: "stop_flow", config: {} },
+    ];
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "s" },
+      nodes,
+    );
+    expect(issues).toEqual([]);
+  });
+});
+
 describe("reachableFromEntry", () => {
   it("walks the graph from the entry", () => {
     const set = reachableFromEntry("start", validNodes);

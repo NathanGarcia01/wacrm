@@ -701,6 +701,49 @@ function validateNode(
       break;
     }
 
+    case "randomizer": {
+      const cfg = node.config as {
+        split_percent?: number;
+        true_next?: string;
+        false_next?: string;
+      };
+      if (
+        typeof cfg.split_percent !== "number" ||
+        !Number.isFinite(cfg.split_percent) ||
+        cfg.split_percent < 0 ||
+        cfg.split_percent > 100
+      ) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "split_percent",
+          message: "Randomizer needs a split_percent between 0 and 100.",
+        });
+      }
+      for (const branch of ["true_next", "false_next"] as const) {
+        const key = cfg[branch];
+        if (!key) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: branch,
+            message: `Randomizer needs a node for the "${branch === "true_next" ? "A" : "B"}" group.`,
+          });
+        } else if (!knownKeys.has(key)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: branch,
+            message: `Randomizer's "${branch}" points to non-existent node "${key}".`,
+          });
+        }
+      }
+      break;
+    }
+
     case "set_tag": {
       const cfg = node.config as {
         mode?: "add" | "remove";
@@ -745,6 +788,41 @@ function validateNode(
       break;
     }
 
+    case "start_flow": {
+      const cfg = node.config as {
+        flow_id?: string;
+        next_node_key?: string;
+      };
+      if (!cfg.flow_id) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "flow_id",
+          message: "Start-flow needs a flow to start.",
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Start-flow must point to a next node.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Start-flow points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+
+    case "stop_flow":
     case "handoff":
     case "end":
       // Terminal nodes have no outgoing edges; nothing to validate
@@ -796,11 +874,13 @@ function outgoingEdges(node: NodeInput): string[] {
     case "send_media":
     case "collect_input":
     case "set_tag":
+    case "start_flow":
     case "wait": {
       const cfg = node.config as { next_node_key?: string };
       return cfg.next_node_key ? [cfg.next_node_key] : [];
     }
-    case "condition": {
+    case "condition":
+    case "randomizer": {
       const cfg = node.config as {
         true_next?: string;
         false_next?: string;
@@ -832,6 +912,7 @@ function outgoingEdges(node: NodeInput): string[] {
     }
     case "handoff":
     case "end":
+    case "stop_flow":
     default:
       return [];
   }

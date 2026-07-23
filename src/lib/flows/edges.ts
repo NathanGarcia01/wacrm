@@ -63,6 +63,7 @@ export function deriveCanvasEdges(
       case "send_media":
       case "collect_input":
       case "set_tag":
+      case "start_flow":
       case "wait": {
         const next = (cfg as { next_node_key?: string }).next_node_key;
         if (next && knownKeys.has(next)) {
@@ -76,7 +77,8 @@ export function deriveCanvasEdges(
         break;
       }
 
-      case "condition": {
+      case "condition":
+      case "randomizer": {
         const trueNext = (cfg as { true_next?: string }).true_next;
         const falseNext = (cfg as { false_next?: string }).false_next;
         if (trueNext && knownKeys.has(trueNext)) {
@@ -155,6 +157,7 @@ export function deriveCanvasEdges(
 
       case "handoff":
       case "end":
+      case "stop_flow":
         // Terminal nodes — no outgoing edges.
         break;
     }
@@ -197,10 +200,12 @@ export function outgoingSlots(
     case "send_media":
     case "collect_input":
     case "set_tag":
+    case "start_flow":
     case "wait":
       return [{ id: "next", label: t("next") }];
 
     case "condition":
+    case "randomizer":
       return [
         { id: "true", label: t("true") },
         { id: "false", label: t("false") },
@@ -247,6 +252,7 @@ export function outgoingSlots(
 
     case "handoff":
     case "end":
+    case "stop_flow":
       return [];
   }
 }
@@ -272,11 +278,13 @@ export function applyEdgeConnection(
     case "send_media":
     case "collect_input":
     case "set_tag":
+    case "start_flow":
     case "wait":
       if (sourceHandle === "next") return { next_node_key: targetKey };
       return null;
 
     case "condition":
+    case "randomizer":
       if (sourceHandle === "true") return { true_next: targetKey };
       if (sourceHandle === "false") return { false_next: targetKey };
       return null;
@@ -332,6 +340,7 @@ export function applyEdgeConnection(
 
     case "handoff":
     case "end":
+    case "stop_flow":
       return null;
   }
 }
@@ -367,13 +376,15 @@ function patchedConfigWithoutKey(
     case "send_media":
     case "collect_input":
     case "set_tag":
+    case "start_flow":
     case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key;
       if (next !== deletedKey) return null;
       return { ...cfg, next_node_key: "" };
     }
 
-    case "condition": {
+    case "condition":
+    case "randomizer": {
       const c = cfg as { true_next?: string; false_next?: string };
       const trueMatch = c.true_next === deletedKey;
       const falseMatch = c.false_next === deletedKey;
@@ -427,6 +438,7 @@ function patchedConfigWithoutKey(
 
     case "handoff":
     case "end":
+    case "stop_flow":
       return null;
   }
 }

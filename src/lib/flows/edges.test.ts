@@ -61,18 +61,24 @@ describe("deriveCanvasEdges — single-outgoing node types", () => {
         {
           node_key: "w",
           node_type: "wait",
-          config: { amount: 1, unit: "hours", next_node_key: "e" },
+          config: { amount: 1, unit: "hours", next_node_key: "sf" },
+        },
+        {
+          node_key: "sf",
+          node_type: "start_flow",
+          config: { flow_id: "x", next_node_key: "e" },
         },
         { node_key: "e", node_type: "end", config: {} },
       ),
     );
-    expect(edges).toHaveLength(5);
+    expect(edges).toHaveLength(6);
     expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
       "s->m",
       "m->t",
       "t->ci",
       "ci->w",
-      "w->e",
+      "w->sf",
+      "sf->e",
     ]);
   });
 
@@ -149,6 +155,34 @@ describe("deriveCanvasEdges — condition (true/false branches)", () => {
     );
     expect(edges).toHaveLength(1);
     expect(edges[0].sourceHandle).toBe("true");
+  });
+});
+
+describe("deriveCanvasEdges — randomizer (same branch shape as condition)", () => {
+  it("produces a labeled edge for each branch", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "r",
+          node_type: "randomizer",
+          config: { split_percent: 30, true_next: "a", false_next: "b" },
+        },
+        { node_key: "a", node_type: "end", config: {} },
+        { node_key: "b", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges).toHaveLength(2);
+    expect(edges.find((e) => e.sourceHandle === "true")).toMatchObject({ target: "a" });
+    expect(edges.find((e) => e.sourceHandle === "false")).toMatchObject({ target: "b" });
+  });
+});
+
+describe("deriveCanvasEdges — terminal node types have no outgoing edges", () => {
+  it("stop_flow produces zero edges", () => {
+    const edges = deriveCanvasEdges(
+      nodes({ node_key: "x", node_type: "stop_flow", config: {} }),
+    );
+    expect(edges).toEqual([]);
   });
 });
 
@@ -319,6 +353,24 @@ describe("outgoingSlots", () => {
     expect(each({ node_key: "x", node_type: "wait", config: {} })).toEqual([
       "next",
     ]);
+    expect(
+      each({ node_key: "x", node_type: "start_flow", config: {} }),
+    ).toEqual(["next"]);
+  });
+
+  it("returns an empty slot list for stop_flow (terminal)", () => {
+    expect(
+      outgoingSlots({ node_key: "x", node_type: "stop_flow", config: {} }),
+    ).toEqual([]);
+  });
+
+  it("returns true/false slots for randomizer (same shape as condition)", () => {
+    const slots = outgoingSlots({
+      node_key: "r",
+      node_type: "randomizer",
+      config: {},
+    });
+    expect(slots.map((s) => s.id)).toEqual(["true", "false"]);
   });
 
   it("returns true/false slots for condition", () => {

@@ -2294,7 +2294,10 @@
       "collect_input": "Collect response",
       "wait": "Wait",
       "condition": "If / else",
+      "randomizer": "Random split (A/B)",
       "set_tag": "Tag contact",
+      "start_flow": "Start another flow",
+      "stop_flow": "Stop flow",
       "handoff": "Hand off to agent",
       "end": "End"
     },
@@ -2315,7 +2318,10 @@
       "waitMinutes": "{count, plural, one {# minute} other {# minutes}}",
       "waitHours": "{count, plural, one {# hour} other {# hours}}",
       "waitDays": "{count, plural, one {# day} other {# days}}",
-      "waitSummary": "Waits {duration}"
+      "waitSummary": "Waits {duration}",
+      "randomizerSummary": "Splits {pct}%",
+      "startFlowSummary": "Starts flow",
+      "stopFlowSummary": "Stops the flow"
     },
     "editorState": {
       "defaultListButtonLabel": "See options",
@@ -2459,7 +2465,13 @@
       "waitUnitLabel": "Unit",
       "waitUnitMinutes": "Minutes",
       "waitUnitHours": "Hours",
-      "waitUnitDays": "Days"
+      "waitUnitDays": "Days",
+      "randomizerSplitLabel": "Split (%)",
+      "randomizerGroupALabel": "Group A ({pct}%)",
+      "randomizerGroupBLabel": "Group B ({pct}%)",
+      "startFlowLabel": "Flow to start",
+      "startFlowPlaceholder": "Choose a flow",
+      "stopFlowNodeHint": "Ends this flow run immediately."
     }
   },
   "aiGenerate": {
