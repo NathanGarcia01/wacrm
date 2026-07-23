@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import {
   getAccountById,
@@ -9,6 +9,7 @@ import {
   getSubscriptionEvents,
   type AccountMember,
 } from "@/lib/admin/data"
+import { requireAdminUser } from "@/lib/admin/require-admin"
 import { AdminHeader } from "@/components/admin/admin-header"
 import { StatusBadge } from "@/components/admin/accounts-table"
 import { AccountActions } from "@/components/admin/account-actions"
@@ -30,6 +31,9 @@ interface PageProps {
 }
 
 export default async function AccountDetailPage({ params }: PageProps) {
+  const currentAdmin = await requireAdminUser()
+  if (!currentAdmin) redirect("/admin/login")
+
   const { accountId } = await params
 
   const [account, events, usage, members, plans] = await Promise.all([
@@ -46,7 +50,7 @@ export default async function AccountDetailPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white">
-      <AdminHeader />
+      <AdminHeader admin={currentAdmin} />
 
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-6">
         <Link
@@ -74,8 +78,8 @@ export default async function AccountDetailPage({ params }: PageProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <ImpersonateButton accountId={account.id} />
-            <AccountActions account={account} plans={plans} />
+            {currentAdmin.role === "owner" && <ImpersonateButton accountId={account.id} />}
+            <AccountActions account={account} plans={plans} role={currentAdmin.role} />
           </div>
         </div>
 

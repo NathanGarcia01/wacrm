@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import { AlertTriangle, Clock, TrendingDown } from "lucide-react"
-import type { AdminAccountRow, Plan } from "@/lib/admin/types"
+import type { AdminAccountRow, AdminRole, Plan } from "@/lib/admin/types"
 import { trialDaysRemaining } from "@/lib/admin/trial"
 import { AccountActions } from "./account-actions"
 
@@ -67,11 +67,13 @@ export function AlertCards({
   trialsExpiring,
   inactive,
   plans,
+  role,
 }: {
   pastDue: AdminAccountRow[]
   trialsExpiring: AdminAccountRow[]
   inactive: AdminAccountRow[]
   plans: Plan[]
+  role: AdminRole
 }) {
   const hasAny = pastDue.length > 0 || trialsExpiring.length > 0 || inactive.length > 0
   if (!hasAny) return null
@@ -84,7 +86,7 @@ export function AlertCards({
         accounts={pastDue}
         emptyText="Nenhuma conta inadimplente."
         accent="#F87171"
-        renderExtra={(a) => <AccountActions account={a} plans={plans} />}
+        renderExtra={(a) => <AccountActions account={a} plans={plans} role={role} />}
       />
       <AlertCard
         icon={<Clock className="h-4 w-4" />}

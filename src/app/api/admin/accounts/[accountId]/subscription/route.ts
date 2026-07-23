@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/admin/admin-client'
 import { logSubscriptionEvent } from '@/lib/admin/log-event'
-import { requireAdminSession } from '@/lib/admin/require-admin'
+import { requireAdminUser } from '@/lib/admin/require-admin'
 import { stripe } from '@/lib/admin/stripe'
 
 type ActionKey =
@@ -57,8 +57,14 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ accountId: string }> },
 ) {
-  if (!(await requireAdminSession())) {
+  const caller = await requireAdminUser()
+  if (!caller) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  // Every action here mutates billing state — viewer role is
+  // read-only across the whole panel.
+  if (caller.role !== 'owner') {
+    return NextResponse.json({ error: 'Ação restrita a administradores owner' }, { status: 403 })
   }
 
   const { accountId } = await context.params

@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, MoreVertical } from "lucide-react"
-import type { AdminAccountRow, Plan } from "@/lib/admin/types"
+import type { AdminAccountRow, AdminRole, Plan } from "@/lib/admin/types"
 
 type ActionKey =
   | "cancel_at_period_end"
@@ -161,7 +161,17 @@ function availableActions(account: AdminAccountRow): ActionDef[] {
   return actions
 }
 
-export function AccountActions({ account, plans }: { account: AdminAccountRow; plans: Plan[] }) {
+export function AccountActions({
+  account,
+  plans,
+  role,
+}: {
+  account: AdminAccountRow
+  plans: Plan[]
+  /** Viewer sees no actions menu at all — the API rejects these
+   *  mutations with 403 anyway, this is just matching UX. */
+  role: AdminRole
+}) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [active, setActive] = useState<ActionDef | null>(null)
@@ -176,7 +186,9 @@ export function AccountActions({ account, plans }: { account: AdminAccountRow; p
   const [emailMessage, setEmailMessage] = useState("")
 
   const actions = availableActions(account)
-  if (actions.length === 0) return <span className="text-xs text-white/30">—</span>
+  if (role !== "owner" || actions.length === 0) {
+    return <span className="text-xs text-white/30">—</span>
+  }
 
   function openConfirm(action: ActionDef) {
     setMenuOpen(false)

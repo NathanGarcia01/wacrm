@@ -144,6 +144,11 @@ export const STATUS_FILTERS: {
   { key: 'unpaid', label: 'Não pagos', status: 'unpaid' },
 ]
 
+/** 'owner' = full access incl. destructive billing actions.
+ *  'viewer' = read-only, mutating routes reject with 403 and the UI
+ *  hides action buttons entirely. */
+export type AdminRole = 'owner' | 'viewer'
+
 /** Badge label + color per status, for both the table and the distribution bar. */
 export const STATUS_META: Record<
   SubscriptionStatus,

@@ -19,14 +19,20 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/admin/admin-client'
 import { logSubscriptionEvent } from '@/lib/admin/log-event'
-import { requireAdminSession } from '@/lib/admin/require-admin'
+import { requireAdminUser } from '@/lib/admin/require-admin'
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ accountId: string }> },
 ) {
-  if (!(await requireAdminSession())) {
+  const caller = await requireAdminUser()
+  if (!caller) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  // Signing in as a customer is the single most sensitive action in
+  // this panel — owner-only, no exceptions.
+  if (caller.role !== 'owner') {
+    return NextResponse.json({ error: 'Ação restrita a administradores owner' }, { status: 403 })
   }
 
   const { accountId } = await context.params

@@ -159,6 +159,11 @@ export const RATE_LIMITS = {
    *  (see /api/auth/welcome-email), so this is belt-and-braces against
    *  someone hammering the endpoint rather than the main defense. */
   welcomeEmail: { limit: 5, windowMs: 60_000 },
+  /** Admin panel login (public, per-IP). 5/15min — login moved from a
+   *  single shared secret to per-person email+password, which widens
+   *  the guessable-identifier surface (an email is far easier to know
+   *  than ADMIN_SECRET), so this bounds password-guessing attempts. */
+  adminLogin: { limit: 5, windowMs: 15 * 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

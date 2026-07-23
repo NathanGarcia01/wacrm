@@ -1,22 +1,28 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { ADMIN_COOKIE_NAME, isValidAdminCookie } from '@/lib/admin/auth'
+import { ADMIN_COOKIE_NAME, verifySessionCookie } from '@/lib/admin/auth'
 
 export async function middleware(request: NextRequest) {
   // Admin panel — a completely separate auth domain from the
-  // Supabase user session below (a single shared password, not a
-  // per-user account). Handled first and returns early so an
-  // unauthenticated /admin/* request never touches Supabase at all.
-  // /admin/login itself must stay reachable so there's a page to log
-  // in from.
+  // Supabase user session below (per-person admin_users accounts with
+  // roles, not the app's own users). Handled first and returns early
+  // so an unauthenticated /admin/* request never touches Supabase at
+  // all. /admin/login itself must stay reachable so there's a page to
+  // log in from.
+  //
+  // This only verifies the cookie's signature/expiry (Edge-safe, no
+  // DB call) — it does NOT confirm the admin_users row still exists,
+  // is active, or check role. That full check happens independently
+  // in requireAdminUser() for every page/route, same pattern as the
+  // Supabase session check below.
   if (
     request.nextUrl.pathname.startsWith('/admin') &&
     request.nextUrl.pathname !== '/admin/login'
   ) {
     const secret = process.env.ADMIN_SECRET
     const cookieValue = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const valid = secret ? await isValidAdminCookie(cookieValue, secret) : false
-    if (!valid) {
+    const token = secret ? await verifySessionCookie(cookieValue, secret) : null
+    if (!token) {
       const url = request.nextUrl.clone()
       url.pathname = '/admin/login'
       url.search = ''

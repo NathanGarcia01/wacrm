@@ -12,7 +12,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/admin/admin-client'
 import { logSubscriptionEvent } from '@/lib/admin/log-event'
-import { requireAdminSession } from '@/lib/admin/require-admin'
+import { requireAdminUser } from '@/lib/admin/require-admin'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { getResendClient, getWelcomeEmailFrom } from '@/lib/email/resend-client'
 import { adminMessageEmailHtml } from '@/lib/email/templates/admin-message-email'
@@ -21,8 +21,12 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ accountId: string }> },
 ) {
-  if (!(await requireAdminSession())) {
+  const caller = await requireAdminUser()
+  if (!caller) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  if (caller.role !== 'owner') {
+    return NextResponse.json({ error: 'Ação restrita a administradores owner' }, { status: 403 })
   }
 
   const { accountId } = await context.params

@@ -6,6 +6,7 @@ import { Lock } from "lucide-react"
 
 export default function AdminLoginPage() {
   const router = useRouter()
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -18,7 +19,7 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email, password }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -54,13 +55,29 @@ export default function AdminLoginPage() {
             </div>
           )}
           <div className="flex flex-col gap-1.5">
+            <label htmlFor="admin-email" className="text-xs font-medium text-white/60">
+              Email
+            </label>
+            <input
+              id="admin-email"
+              type="email"
+              autoFocus
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="rounded-lg border border-[#22242A] bg-[#0A0A0B] px-3 py-2 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#60A5FA]"
+              placeholder="voce@funilly.tech"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="admin-password" className="text-xs font-medium text-white/60">
               Senha
             </label>
             <input
               id="admin-password"
               type="password"
-              autoFocus
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
