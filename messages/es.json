@@ -2298,6 +2298,11 @@
       "set_tag": "Etiquetar contacto",
       "start_flow": "Iniciar otro flujo",
       "stop_flow": "Detener flujo",
+      "create_deal": "Crear negocio",
+      "update_deal_stage": "Cambiar etapa del negocio",
+      "update_deal_value": "Actualizar valor del negocio",
+      "mark_deal_won": "Marcar negocio como ganado",
+      "mark_deal_lost": "Marcar negocio como perdido",
       "handoff": "Transferir a un agente",
       "end": "Fin"
     },
@@ -2321,7 +2326,12 @@
       "waitSummary": "Espera {duration}",
       "randomizerSummary": "Divide {pct}%",
       "startFlowSummary": "Inicia flujo",
-      "stopFlowSummary": "Detiene el flujo"
+      "stopFlowSummary": "Detiene el flujo",
+      "createDealSummary": "Crea negocio",
+      "updateDealStageSummary": "Mueve el negocio a la etapa",
+      "updateDealValueSummary": "Define el valor del negocio",
+      "markDealWonSummary": "Marca el negocio como ganado",
+      "markDealLostSummary": "Marca el negocio como perdido"
     },
     "editorState": {
       "defaultListButtonLabel": "Ver opciones",
@@ -2471,7 +2481,16 @@
       "randomizerGroupBLabel": "Grupo B ({pct}%)",
       "startFlowLabel": "Flujo a iniciar",
       "startFlowPlaceholder": "Elige un flujo",
-      "stopFlowNodeHint": "Termina esta ejecución del flujo de inmediato."
+      "stopFlowNodeHint": "Termina esta ejecución del flujo de inmediato.",
+      "dealTitleLabel": "Título del negocio",
+      "dealTitlePlaceholder": "ej: {{contact.name}}",
+      "dealPipelineLabel": "Embudo (opcional)",
+      "dealDefaultPipelinePlaceholder": "Deja en blanco para usar el embudo predeterminado",
+      "dealStageLabel": "Etapa",
+      "dealDefaultStagePlaceholder": "Deja en blanco para usar la primera etapa",
+      "dealStageUuidPlaceholder": "UUID de la etapa",
+      "dealValueLabel": "Valor",
+      "dealLostReasonLabel": "Motivo de la pérdida (opcional)"
     }
   },
   "aiGenerate": {

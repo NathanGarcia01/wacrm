@@ -236,6 +236,62 @@ export interface StartFlowNodeConfig {
 export type StopFlowNodeConfig = Record<string, never>;
 
 /**
+ * Creates a deal for the run's contact, then auto-advances — workflow-mode
+ * equivalent of automations' `create_deal` step (src/types/index.ts's
+ * `CreateDealStepConfig`). pipeline_id/stage_id are optional: left blank,
+ * the executor resolves the account's default pipeline/first stage at
+ * run time, same convention as automations/engine.ts. Only meaningful on
+ * run_mode='workflow'.
+ */
+export interface CreateDealNodeConfig {
+  pipeline_id?: string;
+  stage_id?: string;
+  title: string;
+  value?: number;
+  next_node_key: string;
+}
+
+/**
+ * Moves the contact's current open deal to `stage_id` — mirrors
+ * automations' `update_deal_stage` step. The executor resolves "current
+ * open deal" the same lazy way automations' `resolveOpenDealId` does
+ * (most recent open deal for the contact); throws if none exists. Only
+ * meaningful on run_mode='workflow'.
+ */
+export interface UpdateDealStageNodeConfig {
+  stage_id: string;
+  next_node_key: string;
+}
+
+/**
+ * Sets the contact's current open deal value — mirrors automations'
+ * `update_deal_value` step. Only meaningful on run_mode='workflow'.
+ */
+export interface UpdateDealValueNodeConfig {
+  value: number;
+  next_node_key: string;
+}
+
+/**
+ * Marks the contact's current open deal won — mirrors automations'
+ * `mark_deal_won` step. No fields besides the auto-advance target. Only
+ * meaningful on run_mode='workflow'.
+ */
+export interface MarkDealWonNodeConfig {
+  next_node_key: string;
+}
+
+/**
+ * Marks the contact's current open deal lost — mirrors automations'
+ * `mark_deal_lost` step. `reason` is stored in deals.lost_reason. Only
+ * meaningful on run_mode='workflow'.
+ */
+export interface MarkDealLostNodeConfig {
+  reason?: string;
+  next_node_key: string;
+}
+
+/**
  * Total union — every concrete node_type the v1 engine understands.
  * Add new node types here and the engine's switch will flag missing
  * cases via TypeScript's exhaustiveness check.
@@ -256,6 +312,11 @@ export type FlowNodeConfig =
   | { node_type: "set_tag"; config: SetTagNodeConfig }
   | { node_type: "start_flow"; config: StartFlowNodeConfig }
   | { node_type: "stop_flow"; config: StopFlowNodeConfig }
+  | { node_type: "create_deal"; config: CreateDealNodeConfig }
+  | { node_type: "update_deal_stage"; config: UpdateDealStageNodeConfig }
+  | { node_type: "update_deal_value"; config: UpdateDealValueNodeConfig }
+  | { node_type: "mark_deal_won"; config: MarkDealWonNodeConfig }
+  | { node_type: "mark_deal_lost"; config: MarkDealLostNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 

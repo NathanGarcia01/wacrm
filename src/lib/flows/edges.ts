@@ -64,6 +64,11 @@ export function deriveCanvasEdges(
       case "collect_input":
       case "set_tag":
       case "start_flow":
+      case "create_deal":
+      case "update_deal_stage":
+      case "update_deal_value":
+      case "mark_deal_won":
+      case "mark_deal_lost":
       case "wait": {
         const next = (cfg as { next_node_key?: string }).next_node_key;
         if (next && knownKeys.has(next)) {
@@ -201,6 +206,11 @@ export function outgoingSlots(
     case "collect_input":
     case "set_tag":
     case "start_flow":
+    case "create_deal":
+    case "update_deal_stage":
+    case "update_deal_value":
+    case "mark_deal_won":
+    case "mark_deal_lost":
     case "wait":
       return [{ id: "next", label: t("next") }];
 
@@ -279,6 +289,11 @@ export function applyEdgeConnection(
     case "collect_input":
     case "set_tag":
     case "start_flow":
+    case "create_deal":
+    case "update_deal_stage":
+    case "update_deal_value":
+    case "mark_deal_won":
+    case "mark_deal_lost":
     case "wait":
       if (sourceHandle === "next") return { next_node_key: targetKey };
       return null;
@@ -377,6 +392,11 @@ function patchedConfigWithoutKey(
     case "collect_input":
     case "set_tag":
     case "start_flow":
+    case "create_deal":
+    case "update_deal_stage":
+    case "update_deal_value":
+    case "mark_deal_won":
+    case "mark_deal_lost":
     case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key;
       if (next !== deletedKey) return null;

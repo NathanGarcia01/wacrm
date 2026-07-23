@@ -101,6 +101,11 @@ describe("defaultConfigFor", () => {
     "set_tag",
     "start_flow",
     "stop_flow",
+    "create_deal",
+    "update_deal_stage",
+    "update_deal_value",
+    "mark_deal_won",
+    "mark_deal_lost",
     "handoff",
     "end",
   ];
@@ -159,5 +164,19 @@ describe("defaultConfigFor", () => {
 
   it("stop_flow's default is an empty object (terminal — no config)", () => {
     expect(defaultConfigFor("stop_flow", stubT)).toEqual({});
+  });
+
+  it("create_deal defaults to an empty title (no value assumed)", () => {
+    const cfg = defaultConfigFor("create_deal", stubT) as { title?: string };
+    expect(cfg.title).toBe("");
+  });
+
+  it("update_deal_value defaults to zero", () => {
+    const cfg = defaultConfigFor("update_deal_value", stubT) as { value?: number };
+    expect(cfg.value).toBe(0);
+  });
+
+  it("mark_deal_won's default only carries the auto-advance target", () => {
+    expect(defaultConfigFor("mark_deal_won", stubT)).toEqual({ next_node_key: "" });
   });
 });

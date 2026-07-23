@@ -2298,6 +2298,11 @@
       "set_tag": "Marcar contato com tag",
       "start_flow": "Iniciar outro fluxo",
       "stop_flow": "Parar fluxo",
+      "create_deal": "Criar negócio",
+      "update_deal_stage": "Mudar etapa do negócio",
+      "update_deal_value": "Alterar valor do negócio",
+      "mark_deal_won": "Marcar negócio como ganho",
+      "mark_deal_lost": "Marcar negócio como perdido",
       "handoff": "Transferir para atendente",
       "end": "Fim"
     },
@@ -2321,7 +2326,12 @@
       "waitSummary": "Aguarda {duration}",
       "randomizerSummary": "Divide {pct}%",
       "startFlowSummary": "Inicia fluxo",
-      "stopFlowSummary": "Para o fluxo"
+      "stopFlowSummary": "Para o fluxo",
+      "createDealSummary": "Cria negócio",
+      "updateDealStageSummary": "Move negócio para etapa",
+      "updateDealValueSummary": "Define valor do negócio",
+      "markDealWonSummary": "Marca negócio como ganho",
+      "markDealLostSummary": "Marca negócio como perdido"
     },
     "editorState": {
       "defaultListButtonLabel": "Ver opções",
@@ -2471,7 +2481,16 @@
       "randomizerGroupBLabel": "Grupo B ({pct}%)",
       "startFlowLabel": "Fluxo a iniciar",
       "startFlowPlaceholder": "Escolha um fluxo",
-      "stopFlowNodeHint": "Encerra esta execução do fluxo imediatamente."
+      "stopFlowNodeHint": "Encerra esta execução do fluxo imediatamente.",
+      "dealTitleLabel": "Título do negócio",
+      "dealTitlePlaceholder": "ex: {{contact.name}}",
+      "dealPipelineLabel": "Funil (opcional)",
+      "dealDefaultPipelinePlaceholder": "Deixe em branco para usar o funil padrão",
+      "dealStageLabel": "Etapa",
+      "dealDefaultStagePlaceholder": "Deixe em branco para usar a primeira etapa",
+      "dealStageUuidPlaceholder": "UUID da etapa",
+      "dealValueLabel": "Valor",
+      "dealLostReasonLabel": "Motivo da perda (opcional)"
     }
   },
   "aiGenerate": {

@@ -2298,6 +2298,11 @@
       "set_tag": "Tag contact",
       "start_flow": "Start another flow",
       "stop_flow": "Stop flow",
+      "create_deal": "Create deal",
+      "update_deal_stage": "Change deal stage",
+      "update_deal_value": "Update deal value",
+      "mark_deal_won": "Mark deal won",
+      "mark_deal_lost": "Mark deal lost",
       "handoff": "Hand off to agent",
       "end": "End"
     },
@@ -2321,7 +2326,12 @@
       "waitSummary": "Waits {duration}",
       "randomizerSummary": "Splits {pct}%",
       "startFlowSummary": "Starts flow",
-      "stopFlowSummary": "Stops the flow"
+      "stopFlowSummary": "Stops the flow",
+      "createDealSummary": "Creates deal",
+      "updateDealStageSummary": "Moves deal to stage",
+      "updateDealValueSummary": "Sets deal value",
+      "markDealWonSummary": "Marks deal won",
+      "markDealLostSummary": "Marks deal lost"
     },
     "editorState": {
       "defaultListButtonLabel": "See options",
@@ -2471,7 +2481,16 @@
       "randomizerGroupBLabel": "Group B ({pct}%)",
       "startFlowLabel": "Flow to start",
       "startFlowPlaceholder": "Choose a flow",
-      "stopFlowNodeHint": "Ends this flow run immediately."
+      "stopFlowNodeHint": "Ends this flow run immediately.",
+      "dealTitleLabel": "Deal title",
+      "dealTitlePlaceholder": "e.g. {{contact.name}}",
+      "dealPipelineLabel": "Pipeline (optional)",
+      "dealDefaultPipelinePlaceholder": "Leave blank to use the default pipeline",
+      "dealStageLabel": "Stage",
+      "dealDefaultStagePlaceholder": "Leave blank to use the first stage",
+      "dealStageUuidPlaceholder": "Stage UUID",
+      "dealValueLabel": "Value",
+      "dealLostReasonLabel": "Lost reason (optional)"
     }
   },
   "aiGenerate": {

@@ -207,6 +207,16 @@ export function defaultConfigFor(
       return { flow_id: "", next_node_key: "" };
     case "stop_flow":
       return {};
+    case "create_deal":
+      return { title: "", next_node_key: "" };
+    case "update_deal_stage":
+      return { stage_id: "", next_node_key: "" };
+    case "update_deal_value":
+      return { value: 0, next_node_key: "" };
+    case "mark_deal_won":
+      return { next_node_key: "" };
+    case "mark_deal_lost":
+      return { reason: "", next_node_key: "" };
     case "handoff":
       return { note: "" };
     case "end":

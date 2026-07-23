@@ -597,6 +597,11 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "set_tag",
     "start_flow",
     "stop_flow",
+    "create_deal",
+    "update_deal_stage",
+    "update_deal_value",
+    "mark_deal_won",
+    "mark_deal_lost",
     "handoff",
     "end",
   ];

@@ -17,9 +17,12 @@
  */
 
 import {
+  Ban,
   Clock,
+  DollarSign,
   Flag,
   GitFork,
+  Handshake,
   Inbox,
   ListChecks,
   ListPlus,
@@ -30,6 +33,7 @@ import {
   Rocket,
   Shuffle,
   Tag,
+  Trophy,
   UserPlus,
   Workflow,
 } from "lucide-react";
@@ -55,6 +59,11 @@ export type NodeType =
   | "set_tag"
   | "start_flow"
   | "stop_flow"
+  | "create_deal"
+  | "update_deal_stage"
+  | "update_deal_value"
+  | "mark_deal_won"
+  | "mark_deal_lost"
   | "handoff"
   | "end";
 
@@ -126,6 +135,26 @@ export const NODE_META: Record<
   },
   stop_flow: {
     icon: OctagonX,
+    color: "text-destructive",
+  },
+  create_deal: {
+    icon: Handshake,
+    color: "text-emerald-400",
+  },
+  update_deal_stage: {
+    icon: GitFork,
+    color: "text-emerald-400",
+  },
+  update_deal_value: {
+    icon: DollarSign,
+    color: "text-emerald-400",
+  },
+  mark_deal_won: {
+    icon: Trophy,
+    color: "text-emerald-400",
+  },
+  mark_deal_lost: {
+    icon: Ban,
     color: "text-destructive",
   },
   handoff: {
@@ -296,6 +325,26 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
     }
     case "stop_flow":
       return t("stopFlowSummary");
+    case "create_deal": {
+      const title = typeof cfg.title === "string" ? cfg.title : "";
+      return title ? `${t("createDealSummary")}: ${truncate(title, 40)}` : t("createDealSummary");
+    }
+    case "update_deal_stage": {
+      const stageId = typeof cfg.stage_id === "string" ? cfg.stage_id : "";
+      return stageId
+        ? `${t("updateDealStageSummary")} ${stageId.slice(0, 8)}…`
+        : t("updateDealStageSummary");
+    }
+    case "update_deal_value": {
+      const value = typeof cfg.value === "number" ? cfg.value : null;
+      return value !== null ? `${t("updateDealValueSummary")}: ${value}` : t("updateDealValueSummary");
+    }
+    case "mark_deal_won":
+      return t("markDealWonSummary");
+    case "mark_deal_lost": {
+      const reason = typeof cfg.reason === "string" ? cfg.reason : "";
+      return reason ? `${t("markDealLostSummary")}: ${truncate(reason, 40)}` : t("markDealLostSummary");
+    }
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;

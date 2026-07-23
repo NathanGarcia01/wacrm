@@ -685,6 +685,170 @@ describe("validateFlowForActivation — stop_flow", () => {
   });
 });
 
+describe("validateFlowForActivation — create_deal", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "cd" } },
+    { node_key: "cd", node_type: "create_deal", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated create_deal node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ title: "New lead", value: 100, next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("passes without pipeline_id/stage_id/value (resolved lazily at run time)", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ title: "New lead", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing title", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "cd" && i.field === "title"),
+    ).toBe(true);
+  });
+
+  it("flags a negative value", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ title: "x", value: -5, next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "cd" && i.field === "value"),
+    ).toBe(true);
+  });
+
+  it("flags missing next_node_key", () => {
+    const issues = validateFlowForActivation(baseFlow, nodesWith({ title: "x" }));
+    expect(
+      issues.some((i) => i.node_key === "cd" && i.field === "next_node_key"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — update_deal_stage", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "uds" } },
+    { node_key: "uds", node_type: "update_deal_stage", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ stage_id: "stage-1", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing stage_id", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "uds" && i.field === "stage_id"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — update_deal_value", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "udv" } },
+    { node_key: "udv", node_type: "update_deal_value", config: cfg },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ value: 500, next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags a missing/non-numeric value", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "udv" && i.field === "value"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — mark_deal_won", () => {
+  it("passes with just a next_node_key", () => {
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "s" },
+      [
+        { node_key: "s", node_type: "start", config: { next_node_key: "mdw" } },
+        { node_key: "mdw", node_type: "mark_deal_won", config: { next_node_key: "h" } },
+        { node_key: "h", node_type: "handoff", config: {} },
+      ],
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing next_node_key", () => {
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "s" },
+      [
+        { node_key: "s", node_type: "start", config: { next_node_key: "mdw" } },
+        { node_key: "mdw", node_type: "mark_deal_won", config: {} },
+      ],
+    );
+    expect(
+      issues.some((i) => i.node_key === "mdw" && i.field === "next_node_key"),
+    ).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — mark_deal_lost", () => {
+  it("passes with an optional reason and a next_node_key", () => {
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "s" },
+      [
+        { node_key: "s", node_type: "start", config: { next_node_key: "mdl" } },
+        {
+          node_key: "mdl",
+          node_type: "mark_deal_lost",
+          config: { reason: "no budget", next_node_key: "h" },
+        },
+        { node_key: "h", node_type: "handoff", config: {} },
+      ],
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing next_node_key", () => {
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "s" },
+      [
+        { node_key: "s", node_type: "start", config: { next_node_key: "mdl" } },
+        { node_key: "mdl", node_type: "mark_deal_lost", config: {} },
+      ],
+    );
+    expect(
+      issues.some((i) => i.node_key === "mdl" && i.field === "next_node_key"),
+    ).toBe(true);
+  });
+});
+
 describe("reachableFromEntry", () => {
   it("walks the graph from the entry", () => {
     const set = reachableFromEntry("start", validNodes);

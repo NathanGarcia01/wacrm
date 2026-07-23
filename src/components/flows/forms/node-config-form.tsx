@@ -227,6 +227,57 @@ export function NodeConfigForm({
         </p>
       );
 
+    case "create_deal":
+      return (
+        <CreateDealForm
+          cfg={cfg as CreateDealCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "update_deal_stage":
+      return (
+        <UpdateDealStageForm
+          cfg={cfg as UpdateDealStageCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "update_deal_value":
+      return (
+        <UpdateDealValueForm
+          cfg={cfg as UpdateDealValueCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "mark_deal_won":
+      return (
+        <NextNodeRow
+          value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onChange={(v) => onUpdateConfig({ next_node_key: v })}
+          label={t("thenAdvanceLabel")}
+        />
+      );
+
+    case "mark_deal_lost":
+      return (
+        <MarkDealLostForm
+          cfg={cfg as MarkDealLostCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "handoff":
       return (
         <TextRow
@@ -1169,6 +1220,221 @@ function useUserFlows(): UserFlow[] {
     };
   }, []);
   return flows;
+}
+
+// ============================================================
+// create_deal / update_deal_stage / update_deal_value / mark_deal_won /
+// mark_deal_lost — workflow-mode only. Mirror automations' deal-mutation
+// steps (CreateDealStepConfig etc in src/types/index.ts); pipeline_id/
+// stage_id left blank resolve to the account's default pipeline/first
+// stage, and update_deal_*/mark_deal_* resolve the contact's current
+// open deal, all at execution time (see workflow-engine.ts, Fase E2).
+// ============================================================
+
+interface CreateDealCfg {
+  pipeline_id?: string;
+  stage_id?: string;
+  title?: string;
+  value?: number;
+  next_node_key?: string;
+}
+
+function CreateDealForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: CreateDealCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("dealTitleLabel")}
+        </label>
+        <Input
+          value={cfg.title ?? ""}
+          onChange={(e) => onUpdateConfig({ title: e.target.value })}
+          placeholder={t("dealTitlePlaceholder")}
+          className="bg-muted"
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("dealPipelineLabel")}
+          </label>
+          <Input
+            value={cfg.pipeline_id ?? ""}
+            onChange={(e) => onUpdateConfig({ pipeline_id: e.target.value })}
+            placeholder={t("dealDefaultPipelinePlaceholder")}
+            className="bg-muted font-mono text-xs"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("dealStageLabel")}
+          </label>
+          <Input
+            value={cfg.stage_id ?? ""}
+            onChange={(e) => onUpdateConfig({ stage_id: e.target.value })}
+            placeholder={t("dealDefaultStagePlaceholder")}
+            className="bg-muted font-mono text-xs"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("dealValueLabel")}
+        </label>
+        <Input
+          type="number"
+          min={0}
+          value={cfg.value ?? 0}
+          onChange={(e) =>
+            onUpdateConfig({ value: Math.max(0, Number(e.target.value) || 0) })
+          }
+          className="bg-muted"
+        />
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+interface UpdateDealStageCfg {
+  stage_id?: string;
+  next_node_key?: string;
+}
+
+function UpdateDealStageForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: UpdateDealStageCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("dealStageLabel")}
+        </label>
+        <Input
+          value={cfg.stage_id ?? ""}
+          onChange={(e) => onUpdateConfig({ stage_id: e.target.value })}
+          placeholder={t("dealStageUuidPlaceholder")}
+          className="bg-muted font-mono text-xs"
+        />
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+interface UpdateDealValueCfg {
+  value?: number;
+  next_node_key?: string;
+}
+
+function UpdateDealValueForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: UpdateDealValueCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+
+  return (
+    <>
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("dealValueLabel")}
+        </label>
+        <Input
+          type="number"
+          min={0}
+          value={cfg.value ?? 0}
+          onChange={(e) =>
+            onUpdateConfig({ value: Math.max(0, Number(e.target.value) || 0) })
+          }
+          className="bg-muted"
+        />
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+interface MarkDealLostCfg {
+  reason?: string;
+  next_node_key?: string;
+}
+
+function MarkDealLostForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: MarkDealLostCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+
+  return (
+    <>
+      <TextRow
+        label={t("dealLostReasonLabel")}
+        value={cfg.reason ?? ""}
+        onChange={(v) => onUpdateConfig({ reason: v })}
+      />
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
 }
 
 // ============================================================

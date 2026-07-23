@@ -186,6 +186,49 @@ describe("deriveCanvasEdges — terminal node types have no outgoing edges", () 
   });
 });
 
+describe("deriveCanvasEdges — deal-mutation node types (single next, like send_message)", () => {
+  it("derives a `next` edge from create_deal, update_deal_stage, update_deal_value, mark_deal_won, mark_deal_lost", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "cd",
+          node_type: "create_deal",
+          config: { title: "Lead", next_node_key: "uds" },
+        },
+        {
+          node_key: "uds",
+          node_type: "update_deal_stage",
+          config: { stage_id: "stage-1", next_node_key: "udv" },
+        },
+        {
+          node_key: "udv",
+          node_type: "update_deal_value",
+          config: { value: 100, next_node_key: "mdw" },
+        },
+        {
+          node_key: "mdw",
+          node_type: "mark_deal_won",
+          config: { next_node_key: "mdl" },
+        },
+        {
+          node_key: "mdl",
+          node_type: "mark_deal_lost",
+          config: { reason: "no budget", next_node_key: "e" },
+        },
+        { node_key: "e", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
+      "cd->uds",
+      "uds->udv",
+      "udv->mdw",
+      "mdw->mdl",
+      "mdl->e",
+    ]);
+    expect(edges.every((e) => e.sourceHandle === "next")).toBe(true);
+  });
+});
+
 describe("deriveCanvasEdges — send_buttons (per-button)", () => {
   it("emits one edge per button, labeled with the button title", () => {
     const edges = deriveCanvasEdges(
@@ -355,6 +398,21 @@ describe("outgoingSlots", () => {
     ]);
     expect(
       each({ node_key: "x", node_type: "start_flow", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "create_deal", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "update_deal_stage", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "update_deal_value", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "mark_deal_won", config: {} }),
+    ).toEqual(["next"]);
+    expect(
+      each({ node_key: "x", node_type: "mark_deal_lost", config: {} }),
     ).toEqual(["next"]);
   });
 
