@@ -1,13 +1,40 @@
+import { TrendingDown, TrendingUp } from "lucide-react"
 import { formatCurrency } from "@/lib/currency"
 import type { MrrSummary } from "@/lib/admin/types"
 
-export function MrrCard({ mrr }: { mrr: MrrSummary }) {
+export function MrrCard({
+  mrr,
+  trendPercent,
+}: {
+  mrr: MrrSummary
+  trendPercent?: number | null
+}) {
   return (
     <div className="rounded-xl border border-[#22242A] bg-[#141417] p-5">
       <p className="text-xs font-medium text-white/50">MRR</p>
-      <p className="mt-2 font-mono text-4xl font-semibold tabular-nums text-[#34D399]">
-        {formatCurrency(mrr.totalCents / 100, "BRL")}
-      </p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="font-mono text-4xl font-semibold tabular-nums text-[#34D399]">
+          {formatCurrency(mrr.totalCents / 100, "BRL")}
+        </p>
+        {trendPercent != null && (
+          <span
+            className={`inline-flex items-center gap-1 text-sm font-medium ${
+              trendPercent >= 0 ? "text-[#34D399]" : "text-[#F87171]"
+            }`}
+          >
+            {trendPercent >= 0 ? (
+              <TrendingUp className="h-3.5 w-3.5" />
+            ) : (
+              <TrendingDown className="h-3.5 w-3.5" />
+            )}
+            {trendPercent >= 0 ? "+" : ""}
+            {trendPercent.toFixed(1)}%
+          </span>
+        )}
+      </div>
+      {trendPercent != null && (
+        <p className="mt-0.5 text-[11px] text-white/30">vs. ~30 dias atrás</p>
+      )}
 
       {mrr.byPlan.length === 0 ? (
         <p className="mt-4 text-xs text-white/40">Nenhuma assinatura ativa ainda.</p>

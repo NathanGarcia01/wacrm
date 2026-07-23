@@ -1,9 +1,12 @@
 import {
+  computeExecutiveMetrics,
   getAccountsPage,
   getChurnSummary,
   getMrrSnapshots,
   getMrrSummary,
+  getNewAccountsPerMonth,
   getStatusDistribution,
+  getTrialsExpiringSoonCount,
 } from "@/lib/admin/data"
 import { STATUS_FILTERS, type SubscriptionStatus } from "@/lib/admin/types"
 import { AdminHeader } from "@/components/admin/admin-header"
@@ -14,6 +17,11 @@ import { FilterPills } from "@/components/admin/filter-pills"
 import { AccountsTable } from "@/components/admin/accounts-table"
 import { Pagination } from "@/components/admin/pagination"
 import { MrrChart } from "@/components/admin/mrr-chart"
+import { KpiRow } from "@/components/admin/kpi-row"
+import { MrrPlanPie } from "@/components/admin/mrr-plan-pie"
+import { NewAccountsChart } from "@/components/admin/new-accounts-chart"
+
+const TRIAL_ALERT_DAYS = 7
 
 interface PageProps {
   searchParams: Promise<{ status?: string; page?: string }>
@@ -26,13 +34,24 @@ export default async function AdminPage({ searchParams }: PageProps) {
     (STATUS_FILTERS.find((f) => f.key === filterKey)?.status ?? null) as SubscriptionStatus | null
   const page = Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1)
 
-  const [accountsPage, distribution, mrr, churn, snapshots] = await Promise.all([
-    getAccountsPage(page, filterStatus),
-    getStatusDistribution(),
-    getMrrSummary(),
-    getChurnSummary(),
-    getMrrSnapshots(),
-  ])
+  const [accountsPage, distribution, mrr, churn, snapshots, newAccountsByMonth, trialsExpiringSoonCount] =
+    await Promise.all([
+      getAccountsPage(page, filterStatus),
+      getStatusDistribution(),
+      getMrrSummary(),
+      getChurnSummary(),
+      getMrrSnapshots(),
+      getNewAccountsPerMonth(),
+      getTrialsExpiringSoonCount(TRIAL_ALERT_DAYS),
+    ])
+
+  const executiveMetrics = computeExecutiveMetrics(
+    mrr,
+    churn,
+    distribution,
+    snapshots,
+    trialsExpiringSoonCount,
+  )
 
   const totalPages = Math.max(1, Math.ceil(accountsPage.total / accountsPage.pageSize))
 
@@ -43,12 +62,19 @@ export default async function AdminPage({ searchParams }: PageProps) {
       <main className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="md:col-span-2">
-            <MrrCard mrr={mrr} />
+            <MrrCard mrr={mrr} trendPercent={executiveMetrics.mrrTrendPercent} />
           </div>
           <ChurnCard churn={churn} />
         </div>
 
+        <KpiRow metrics={executiveMetrics} />
+
         <DistributionBar counts={distribution} />
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <MrrPlanPie byPlan={mrr.byPlan} />
+          <NewAccountsChart points={newAccountsByMonth} />
+        </div>
 
         <MrrChart snapshots={snapshots} />
 

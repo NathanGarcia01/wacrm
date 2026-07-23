@@ -77,6 +77,26 @@ export interface ChurnSummary {
   canceledThisMonth: number
 }
 
+export interface ExecutiveMetrics {
+  /** % change in MRR vs the closest snapshot ~30 days ago. Null when
+   *  there isn't a month of snapshot history yet to compare against. */
+  mrrTrendPercent: number | null
+  arrCents: number
+  /** ARPA ÷ monthly churn rate. Null when churn is 0 (undefined, not
+   *  infinite/zero) rather than implying customers never leave. */
+  ltvCents: number | null
+  activeCount: number
+  trialingCount: number
+  pastDueCount: number
+  trialsExpiringSoonCount: number
+}
+
+export interface NewAccountsPoint {
+  /** "YYYY-MM" */
+  month: string
+  count: number
+}
+
 export interface MrrSnapshotRow {
   snapshot_date: string
   mrr_cents: number

@@ -14,8 +14,10 @@ import type {
   AccountSubscription,
   AdminAccountRow,
   ChurnSummary,
+  ExecutiveMetrics,
   MrrSnapshotRow,
   MrrSummary,
+  NewAccountsPoint,
   Plan,
   SubscriptionStatus,
 } from './types'
@@ -203,4 +205,119 @@ export async function getMrrSnapshots(): Promise<MrrSnapshotRow[]> {
     .order('snapshot_date', { ascending: true })
   if (error) throw new Error(error.message)
   return (data ?? []) as MrrSnapshotRow[]
+}
+
+/**
+ * Pure — combines data the page already fetches for the existing
+ * cards (no extra Supabase round-trip) into the executive-dashboard
+ * numbers. `trialsExpiringSoonCount` is the one piece that needs its
+ * own query (see `getTrialsExpiringSoonCount`) since it's not
+ * derivable from the other four.
+ */
+export function computeExecutiveMetrics(
+  mrr: MrrSummary,
+  churn: ChurnSummary,
+  distribution: Record<string, number>,
+  snapshots: MrrSnapshotRow[],
+  trialsExpiringSoonCount: number,
+): ExecutiveMetrics {
+  const activeCount = distribution['active'] ?? 0
+  const trialingCount = distribution['trialing'] ?? 0
+  const pastDueCount = distribution['past_due'] ?? 0
+
+  const arrCents = mrr.totalCents * 12
+
+  const arpaCents = activeCount > 0 ? mrr.totalCents / activeCount : 0
+  const churnFraction = churn.ratePercent / 100
+  // Undefined (not 0) LTV when there's no churn data yet — a real
+  // number here would imply "customers never leave," which is a
+  // claim we can't back with a 0-in-the-cohort churn rate.
+  const ltvCents = churnFraction > 0 ? Math.round(arpaCents / churnFraction) : null
+
+  // MRR trend vs ~30 days ago: closest snapshot at or before that
+  // date. Requires a snapshot old enough to compare against — with
+  // less than a month of history this stays null rather than
+  // comparing against, say, yesterday and calling it "monthly."
+  let mrrTrendPercent: number | null = null
+  const targetMs = Date.now() - 30 * 24 * 60 * 60 * 1000
+  let closest: MrrSnapshotRow | null = null
+  let closestDiff = Infinity
+  for (const s of snapshots) {
+    const snapshotMs = new Date(s.snapshot_date).getTime()
+    if (snapshotMs > targetMs) continue
+    const diff = targetMs - snapshotMs
+    if (diff < closestDiff) {
+      closest = s
+      closestDiff = diff
+    }
+  }
+  if (closest && closest.mrr_cents > 0) {
+    mrrTrendPercent = ((mrr.totalCents - closest.mrr_cents) / closest.mrr_cents) * 100
+  }
+
+  return {
+    mrrTrendPercent,
+    arrCents,
+    ltvCents,
+    activeCount,
+    trialingCount,
+    pastDueCount,
+    trialsExpiringSoonCount,
+  }
+}
+
+/** Count-only — feeds the "Em trial" KPI tile's countdown sub-line.
+ *  The full account rows for the same window are fetched separately
+ *  by `getTrialsExpiringSoon` for the alert card, which needs more
+ *  than a count. */
+export async function getTrialsExpiringSoonCount(days: number): Promise<number> {
+  const admin = supabaseAdmin()
+  const now = new Date().toISOString()
+  const cutoff = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+  const { count, error } = await admin
+    .from('subscriptions')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'trialing')
+    .gte('trial_end', now)
+    .lte('trial_end', cutoff)
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+/**
+ * New accounts per calendar month for the last `months` months
+ * (default 12), including empty months so the bar chart doesn't
+ * silently skip a month with zero signups. Scans `accounts.created_at`
+ * and buckets in JS — fine at current scale; move to a `date_trunc`
+ * RPC if the accounts table grows into the tens of thousands.
+ */
+export async function getNewAccountsPerMonth(months = 12): Promise<NewAccountsPoint[]> {
+  const admin = supabaseAdmin()
+  const since = new Date()
+  since.setUTCMonth(since.getUTCMonth() - (months - 1))
+  since.setUTCDate(1)
+  since.setUTCHours(0, 0, 0, 0)
+
+  const { data, error } = await admin
+    .from('accounts')
+    .select('created_at')
+    .gte('created_at', since.toISOString())
+  if (error) throw new Error(error.message)
+
+  const counts = new Map<string, number>()
+  for (let i = 0; i < months; i++) {
+    const d = new Date(since)
+    d.setUTCMonth(d.getUTCMonth() + i)
+    counts.set(monthKey(d), 0)
+  }
+  for (const row of data ?? []) {
+    const key = monthKey(new Date(row.created_at as string))
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+
+  return [...counts.entries()].map(([month, count]) => ({ month, count }))
+}
+
+function monthKey(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
