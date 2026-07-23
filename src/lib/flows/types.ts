@@ -18,6 +18,8 @@
  * references in JSONB.
  */
 
+import type { AutomationTriggerType } from "@/types";
+
 // ============================================================
 // Node configs (discriminated union by node_type)
 // ============================================================
@@ -219,6 +221,18 @@ export type FlowTriggerConfig =
   | { trigger_type: "first_inbound_message"; config: FirstInboundTriggerConfig }
   | { trigger_type: "manual"; config: Record<string, never> };
 
+/**
+ * Full trigger vocabulary a `flows` row can carry — automations'
+ * 16 values plus flows' own 'manual' (never had an automations
+ * equivalent — automations has no "fire on demand from the inbox"
+ * concept). `FlowTriggerConfig` above still only discriminates the 3
+ * values the CONVERSATIONAL engine understands (`findEntryFlow`);
+ * the other 13 are accepted here as of migration 044 but have no
+ * matching/dispatch logic yet — that lands with the workflow-mode
+ * engine (Fase E-G, see src/lib/flows/workflow-engine.ts).
+ */
+export type FlowTriggerType = AutomationTriggerType | "manual";
+
 // ============================================================
 // DB-row shapes (read by the engine via supabaseAdmin)
 // ============================================================
@@ -238,7 +252,7 @@ export interface FlowRow {
    *  'workflow' = event-triggered, one-shot mode equivalent to
    *  automations — see src/lib/flows/workflow-engine.ts. Migration 042. */
   run_mode: "conversational" | "workflow";
-  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
+  trigger_type: FlowTriggerType;
   trigger_config: KeywordTriggerConfig | FirstInboundTriggerConfig | Record<string, unknown>;
   entry_node_id: string | null;
   fallback_policy: FlowFallbackPolicy;

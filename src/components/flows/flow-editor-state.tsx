@@ -259,7 +259,13 @@ export function FlowEditorProvider({
   const [state, setStateRaw] = useState<BuilderState>(() => ({
     name: initialFlow.name,
     description: initialFlow.description ?? "",
-    trigger_type: initialFlow.trigger_type,
+    // FlowRow.trigger_type accepts the full automations vocabulary as
+    // of migration 044, but this editor (the conversational list/canvas
+    // builder) only ever renders for run_mode='conversational' flows,
+    // which are still limited to these 3 values — no UI exists yet for
+    // authoring a workflow-mode flow's trigger. Safe to narrow here;
+    // revisit when the workflow trigger picker ships (Fase E-G).
+    trigger_type: initialFlow.trigger_type as BuilderState["trigger_type"],
     trigger_config: initialFlow.trigger_config as Record<string, unknown>,
     entry_node_id: initialFlow.entry_node_id,
     status: initialFlow.status,
