@@ -17,6 +17,7 @@
  */
 
 import {
+  Clock,
   Flag,
   GitFork,
   Inbox,
@@ -45,6 +46,7 @@ export type NodeType =
   | "send_list"
   | "send_media"
   | "collect_input"
+  | "wait"
   | "condition"
   | "set_tag"
   | "handoff"
@@ -95,6 +97,10 @@ export const NODE_META: Record<
   collect_input: {
     icon: Inbox,
     color: "text-teal-400",
+  },
+  wait: {
+    icon: Clock,
+    color: "text-amber-400",
   },
   condition: {
     icon: GitFork,
@@ -212,6 +218,14 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
         return varKey ? `${truncate(prompt, 50)} → vars.${varKey}` : truncate(prompt);
       }
       return varKey ? `→ vars.${varKey}` : null;
+    }
+    case "wait": {
+      const amount = typeof cfg.amount === "number" ? cfg.amount : null;
+      if (amount === null) return null;
+      const unit = cfg.unit === "hours" ? "hours" : cfg.unit === "days" ? "days" : "minutes";
+      const durationKey =
+        unit === "hours" ? "waitHours" : unit === "days" ? "waitDays" : "waitMinutes";
+      return t("waitSummary", { duration: t(durationKey, { count: amount }) });
     }
     case "condition": {
       const subjectKey =

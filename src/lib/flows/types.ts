@@ -179,6 +179,23 @@ export interface SetTagNodeConfig {
 export type EndNodeConfig = Record<string, never>;
 
 /**
+ * Suspends the run for a fixed duration, then resumes at
+ * `next_node_key` — the workflow-mode equivalent of automations'
+ * `wait` step (src/types/index.ts's `WaitStepConfig`, same
+ * amount/unit shape). Unlike send_buttons/send_list/collect_input,
+ * this suspension is time-based, not waiting on a customer reply —
+ * see `isWorkflowWaiting` in workflow-engine.ts (Fase E) and the
+ * `flow_pending_executions` queue (migration 045) it's drained from.
+ * Only meaningful on run_mode='workflow' flows; the conversational
+ * builder/engine never schedule or execute this node type.
+ */
+export interface WaitNodeConfig {
+  amount: number;
+  unit: "minutes" | "hours" | "days";
+  next_node_key: string;
+}
+
+/**
  * Total union — every concrete node_type the v1 engine understands.
  * Add new node types here and the engine's switch will flag missing
  * cases via TypeScript's exhaustiveness check.
@@ -193,6 +210,7 @@ export type FlowNodeConfig =
   | { node_type: "send_list"; config: SendListNodeConfig }
   | { node_type: "send_media"; config: SendMediaNodeConfig }
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
+  | { node_type: "wait"; config: WaitNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }

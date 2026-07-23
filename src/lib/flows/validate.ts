@@ -584,6 +584,50 @@ function validateNode(
       break;
     }
 
+    case "wait": {
+      const cfg = node.config as {
+        amount?: number;
+        unit?: "minutes" | "hours" | "days";
+        next_node_key?: string;
+      };
+      if (typeof cfg.amount !== "number" || !Number.isFinite(cfg.amount) || cfg.amount <= 0) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "amount",
+          message: "Wait needs a positive amount.",
+        });
+      }
+      if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "unit",
+          message: "Wait needs a unit (minutes / hours / days).",
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Wait must point to a next node.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Wait points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      break;
+    }
+
     case "condition": {
       const cfg = node.config as {
         subject?: "var" | "tag" | "contact_field";
@@ -751,7 +795,8 @@ function outgoingEdges(node: NodeInput): string[] {
     case "send_message":
     case "send_media":
     case "collect_input":
-    case "set_tag": {
+    case "set_tag":
+    case "wait": {
       const cfg = node.config as { next_node_key?: string };
       return cfg.next_node_key ? [cfg.next_node_key] : [];
     }

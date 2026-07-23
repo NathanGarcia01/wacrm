@@ -62,7 +62,8 @@ export function deriveCanvasEdges(
       case "send_message":
       case "send_media":
       case "collect_input":
-      case "set_tag": {
+      case "set_tag":
+      case "wait": {
         const next = (cfg as { next_node_key?: string }).next_node_key;
         if (next && knownKeys.has(next)) {
           edges.push({
@@ -196,6 +197,7 @@ export function outgoingSlots(
     case "send_media":
     case "collect_input":
     case "set_tag":
+    case "wait":
       return [{ id: "next", label: t("next") }];
 
     case "condition":
@@ -270,6 +272,7 @@ export function applyEdgeConnection(
     case "send_media":
     case "collect_input":
     case "set_tag":
+    case "wait":
       if (sourceHandle === "next") return { next_node_key: targetKey };
       return null;
 
@@ -363,7 +366,8 @@ function patchedConfigWithoutKey(
     case "send_message":
     case "send_media":
     case "collect_input":
-    case "set_tag": {
+    case "set_tag":
+    case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key;
       if (next !== deletedKey) return null;
       return { ...cfg, next_node_key: "" };

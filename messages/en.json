@@ -2292,6 +2292,7 @@
       "send_list": "Send list",
       "send_media": "Send media",
       "collect_input": "Collect response",
+      "wait": "Wait",
       "condition": "If / else",
       "set_tag": "Tag contact",
       "handoff": "Hand off to agent",
@@ -2310,7 +2311,11 @@
       "modeRemove": "Remove",
       "modeAdd": "Add",
       "noneSelected": "(none selected)",
-      "fileFallback": "file"
+      "fileFallback": "file",
+      "waitMinutes": "{count, plural, one {# minute} other {# minutes}}",
+      "waitHours": "{count, plural, one {# hour} other {# hours}}",
+      "waitDays": "{count, plural, one {# day} other {# days}}",
+      "waitSummary": "Waits {duration}"
     },
     "editorState": {
       "defaultListButtonLabel": "See options",
@@ -2449,7 +2454,12 @@
       "captionLabel": "Caption (optional, shown below the media)",
       "documentFilenameLabel": "File name shown to the customer (documents only)",
       "documentFilenamePlaceholder": "invoice.pdf",
-      "afterSendAdvanceLabel": "After sending, advance to"
+      "afterSendAdvanceLabel": "After sending, advance to",
+      "waitAmountLabel": "Amount",
+      "waitUnitLabel": "Unit",
+      "waitUnitMinutes": "Minutes",
+      "waitUnitHours": "Hours",
+      "waitUnitDays": "Days"
     }
   },
   "aiGenerate": {

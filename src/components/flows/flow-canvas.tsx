@@ -636,6 +636,7 @@ const ADD_NODE_TYPES: NodeType[] = [
   "send_message",
   "send_media",
   "collect_input",
+  "wait",
   "condition",
   "set_tag",
   "handoff",

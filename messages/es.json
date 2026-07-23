@@ -2292,6 +2292,7 @@
       "send_list": "Enviar lista",
       "send_media": "Enviar medio",
       "collect_input": "Recopilar respuesta",
+      "wait": "Esperar",
       "condition": "Si / si no",
       "set_tag": "Etiquetar contacto",
       "handoff": "Transferir a un agente",
@@ -2310,7 +2311,11 @@
       "modeRemove": "Quitar",
       "modeAdd": "Añadir",
       "noneSelected": "(ninguna seleccionada)",
-      "fileFallback": "archivo"
+      "fileFallback": "archivo",
+      "waitMinutes": "{count, plural, one {# minuto} other {# minutos}}",
+      "waitHours": "{count, plural, one {# hora} other {# horas}}",
+      "waitDays": "{count, plural, one {# día} other {# días}}",
+      "waitSummary": "Espera {duration}"
     },
     "editorState": {
       "defaultListButtonLabel": "Ver opciones",
@@ -2449,7 +2454,12 @@
       "captionLabel": "Descripción (opcional, se muestra debajo del medio)",
       "documentFilenameLabel": "Nombre del archivo mostrado al cliente (solo documentos)",
       "documentFilenamePlaceholder": "factura.pdf",
-      "afterSendAdvanceLabel": "Después de enviar, avanza a"
+      "afterSendAdvanceLabel": "Después de enviar, avanza a",
+      "waitAmountLabel": "Cantidad",
+      "waitUnitLabel": "Unidad",
+      "waitUnitMinutes": "Minutos",
+      "waitUnitHours": "Horas",
+      "waitUnitDays": "Días"
     }
   },
   "aiGenerate": {

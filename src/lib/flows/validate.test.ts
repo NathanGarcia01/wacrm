@@ -516,6 +516,74 @@ describe("validateFlowForActivation — send_media", () => {
   });
 });
 
+describe("validateFlowForActivation — wait", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (waitConfig: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "w" } },
+    { node_key: "w", node_type: "wait", config: waitConfig },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated wait node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ amount: 5, unit: "minutes", next_node_key: "h" }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing/non-positive amount", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ unit: "hours", next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "w" && i.field === "amount"),
+    ).toBe(true);
+
+    const zeroIssues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ amount: 0, unit: "hours", next_node_key: "h" }),
+    );
+    expect(
+      zeroIssues.some((i) => i.node_key === "w" && i.field === "amount"),
+    ).toBe(true);
+  });
+
+  it("flags missing/invalid unit", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ amount: 3, unit: "fortnights", next_node_key: "h" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "w" && i.field === "unit"),
+    ).toBe(true);
+  });
+
+  it("flags next_node_key pointing at a non-existent node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ amount: 1, unit: "days", next_node_key: "ghost" }),
+    );
+    expect(
+      issues.some(
+        (i) =>
+          i.node_key === "w" &&
+          i.field === "next_node_key" &&
+          i.message.includes("ghost"),
+      ),
+    ).toBe(true);
+  });
+
+  it("contributes its next_node_key to reachability", () => {
+    const set = reachableFromEntry(
+      "s",
+      nodesWith({ amount: 1, unit: "days", next_node_key: "h" }),
+    );
+    expect(set).toEqual(new Set(["s", "w", "h"]));
+  });
+});
+
 describe("reachableFromEntry", () => {
   it("walks the graph from the entry", () => {
     const set = reachableFromEntry("start", validNodes);

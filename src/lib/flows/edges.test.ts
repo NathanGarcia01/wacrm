@@ -31,7 +31,7 @@ describe("deriveCanvasEdges — single-outgoing node types", () => {
     });
   });
 
-  it("derives a `next` edge from send_media, set_tag, collect_input, start", () => {
+  it("derives a `next` edge from send_media, set_tag, collect_input, wait, start", () => {
     const edges = deriveCanvasEdges(
       nodes(
         { node_key: "s", node_type: "start", config: { next_node_key: "m" } },
@@ -55,18 +55,24 @@ describe("deriveCanvasEdges — single-outgoing node types", () => {
           config: {
             prompt_text: "p",
             var_key: "v",
-            next_node_key: "e",
+            next_node_key: "w",
           },
+        },
+        {
+          node_key: "w",
+          node_type: "wait",
+          config: { amount: 1, unit: "hours", next_node_key: "e" },
         },
         { node_key: "e", node_type: "end", config: {} },
       ),
     );
-    expect(edges).toHaveLength(4);
+    expect(edges).toHaveLength(5);
     expect(edges.map((e) => `${e.source}->${e.target}`)).toEqual([
       "s->m",
       "m->t",
       "t->ci",
-      "ci->e",
+      "ci->w",
+      "w->e",
     ]);
   });
 
@@ -308,6 +314,9 @@ describe("outgoingSlots", () => {
       each({ node_key: "x", node_type: "collect_input", config: {} }),
     ).toEqual(["next"]);
     expect(each({ node_key: "x", node_type: "set_tag", config: {} })).toEqual([
+      "next",
+    ]);
+    expect(each({ node_key: "x", node_type: "wait", config: {} })).toEqual([
       "next",
     ]);
   });

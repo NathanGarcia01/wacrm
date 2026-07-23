@@ -170,6 +170,16 @@ export function NodeConfigForm({
         </>
       );
 
+    case "wait":
+      return (
+        <WaitForm
+          cfg={cfg as WaitCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "condition":
       return (
         <ConditionForm
@@ -576,6 +586,88 @@ function SendListForm({
           </Button>
         )}
       </div>
+    </>
+  );
+}
+
+// ============================================================
+// wait — workflow-mode only (see src/lib/flows/workflow-engine.ts,
+// Fase E). Suspends for a fixed duration rather than a customer
+// reply; the conversational engine never schedules this node type.
+// ============================================================
+
+interface WaitCfg {
+  amount?: number;
+  unit?: "minutes" | "hours" | "days";
+  next_node_key?: string;
+}
+
+function WaitForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: WaitCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+
+  const unitItems = useMemo(
+    () => ({
+      minutes: t("waitUnitMinutes"),
+      hours: t("waitUnitHours"),
+      days: t("waitUnitDays"),
+    }),
+    [t],
+  );
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("waitAmountLabel")}
+          </label>
+          <Input
+            type="number"
+            min={1}
+            value={cfg.amount ?? 5}
+            onChange={(e) =>
+              onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })
+            }
+            className="bg-muted"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("waitUnitLabel")}
+          </label>
+          <Select
+            items={unitItems}
+            value={cfg.unit ?? "minutes"}
+            onValueChange={(v) => onUpdateConfig({ unit: v as WaitCfg["unit"] })}
+          >
+            <SelectTrigger className="bg-muted">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">{t("waitUnitMinutes")}</SelectItem>
+              <SelectItem value="hours">{t("waitUnitHours")}</SelectItem>
+              <SelectItem value="days">{t("waitUnitDays")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("thenAdvanceLabel")}
+      />
     </>
   );
 }

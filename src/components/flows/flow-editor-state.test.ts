@@ -95,6 +95,7 @@ describe("defaultConfigFor", () => {
     "send_list",
     "send_media",
     "collect_input",
+    "wait",
     "condition",
     "set_tag",
     "handoff",
@@ -137,5 +138,14 @@ describe("defaultConfigFor", () => {
 
   it("end's default is an empty object (terminal — no config)", () => {
     expect(defaultConfigFor("end", stubT)).toEqual({});
+  });
+
+  it("wait defaults to a positive amount and a valid unit", () => {
+    const cfg = defaultConfigFor("wait", stubT) as {
+      amount?: number;
+      unit?: string;
+    };
+    expect(cfg.amount).toBeGreaterThan(0);
+    expect(["minutes", "hours", "days"]).toContain(cfg.unit);
   });
 });

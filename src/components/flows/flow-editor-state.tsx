@@ -188,6 +188,8 @@ export function defaultConfigFor(
         var_key: "answer",
         next_node_key: "",
       };
+    case "wait":
+      return { amount: 5, unit: "minutes", next_node_key: "" };
     case "condition":
       return {
         subject: "var",
