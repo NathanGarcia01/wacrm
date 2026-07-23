@@ -18,7 +18,7 @@ const ALLOWED_NODE_TYPES = [
   "end",
 ] as const;
 
-const ALLOWED_TRIGGER_TYPES = ["keyword", "first_inbound_message", "manual"] as const;
+const ALLOWED_TRIGGER_TYPES = ["keyword_match", "first_inbound_message", "manual"] as const;
 
 export interface FlowDraftNode {
   node_key: string;
@@ -53,7 +53,7 @@ Um fluxo é um grafo de nós conectados por "node_key" (identificador de texto e
 NÃO use os tipos "send_buttons", "send_list", "send_media" ou "start" — eles exigem configuração manual (botões, arquivos de mídia) que não pode ser gerada a partir de uma descrição em texto. Se a descrição mencionar um menu de opções, use "collect_input" perguntando a escolha em texto livre e um "condition" para rotear pela resposta.
 
 Gatilhos disponíveis (trigger_type):
-- keyword — trigger_config: { "keywords": string[] }
+- keyword_match — trigger_config: { "keywords": string[] }
 - first_inbound_message — trigger_config: {}
 - manual — trigger_config: {} — usado quando o fluxo deve ser acionado manualmente pelo atendente, não automaticamente
 
@@ -67,7 +67,7 @@ Responda APENAS com um JSON válido, sem markdown e sem comentários, exatamente
 {
   "name": "nome curto para o fluxo",
   "description": "descrição curta ou null",
-  "trigger_type": "keyword" | "first_inbound_message" | "manual",
+  "trigger_type": "keyword_match" | "first_inbound_message" | "manual",
   "trigger_config": { ... },
   "entry_node_id": "node_key do primeiro nó",
   "nodes": [ { "node_key": "...", "node_type": "...", "config": { ... } }, ... ]

@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     | {
         name?: string
         description?: string | null
-        trigger_type?: 'keyword' | 'first_inbound_message' | 'manual'
+        trigger_type?: 'keyword_match' | 'first_inbound_message' | 'manual'
         trigger_config?: Record<string, unknown>
         /**
          * If set, clone the matching template's name + trigger +
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
   if (!body.name?.trim()) {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })
   }
-  const trigger_type = body.trigger_type ?? 'keyword'
+  const trigger_type = body.trigger_type ?? 'keyword_match'
 
   const { data, error } = await admin
     .from('flows')

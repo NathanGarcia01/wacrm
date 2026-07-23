@@ -61,7 +61,7 @@ export interface FlowTemplate {
   description: string;
   /** Used by the gallery to surface a relevant icon. lucide-react name. */
   icon: "MessageSquare" | "HelpCircle" | "UserPlus";
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
   trigger_config: KeywordTriggerConfig | Record<string, unknown>;
   entry_node_id: string;
   nodes: FlowTemplateNode[];
@@ -76,7 +76,7 @@ const WELCOME_MENU: FlowTemplate = {
   description:
     "Greet customers who type a keyword and route them to the right agent based on whether they're new or existing.",
   icon: "MessageSquare",
-  trigger_type: "keyword",
+  trigger_type: "keyword_match",
   trigger_config: { keywords: ["support", "help", "hi"], match_type: "contains" },
   entry_node_id: "start",
   nodes: [
@@ -131,7 +131,7 @@ const FAQ_BOT: FlowTemplate = {
   description:
     "Answer common questions automatically. Customer picks a topic from a list; the bot replies with the answer and ends.",
   icon: "HelpCircle",
-  trigger_type: "keyword",
+  trigger_type: "keyword_match",
   trigger_config: {
     keywords: ["faq", "question", "info"],
     match_type: "contains",

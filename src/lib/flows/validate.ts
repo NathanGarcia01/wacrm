@@ -37,7 +37,7 @@ export interface ValidationIssue {
 
 interface FlowInput {
   name: string;
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
 }
@@ -145,7 +145,7 @@ function validateTrigger(
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  if (trigger_type === "keyword") {
+  if (trigger_type === "keyword_match") {
     const keywords = Array.isArray(trigger_config.keywords)
       ? (trigger_config.keywords as unknown[])
       : null;

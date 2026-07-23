@@ -273,11 +273,11 @@ function TriggerPanel({
   // Base UI's <Select> only resolves the trigger's displayed label from
   // its `items` map (or from the popup's <SelectItem> children once the
   // popup has actually been opened) — without `items`, the trigger shows
-  // the raw value ("manual", "keyword"...) on first render, since
+  // the raw value ("manual", "keyword_match"...) on first render, since
   // state.trigger_type always starts non-empty.
   const triggerTypeItems = useMemo(
     () => ({
-      keyword: t("triggerKeywordOption"),
+      keyword_match: t("triggerKeywordOption"),
       first_inbound_message: t("triggerFirstInboundOption"),
       manual: t("triggerManualOption"),
     }),
@@ -297,7 +297,7 @@ function TriggerPanel({
                 ...s,
                 trigger_type: v as BuilderState["trigger_type"],
                 trigger_config:
-                  v === "keyword" ? { keywords: [] } : v === "manual" ? {} : {},
+                  v === "keyword_match" ? { keywords: [] } : v === "manual" ? {} : {},
               }))
             }
           >
@@ -305,7 +305,7 @@ function TriggerPanel({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="keyword">
+              <SelectItem value="keyword_match">
                 {t("triggerKeywordOption")}
               </SelectItem>
               <SelectItem value="first_inbound_message">
@@ -317,7 +317,7 @@ function TriggerPanel({
             </SelectContent>
           </Select>
         </div>
-        {state.trigger_type === "keyword" && (
+        {state.trigger_type === "keyword_match" && (
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">
               {t("keywordsLabel")}

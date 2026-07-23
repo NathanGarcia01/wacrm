@@ -215,7 +215,7 @@ export interface KeywordTriggerConfig {
 export type FirstInboundTriggerConfig = Record<string, never>;
 
 export type FlowTriggerConfig =
-  | { trigger_type: "keyword"; config: KeywordTriggerConfig }
+  | { trigger_type: "keyword_match"; config: KeywordTriggerConfig }
   | { trigger_type: "first_inbound_message"; config: FirstInboundTriggerConfig }
   | { trigger_type: "manual"; config: Record<string, never> };
 
@@ -234,7 +234,11 @@ export interface FlowRow {
   name: string;
   description: string | null;
   status: "draft" | "active" | "archived";
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  /** 'conversational' = today's chatbot engine (dispatchInboundToFlows).
+   *  'workflow' = event-triggered, one-shot mode equivalent to
+   *  automations — see src/lib/flows/workflow-engine.ts. Migration 042. */
+  run_mode: "conversational" | "workflow";
+  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
   trigger_config: KeywordTriggerConfig | FirstInboundTriggerConfig | Record<string, unknown>;
   entry_node_id: string | null;
   fallback_policy: FlowFallbackPolicy;
@@ -264,6 +268,10 @@ export interface FlowRunRow {
   user_id: string;
   contact_id: string | null;
   conversation_id: string | null;
+  /** Denormalized from the parent flow at run-creation time. Migration
+   *  042. Drives the Fase H index scoping (idx_one_active_run_per_contact
+   *  only applies to 'conversational' runs). */
+  run_mode: "conversational" | "workflow";
   status:
     | "active"
     | "completed"

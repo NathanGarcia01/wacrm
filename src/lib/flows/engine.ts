@@ -184,12 +184,22 @@ async function loadActiveRunForContact(
   // kill dispatch for that contact's webhook entirely. .limit(1) is
   // forgiving: pick the newest, let the cron sweep clean up the
   // stale one.
+  //
+  // run_mode='conversational' is required here, not optional: once
+  // workflow-mode runs exist (Fase G onward — see
+  // src/lib/flows/workflow-engine.ts), a contact can have an active
+  // *workflow* run at the same time as no active *conversation*. This
+  // function answers "is this contact mid-chatbot-conversation?" —
+  // an active workflow run must never be mistaken for that, or an
+  // inbound WhatsApp message would get routed to advance the wrong
+  // (non-conversational) run.
   const { data, error } = await db
     .from("flow_runs")
     .select("*")
     .eq("account_id", accountId)
     .eq("contact_id", contactId)
     .eq("status", "active")
+    .eq("run_mode", "conversational")
     .order("started_at", { ascending: false })
     .limit(1);
   if (error) {
@@ -318,20 +328,27 @@ async function findEntryFlow(
   // are responses to existing prompts; they never start a new flow.
   if (message.kind !== "text") return null;
 
-  // Pull all active flows for this account. Active set is bounded
-  // (the builder discourages double-trigger overlap; partial index
-  // makes the lookup index-supported).
+  // Pull all active CONVERSATIONAL flows for this account — run_mode
+  // scoping matters here specifically because Fase C onward widens
+  // trigger_type to the full automations vocabulary, so a
+  // 'workflow'-mode flow could otherwise share a trigger_type value
+  // with a chatbot flow (e.g. both 'keyword_match') and get
+  // mis-started here as a conversation instead of dispatched via
+  // runFlowsForTrigger. Active set is bounded (the builder discourages
+  // double-trigger overlap; partial index makes the lookup
+  // index-supported).
   const { data: flows, error } = await db
     .from("flows")
     .select("*")
     .eq("account_id", accountId)
     .eq("status", "active")
+    .eq("run_mode", "conversational")
     .order("created_at", { ascending: true });
   if (error || !flows) return null;
 
   const typed = flows as FlowRow[];
   for (const flow of typed) {
-    if (flow.trigger_type === "keyword") {
+    if (flow.trigger_type === "keyword_match") {
       if (matchesKeywordTrigger(
         message.text,
         flow.trigger_config as KeywordTriggerConfig,
@@ -1071,6 +1088,14 @@ async function startNewRun(
       user_id: flow.user_id,
       contact_id: input.contactId,
       conversation_id: input.conversationId,
+      // Denormalized from the parent flow rather than left to the
+      // column default — this is the conversational entry point
+      // (dispatchInboundToFlows), so it should only ever insert
+      // 'conversational' runs, but being explicit means a future bug
+      // that routes a workflow-mode flow through here fails loudly
+      // (wrong run_mode value visible on the row) instead of silently
+      // inheriting a default that happens to be correct today.
+      run_mode: flow.run_mode,
       status: "active",
       current_node_key: flow.entry_node_id,
     })
@@ -1154,6 +1179,7 @@ export async function startManualRun(
       user_id: flow.user_id,
       contact_id: contactId,
       conversation_id: conversationId,
+      run_mode: flow.run_mode,
       status: "active",
       current_node_key: flow.entry_node_id,
     })

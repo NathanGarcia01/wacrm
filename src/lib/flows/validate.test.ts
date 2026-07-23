@@ -3,7 +3,7 @@ import { validateFlowForActivation, reachableFromEntry } from "./validate";
 
 const validFlow = {
   name: "Welcome",
-  trigger_type: "keyword" as const,
+  trigger_type: "keyword_match" as const,
   trigger_config: { keywords: ["support"] },
   entry_node_id: "start",
 };

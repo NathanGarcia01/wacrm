@@ -47,7 +47,7 @@ interface FlowRow {
   name: string;
   description: string | null;
   status: "draft" | "active" | "archived";
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
   trigger_config: { keywords?: string[] } | Record<string, unknown>;
   execution_count: number;
   last_executed_at: string | null;
@@ -132,7 +132,7 @@ export default function FlowsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newName.trim(),
-          trigger_type: "keyword",
+          trigger_type: "keyword_match",
           trigger_config: { keywords: [] },
         }),
       });
@@ -428,7 +428,7 @@ function FlowCard({
 }
 
 function describeTrigger(flow: FlowRow): string {
-  if (flow.trigger_type === "keyword") {
+  if (flow.trigger_type === "keyword_match") {
     const keywords = Array.isArray(flow.trigger_config.keywords)
       ? (flow.trigger_config.keywords as string[])
       : [];
