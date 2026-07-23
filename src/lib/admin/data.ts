@@ -550,3 +550,82 @@ export async function getAccountMembers(accountId: string): Promise<AccountMembe
   if (error) throw new Error(error.message)
   return (data ?? []) as AccountMember[]
 }
+
+const ACCOUNTS_EMBED_SELECT =
+  'id, name, owner_user_id, created_at, is_internal, subscriptions!subscriptions_account_id_fkey!inner(*), profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)'
+
+/** Shared tail for the alert-card queries below — plans lookup +
+ *  last-sign-in batch + shaping, once. */
+async function shapeQueryResults(rawRows: RawAccountRow[]): Promise<AdminAccountRow[]> {
+  const plans = await getPlans()
+  const plansById = new Map(plans.map((p) => [p.id, p]))
+  const lastSignInByUserId = await getLastSignInAtByUserIds(rawRows.map((r) => r.owner_user_id))
+  return rawRows.map((r) => shapeAccountRow(r, plansById, lastSignInByUserId))
+}
+
+/** Past-due accounts for the 🔴 alert card, most-recently-created
+ *  first, capped at `limit`. */
+export async function getPastDueAccounts(limit = 10): Promise<AdminAccountRow[]> {
+  const admin = supabaseAdmin()
+  const { data, error } = await admin
+    .from('accounts')
+    .select(ACCOUNTS_EMBED_SELECT)
+    .eq('subscriptions.status', 'past_due')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(error.message)
+  return shapeQueryResults((data ?? []) as unknown as RawAccountRow[])
+}
+
+/** Trialing accounts whose trial ends within `days`, for the 🟡 alert
+ *  card. Same shape as the Phase B "trial expiring" table filter, just
+ *  a shorter default window (3 days vs 7) and capped to `limit` rows. */
+export async function getTrialsExpiringSoon(days = 3, limit = 10): Promise<AdminAccountRow[]> {
+  const admin = supabaseAdmin()
+  const now = new Date().toISOString()
+  const cutoff = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await admin
+    .from('accounts')
+    .select(ACCOUNTS_EMBED_SELECT)
+    .eq('subscriptions.status', 'trialing')
+    .gte('subscriptions.trial_end', now)
+    .lte('subscriptions.trial_end', cutoff)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw new Error(error.message)
+  return shapeQueryResults((data ?? []) as unknown as RawAccountRow[])
+}
+
+/**
+ * Active, non-internal accounts whose owner hasn't signed in for
+ * `days`+ days (or never has) — churn-risk 🟠 alert card. Unlike the
+ * two queries above, "inactive" can't be expressed as a Postgres
+ * filter (it depends on `auth.users.last_sign_in_at`, outside
+ * PostgREST's reach), so this fetches all active accounts and filters
+ * in JS after the batch sign-in lookup. Same N+1-Auth-API-call
+ * profile as the Phase B table column; acceptable at panel scale.
+ */
+export async function getInactiveAccounts(days = 7, limit = 10): Promise<AdminAccountRow[]> {
+  const admin = supabaseAdmin()
+  const { data, error } = await admin
+    .from('accounts')
+    .select(ACCOUNTS_EMBED_SELECT)
+    .eq('subscriptions.status', 'active')
+    .eq('is_internal', false)
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+
+  const rawRows = (data ?? []) as unknown as RawAccountRow[]
+  const lastSignInByUserId = await getLastSignInAtByUserIds(rawRows.map((r) => r.owner_user_id))
+  const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000
+
+  const inactiveRaw = rawRows.filter((r) => {
+    const lastSignIn = lastSignInByUserId.get(r.owner_user_id)
+    if (!lastSignIn) return true // never signed in — definitely inactive
+    return new Date(lastSignIn).getTime() < cutoffMs
+  })
+
+  const plans = await getPlans()
+  const plansById = new Map(plans.map((p) => [p.id, p]))
+  return inactiveRaw.slice(0, limit).map((r) => shapeAccountRow(r, plansById, lastSignInByUserId))
+}

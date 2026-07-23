@@ -2,11 +2,14 @@ import {
   computeExecutiveMetrics,
   getAccountsPage,
   getChurnSummary,
+  getInactiveAccounts,
   getMrrSnapshots,
   getMrrSummary,
   getNewAccountsPerMonth,
+  getPastDueAccounts,
   getPlans,
   getStatusDistribution,
+  getTrialsExpiringSoon,
   getTrialsExpiringSoonCount,
 } from "@/lib/admin/data"
 import { STATUS_FILTERS, type SubscriptionStatus } from "@/lib/admin/types"
@@ -22,8 +25,11 @@ import { MrrChart } from "@/components/admin/mrr-chart"
 import { KpiRow } from "@/components/admin/kpi-row"
 import { MrrPlanPie } from "@/components/admin/mrr-plan-pie"
 import { NewAccountsChart } from "@/components/admin/new-accounts-chart"
+import { AlertCards } from "@/components/admin/alert-cards"
 
-const TRIAL_ALERT_DAYS = 7
+const TRIAL_KPI_DAYS = 7
+const TRIAL_ALERT_DAYS = 3
+const INACTIVE_ALERT_DAYS = 7
 
 interface PageProps {
   searchParams: Promise<{
@@ -71,6 +77,9 @@ export default async function AdminPage({ searchParams }: PageProps) {
     newAccountsByMonth,
     trialsExpiringSoonCount,
     plans,
+    pastDueAccounts,
+    trialsExpiringSoonList,
+    inactiveAccounts,
   ] = await Promise.all([
     getAccountsPage(page, filterStatus, accountsFilterOptions),
     getStatusDistribution(),
@@ -78,8 +87,11 @@ export default async function AdminPage({ searchParams }: PageProps) {
     getChurnSummary(),
     getMrrSnapshots(),
     getNewAccountsPerMonth(),
-    getTrialsExpiringSoonCount(TRIAL_ALERT_DAYS),
+    getTrialsExpiringSoonCount(TRIAL_KPI_DAYS),
     getPlans(),
+    getPastDueAccounts(),
+    getTrialsExpiringSoon(TRIAL_ALERT_DAYS),
+    getInactiveAccounts(INACTIVE_ALERT_DAYS),
   ])
 
   const executiveMetrics = computeExecutiveMetrics(
@@ -97,6 +109,13 @@ export default async function AdminPage({ searchParams }: PageProps) {
       <AdminHeader />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-6">
+        <AlertCards
+          pastDue={pastDueAccounts}
+          trialsExpiring={trialsExpiringSoonList}
+          inactive={inactiveAccounts}
+          plans={plans}
+        />
+
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="md:col-span-2">
             <MrrCard mrr={mrr} trendPercent={executiveMetrics.mrrTrendPercent} />
