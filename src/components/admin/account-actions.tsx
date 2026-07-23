@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, MoreVertical } from "lucide-react"
-import type { AdminAccountRow } from "@/lib/admin/types"
+import type { AdminAccountRow, Plan } from "@/lib/admin/types"
 
 type ActionKey =
   | "cancel_at_period_end"
@@ -11,6 +11,13 @@ type ActionKey =
   | "undo_cancel"
   | "create_portal_link"
   | "recreate"
+  | "change_plan"
+  | "set_internal"
+  | "extend_trial"
+  | "adjust_seats"
+  | "send_email"
+
+type FormKind = "change_plan" | "extend_trial" | "adjust_seats" | "send_email"
 
 interface ActionDef {
   key: ActionKey
@@ -18,6 +25,9 @@ interface ActionDef {
   tone: "default" | "danger"
   confirmTitle: string
   confirmBody: (account: AdminAccountRow) => string
+  /** Extra fields to render inside the shared confirm dialog, if any
+   *  — keeps one dialog architecture instead of forking into N modals. */
+  form?: FormKind
 }
 
 function fmtDate(iso: string | null): string {
@@ -31,81 +41,139 @@ function fmtDate(iso: string | null): string {
 
 function availableActions(account: AdminAccountRow): ActionDef[] {
   const sub = account.subscription
-  if (!sub) return []
   const actions: ActionDef[] = []
 
-  if (sub.cancel_at_period_end) {
-    actions.push({
-      key: "undo_cancel",
-      label: "Desfazer cancelamento",
-      tone: "default",
-      confirmTitle: "Desfazer cancelamento",
-      confirmBody: () =>
-        "A assinatura volta a renovar normalmente ao fim do período atual.",
-    })
-  }
-
-  if (sub.status === "active" || sub.status === "trialing") {
-    if (!sub.cancel_at_period_end) {
+  if (sub) {
+    if (sub.cancel_at_period_end) {
       actions.push({
-        key: "cancel_at_period_end",
-        label: "Cancelar ao fim do período",
+        key: "undo_cancel",
+        label: "Desfazer cancelamento",
         tone: "default",
-        confirmTitle: "Cancelar ao fim do período",
-        confirmBody: (a) =>
-          `O acesso continua até ${fmtDate(a.subscription?.current_period_end ?? null)}. Depois disso a assinatura é cancelada automaticamente.`,
+        confirmTitle: "Desfazer cancelamento",
+        confirmBody: () =>
+          "A assinatura volta a renovar normalmente ao fim do período atual.",
       })
     }
+
+    if (sub.status === "active" || sub.status === "trialing") {
+      if (!sub.cancel_at_period_end) {
+        actions.push({
+          key: "cancel_at_period_end",
+          label: "Cancelar ao fim do período",
+          tone: "default",
+          confirmTitle: "Cancelar ao fim do período",
+          confirmBody: (a) =>
+            `O acesso continua até ${fmtDate(a.subscription?.current_period_end ?? null)}. Depois disso a assinatura é cancelada automaticamente.`,
+        })
+      }
+      actions.push({
+        key: "cancel_immediately",
+        label: "Cancelar imediatamente",
+        tone: "danger",
+        confirmTitle: "Cancelar imediatamente",
+        confirmBody: () =>
+          "O acesso é cortado imediatamente. Esta ação não pode ser desfeita pelo painel.",
+      })
+    }
+
+    if (sub.status === "past_due" || sub.status === "unpaid") {
+      actions.push({
+        key: "create_portal_link",
+        label: "Portal de pagamento",
+        tone: "default",
+        confirmTitle: "Gerar link do portal de pagamento",
+        confirmBody: () =>
+          "Gera um link do Stripe Customer Portal para o cliente atualizar a forma de pagamento.",
+      })
+      actions.push({
+        key: "cancel_immediately",
+        label: "Cancelar imediatamente",
+        tone: "danger",
+        confirmTitle: "Cancelar imediatamente",
+        confirmBody: () =>
+          "O acesso é cortado imediatamente. Esta ação não pode ser desfeita pelo painel.",
+      })
+    }
+
+    if (sub.status === "canceled") {
+      actions.push({
+        key: "recreate",
+        label: "Recriar assinatura",
+        tone: "default",
+        confirmTitle: "Recriar assinatura",
+        confirmBody: () =>
+          "Reativa a assinatura no Stripe se ela ainda existir por lá, ou cria uma nova assinatura para esta conta.",
+      })
+    }
+
     actions.push({
-      key: "cancel_immediately",
-      label: "Cancelar imediatamente",
-      tone: "danger",
-      confirmTitle: "Cancelar imediatamente",
+      key: "change_plan",
+      label: "Mudar plano",
+      tone: "default",
+      confirmTitle: "Mudar plano",
+      confirmBody: () => "Atualiza o plano no Stripe (com proration) e no banco.",
+      form: "change_plan",
+    })
+
+    if (sub.status === "trialing") {
+      actions.push({
+        key: "extend_trial",
+        label: "Estender trial",
+        tone: "default",
+        confirmTitle: "Estender trial",
+        confirmBody: () =>
+          "Adiciona dias ao fim do trial atual — no Stripe (se houver) e no banco.",
+        form: "extend_trial",
+      })
+    }
+
+    actions.push({
+      key: "adjust_seats",
+      label: "Ajustar seats",
+      tone: "default",
+      confirmTitle: "Ajustar seats",
       confirmBody: () =>
-        "O acesso é cortado imediatamente. Esta ação não pode ser desfeita pelo painel.",
+        "Muda a quantidade de seats só no banco — não altera a cobrança no Stripe.",
+      form: "adjust_seats",
     })
   }
 
-  if (sub.status === "past_due" || sub.status === "unpaid") {
-    actions.push({
-      key: "create_portal_link",
-      label: "Portal de pagamento",
-      tone: "default",
-      confirmTitle: "Gerar link do portal de pagamento",
-      confirmBody: () =>
-        "Gera um link do Stripe Customer Portal para o cliente atualizar a forma de pagamento.",
-    })
-    actions.push({
-      key: "cancel_immediately",
-      label: "Cancelar imediatamente",
-      tone: "danger",
-      confirmTitle: "Cancelar imediatamente",
-      confirmBody: () =>
-        "O acesso é cortado imediatamente. Esta ação não pode ser desfeita pelo painel.",
-    })
-  }
+  actions.push({
+    key: "set_internal",
+    label: account.is_internal ? "Remover acesso gratuito" : "Dar acesso gratuito",
+    tone: account.is_internal ? "danger" : "default",
+    confirmTitle: account.is_internal ? "Remover acesso gratuito" : "Dar acesso gratuito",
+    confirmBody: () =>
+      account.is_internal
+        ? "A conta volta a depender de uma assinatura ativa para usar o produto."
+        : "Marca a conta como interna — ela passa a usar o produto sem depender de billing.",
+  })
 
-  if (sub.status === "canceled") {
-    actions.push({
-      key: "recreate",
-      label: "Recriar assinatura",
-      tone: "default",
-      confirmTitle: "Recriar assinatura",
-      confirmBody: () =>
-        "Reativa a assinatura no Stripe se ela ainda existir por lá, ou cria uma nova assinatura para esta conta.",
-    })
-  }
+  actions.push({
+    key: "send_email",
+    label: "Enviar email ao cliente",
+    tone: "default",
+    confirmTitle: "Enviar email ao cliente",
+    confirmBody: (a) => `Envia um email direto para ${a.owner?.email ?? "o owner desta conta"}.`,
+    form: "send_email",
+  })
 
   return actions
 }
 
-export function AccountActions({ account }: { account: AdminAccountRow }) {
+export function AccountActions({ account, plans }: { account: AdminAccountRow; plans: Plan[] }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [active, setActive] = useState<ActionDef | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [portalUrl, setPortalUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const [planId, setPlanId] = useState(account.plan?.id ?? "")
+  const [trialDays, setTrialDays] = useState(7)
+  const [seats, setSeats] = useState(account.subscription?.seats ?? 1)
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailMessage, setEmailMessage] = useState("")
 
   const actions = availableActions(account)
   if (actions.length === 0) return <span className="text-xs text-white/30">—</span>
@@ -115,6 +183,11 @@ export function AccountActions({ account }: { account: AdminAccountRow }) {
     setActive(action)
     setPortalUrl(null)
     setError(null)
+    setPlanId(account.plan?.id ?? "")
+    setTrialDays(7)
+    setSeats(account.subscription?.seats ?? 1)
+    setEmailSubject("")
+    setEmailMessage("")
   }
 
   function closeConfirm() {
@@ -128,18 +201,33 @@ export function AccountActions({ account }: { account: AdminAccountRow }) {
     setSubmitting(true)
     setError(null)
     try {
-      const res = await fetch(`/api/admin/accounts/${account.id}/subscription`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: active.key }),
-      })
-      const body = await res.json().catch(() => ({}))
+      let res: Response
+      if (active.key === "send_email") {
+        res = await fetch(`/api/admin/accounts/${account.id}/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subject: emailSubject, message: emailMessage }),
+        })
+      } else {
+        const body: Record<string, unknown> = { action: active.key }
+        if (active.key === "change_plan") body.planId = planId
+        if (active.key === "extend_trial") body.days = trialDays
+        if (active.key === "adjust_seats") body.seats = seats
+        if (active.key === "set_internal") body.value = !account.is_internal
+
+        res = await fetch(`/api/admin/accounts/${account.id}/subscription`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      }
+      const resBody = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setError(body.error ?? "Falha ao executar ação")
+        setError(resBody.error ?? "Falha ao executar ação")
         return
       }
       if (active.key === "create_portal_link") {
-        setPortalUrl(body.url as string)
+        setPortalUrl(resBody.url as string)
         return
       }
       closeConfirm()
@@ -150,6 +238,11 @@ export function AccountActions({ account }: { account: AdminAccountRow }) {
       setSubmitting(false)
     }
   }
+
+  const canConfirm =
+    !submitting &&
+    (active?.form !== "change_plan" || Boolean(planId && planId !== account.plan?.id)) &&
+    (active?.form !== "send_email" || Boolean(emailSubject.trim() && emailMessage.trim()))
 
   return (
     <div className="relative inline-block text-left">
@@ -193,6 +286,66 @@ export function AccountActions({ account }: { account: AdminAccountRow }) {
             </p>
             <p className="mt-3 text-sm text-white/70">{active.confirmBody(account)}</p>
 
+            {active.form === "change_plan" && (
+              <select
+                value={planId}
+                onChange={(e) => setPlanId(e.target.value)}
+                className="mt-3 h-8 w-full rounded-lg border border-[#22242A] bg-[#0A0A0B] px-2 text-sm text-white outline-none focus:border-[#60A5FA]"
+              >
+                <option value="">Selecione um plano</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.id === account.plan?.id ? " (atual)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {active.form === "extend_trial" && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={trialDays}
+                  onChange={(e) => setTrialDays(Math.max(1, Number(e.target.value) || 1))}
+                  className="h-8 w-20 rounded-lg border border-[#22242A] bg-[#0A0A0B] px-2 text-sm text-white outline-none focus:border-[#60A5FA]"
+                />
+                <span className="text-xs text-white/50">dias a mais</span>
+              </div>
+            )}
+
+            {active.form === "adjust_seats" && (
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  value={seats}
+                  onChange={(e) => setSeats(Math.max(1, Number(e.target.value) || 1))}
+                  className="h-8 w-20 rounded-lg border border-[#22242A] bg-[#0A0A0B] px-2 text-sm text-white outline-none focus:border-[#60A5FA]"
+                />
+                <span className="text-xs text-white/50">seats contratados</span>
+              </div>
+            )}
+
+            {active.form === "send_email" && (
+              <div className="mt-3 flex flex-col gap-2">
+                <input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="Assunto"
+                  className="h-8 rounded-lg border border-[#22242A] bg-[#0A0A0B] px-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#60A5FA]"
+                />
+                <textarea
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  placeholder="Mensagem"
+                  rows={4}
+                  className="rounded-lg border border-[#22242A] bg-[#0A0A0B] px-2.5 py-2 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#60A5FA]"
+                />
+              </div>
+            )}
+
             {error && (
               <div className="mt-3 rounded-lg border border-[#FB923C]/30 bg-[#FB923C]/10 px-3 py-2 text-xs text-[#FB923C]">
                 {error}
@@ -225,7 +378,7 @@ export function AccountActions({ account }: { account: AdminAccountRow }) {
                 <button
                   type="button"
                   onClick={run}
-                  disabled={submitting}
+                  disabled={!canConfirm}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50 ${
                     active.tone === "danger"
                       ? "bg-[#F87171] text-[#0A0A0B]"

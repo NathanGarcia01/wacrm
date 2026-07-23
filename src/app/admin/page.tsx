@@ -118,7 +118,7 @@ export default async function AdminPage({ searchParams }: PageProps) {
         <div className="flex flex-col gap-4">
           <AccountsFilters plans={plans} />
           <FilterPills active={filterKey} otherParams={otherParams} />
-          <AccountsTable rows={accountsPage.rows} />
+          <AccountsTable rows={accountsPage.rows} plans={plans} />
           <Pagination
             page={page}
             totalPages={totalPages}

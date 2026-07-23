@@ -1,4 +1,4 @@
-import type { AdminAccountRow, SubscriptionStatus } from "@/lib/admin/types"
+import type { AdminAccountRow, Plan, SubscriptionStatus } from "@/lib/admin/types"
 import { STATUS_META } from "@/lib/admin/types"
 import { trialDaysRemaining } from "@/lib/admin/trial"
 import { formatCurrency } from "@/lib/currency"
@@ -13,7 +13,7 @@ function fmtDate(iso: string | null): string {
   })
 }
 
-export function AccountsTable({ rows }: { rows: AdminAccountRow[] }) {
+export function AccountsTable({ rows, plans }: { rows: AdminAccountRow[]; plans: Plan[] }) {
   if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-[#22242A] bg-[#141417] p-10 text-center text-sm text-white/40">
@@ -95,7 +95,7 @@ export function AccountsTable({ rows }: { rows: AdminAccountRow[] }) {
                 <td className="px-4 py-3 text-white/70">{fmtDate(sub?.current_period_end ?? null)}</td>
                 <td className="px-4 py-3 text-white/70">{fmtDate(row.created_at)}</td>
                 <td className="px-4 py-3 text-right">
-                  <AccountActions account={row} />
+                  <AccountActions account={row} plans={plans} />
                 </td>
               </tr>
             )
