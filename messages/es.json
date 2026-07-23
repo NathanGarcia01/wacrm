@@ -1348,7 +1348,30 @@
       "resetHint": "Ingresa tu email y te enviaremos un enlace de restablecimiento",
       "emailLabel": "Email",
       "sending": "Enviando...",
-      "sendResetLink": "Enviar enlace de restablecimiento"
+      "sendResetLink": "Enviar enlace de recuperación"
+    },
+    "brand": {
+      "tag": "API Oficial de Meta · WhatsApp Business",
+      "titleStart": "El CRM que",
+      "titleHighlight": "cierra más",
+      "titleEnd": "negocios.",
+      "subtitle": "Centraliza conversaciones, negocia y cierra ventas directo desde WhatsApp — todo en un solo lugar.",
+      "feature1": "Bandeja unificada para todas las conversaciones de WhatsApp",
+      "feature2": "Pipeline de ventas visual y automatizado",
+      "feature3": "Automatizaciones inteligentes para calificar y responder leads",
+      "feature4": "Reportes en tiempo real de conversión y rendimiento",
+      "statDeliveryValue": "98%",
+      "statDeliveryLabel": "tasa de entrega",
+      "statConversionValue": "3x",
+      "statConversionLabel": "más conversiones",
+      "statTeamsValue": "50+",
+      "statTeamsLabel": "equipos activos",
+      "footer": "© {year} Funilly. Todos los derechos reservados."
+    },
+    "shared": {
+      "orContinueWith": "o continúa con",
+      "continueWithGoogle": "Continuar con Google",
+      "secureConnection": "Conexión segura y cifrada"
     }
   },
   "settings": {
