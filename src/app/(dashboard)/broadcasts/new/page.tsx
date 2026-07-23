@@ -62,6 +62,7 @@ export default function NewBroadcastPage() {
     cadence: CadenceSettings,
     scheduledAt: Date | null,
     channelId: string | null,
+    tagIdsToAdd: string[],
   ) {
     if (!template) return;
 
@@ -85,6 +86,7 @@ export default function NewBroadcastPage() {
         cadence,
         scheduledAt,
         channelId,
+        tagsToAdd: tagIdsToAdd,
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {

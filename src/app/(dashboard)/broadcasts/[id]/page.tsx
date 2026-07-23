@@ -236,6 +236,7 @@ const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
   'read',
   'replied',
   'failed',
+  'skipped',
 ];
 
 /**

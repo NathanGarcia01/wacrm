@@ -77,6 +77,9 @@ interface BroadcastPayload {
    *  channel (resolved server-side at send time — see
    *  src/lib/whatsapp/channels.ts). */
   channelId: string | null;
+  /** Tag ids applied to a contact right after each successful send —
+   *  see broadcasts.tags_to_add (migration 040). */
+  tagsToAdd?: string[];
 }
 
 interface UseBroadcastSendingReturn {
@@ -379,6 +382,13 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             excludeRecentlyMessaged: payload.audience.excludeRecentlyMessaged,
             excludeRecentDays: payload.audience.excludeRecentDays,
           },
+          // Real columns (not just audience_filter jsonb) so the cron
+          // can re-check the exclusion and apply tags per recipient at
+          // actual send time — see src/app/api/broadcasts/cron/route.ts.
+          exclude_recent_days: payload.audience.excludeRecentlyMessaged
+            ? (payload.audience.excludeRecentDays ?? 0)
+            : 0,
+          tags_to_add: payload.tagsToAdd ?? [],
           status: startsNow ? 'sending' : 'scheduled',
           scheduled_at: payload.scheduledAt?.toISOString() ?? null,
           next_batch_at: nextBatchAt,

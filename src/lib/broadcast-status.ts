@@ -78,6 +78,10 @@ export const recipientStatusConfig: Record<RecipientStatus, StatusDisplay> = {
     labelKey: "failed",
     classes: "bg-destructive/10 text-destructive border-destructive/20",
   },
+  skipped: {
+    labelKey: "skipped",
+    classes: "bg-slate-500/10 text-muted-foreground border-slate-500/20",
+  },
 };
 
 /**

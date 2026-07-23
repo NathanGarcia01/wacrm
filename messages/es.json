@@ -1178,7 +1178,9 @@
       "tagsSelected": "Tags ({count} seleccionados)",
       "csvUpload": "Subida de CSV",
       "pipelineStage": "Etapa del Embudo",
-      "custom": "Personalizado"
+      "custom": "Personalizado",
+      "addTagsTitle": "Agregar una tag a todos los destinatarios al enviar",
+      "addTagsHint": "Las tags seleccionadas se aplican a cada contacto en cuanto su mensaje se envía con éxito."
     },
     "status": {
       "draft": "Borrador",
@@ -1194,7 +1196,8 @@
       "delivered": "Entregado",
       "read": "Leído",
       "replied": "Respondido",
-      "failed": "Falló"
+      "failed": "Falló",
+      "skipped": "Omitido (duplicado)"
     },
     "list": {
       "loadFailed": "Error al cargar las transmisiones",

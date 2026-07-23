@@ -1178,7 +1178,9 @@
       "tagsSelected": "Tags ({count} selected)",
       "csvUpload": "CSV Upload",
       "pipelineStage": "Funnel Stage",
-      "custom": "Custom"
+      "custom": "Custom",
+      "addTagsTitle": "Add a tag to every recipient on send",
+      "addTagsHint": "Selected tags are applied to each contact as soon as their message is sent successfully."
     },
     "status": {
       "draft": "Draft",
@@ -1194,7 +1196,8 @@
       "delivered": "Delivered",
       "read": "Read",
       "replied": "Replied",
-      "failed": "Failed"
+      "failed": "Failed",
+      "skipped": "Skipped (duplicate)"
     },
     "list": {
       "loadFailed": "Failed to load broadcasts",

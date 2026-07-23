@@ -35,6 +35,7 @@ import {
   ShieldCheck,
   ShieldQuestion,
   Clock,
+  Tags,
 } from 'lucide-react';
 import {
   BATCH_SIZE_MIN,
@@ -45,6 +46,8 @@ import {
   estimateCadence,
   type CadenceSettings,
 } from '@/lib/broadcast-cadence';
+import { ImportTagMultiSelect } from '@/components/contacts/import-tag-multiselect';
+import type { Tag } from '@/types';
 
 interface AudienceConfig {
   type: string;
@@ -59,7 +62,12 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
-  onSend: (cadence: CadenceSettings, scheduledAt: Date | null, channelId: string | null) => void;
+  onSend: (
+    cadence: CadenceSettings,
+    scheduledAt: Date | null,
+    channelId: string | null,
+    tagIdsToAdd: string[],
+  ) => void;
   onSaveDraft?: () => void;
   onBack: () => void;
   isProcessing: boolean;
@@ -174,6 +182,7 @@ export function Step4ScheduleSend({
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
+  const [tagsToAdd, setTagsToAdd] = useState<Tag[]>([]);
 
   useEffect(() => {
     async function calculateReach() {
@@ -506,6 +515,16 @@ export function Step4ScheduleSend({
         )}
       </div>
 
+      {/* Tag on send */}
+      <div className="space-y-2 rounded-xl border border-border bg-card/50 p-4">
+        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <Tags className="h-4 w-4 text-muted-foreground" />
+          {t('addTagsTitle')}
+        </p>
+        <p className="text-xs text-muted-foreground">{t('addTagsHint')}</p>
+        <ImportTagMultiSelect selected={tagsToAdd} onChange={setTagsToAdd} />
+      </div>
+
       {/* Summary Card */}
       <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
         <p className="text-sm font-medium text-foreground">{t('summary')}</p>
@@ -648,7 +667,12 @@ export function Step4ScheduleSend({
               <Button
                 onClick={() => {
                   setShowConfirm(false);
-                  onSend(cadence, scheduledAt, selectedChannelId);
+                  onSend(
+                    cadence,
+                    scheduledAt,
+                    selectedChannelId,
+                    tagsToAdd.map((t) => t.id),
+                  );
                 }}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >

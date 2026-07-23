@@ -76,6 +76,13 @@ interface BroadcastRow {
   respect_business_hours: boolean
   current_batch: number
   current_batch_sent: number
+  /** Anti-duplicate guard — skip a recipient at send time if they
+   *  already have a `sent` broadcast_recipients row within this many
+   *  days. 0/null disables the guard. Migration 040. */
+  exclude_recent_days: number | null
+  /** Tag ids applied to a contact right after each successful send.
+   *  Migration 040. */
+  tags_to_add: string[] | null
 }
 
 type RecipientContact = {
@@ -165,7 +172,7 @@ export async function GET(request: Request) {
   const { data: due, error } = await admin
     .from('broadcasts')
     .select(
-      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent',
+      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add',
     )
     .in('status', ['scheduled', 'sending'])
     .or(`next_batch_at.is.null,next_batch_at.lte.${nowIso()}`)
@@ -178,6 +185,7 @@ export async function GET(request: Request) {
   let broadcastsAdvanced = 0
   let messagesSent = 0
   let messagesFailed = 0
+  let messagesSkipped = 0
 
   for (const row of due as BroadcastRow[]) {
     if (Date.now() - startedAt > REQUEST_TIME_BUDGET_MS) break
@@ -272,6 +280,39 @@ export async function GET(request: Request) {
         continue
       }
 
+      // Anti-duplicate guard, re-checked HERE (send time) rather than
+      // only when the broadcast was created — a broadcast can trickle
+      // out over many batches/days, so a contact who passed the
+      // creation-time check can still pick up a `sent` row from an
+      // overlapping broadcast in the meantime. Checking again right
+      // before dispatch is what actually prevents the double-send.
+      if (row.exclude_recent_days && row.exclude_recent_days > 0) {
+        const cutoffIso = new Date(
+          Date.now() - row.exclude_recent_days * 24 * 60 * 60 * 1000,
+        ).toISOString()
+        const { data: recentSend } = await admin
+          .from('broadcast_recipients')
+          .select('id')
+          .eq('contact_id', contact.id)
+          .eq('status', 'sent')
+          .gte('sent_at', cutoffIso)
+          .limit(1)
+          .maybeSingle()
+
+        if (recentSend) {
+          await admin
+            .from('broadcast_recipients')
+            .update({
+              status: 'skipped',
+              error_message: `Excluded — messaged within the last ${row.exclude_recent_days} day(s)`,
+            })
+            .eq('id', recipient.id)
+          messagesSkipped++
+          batchSentDelta++
+          continue
+        }
+      }
+
       await sleep(randomDelayMs(row.message_delay_min_seconds, row.message_delay_max_seconds))
 
       const params = row.template_variables
@@ -324,6 +365,20 @@ export async function GET(request: Request) {
           'Disparo',
           'Ativo',
         ])
+
+        // User-selected tags (broadcasts.tags_to_add) — applied once
+        // per successful send, right here rather than at broadcast
+        // creation, since a scheduled/paced broadcast may not actually
+        // reach this contact until well after it was created.
+        if (Array.isArray(row.tags_to_add) && row.tags_to_add.length > 0) {
+          const { error: tagsError } = await admin.from('contact_tags').upsert(
+            row.tags_to_add.map((tagId) => ({ contact_id: contact.id, tag_id: tagId })),
+            { onConflict: 'contact_id,tag_id', ignoreDuplicates: true },
+          )
+          if (tagsError) {
+            console.error('[broadcasts/cron] failed to apply tags_to_add:', tagsError.message)
+          }
+        }
 
         // Mirror the send into `messages` so the agent sees it in the
         // inbox conversation — broadcasts previously only touched
@@ -455,5 +510,5 @@ export async function GET(request: Request) {
     broadcastsAdvanced++
   }
 
-  return NextResponse.json({ broadcastsAdvanced, messagesSent, messagesFailed })
+  return NextResponse.json({ broadcastsAdvanced, messagesSent, messagesFailed, messagesSkipped })
 }

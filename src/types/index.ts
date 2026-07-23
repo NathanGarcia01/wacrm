@@ -428,7 +428,7 @@ export interface NpsSettings {
 }
 
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed' | 'paused';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'skipped';
 
 export interface Broadcast {
   id: string;
@@ -469,6 +469,13 @@ export interface Broadcast {
    *  Column exists in the live DB outside a checked-in migration; see
    *  036_whatsapp_channels.sql's header note. */
   channel_id?: string | null;
+  /** Anti-duplicate guard — recipients who already have a `sent`
+   *  broadcast_recipients row within this many days are skipped at
+   *  cron send time. 0 (default) disables the guard. Migration 040. */
+  exclude_recent_days?: number;
+  /** Tag ids applied to a contact right after each successful send.
+   *  Migration 040. */
+  tags_to_add?: string[];
 }
 
 export interface BroadcastRecipient {
