@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { Coins, Loader2 } from "lucide-react";
+import { Coins, Loader2, Plus, TrendingDown, X } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
+import type { DealLossReason } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card,
@@ -71,6 +73,62 @@ export function DealsSettings() {
     toast.success(t('saved'));
   }
 
+  // ---- Loss reasons (quick-fill chips in the deal-lost dialog) ----
+  const [reasons, setReasons] = useState<DealLossReason[]>([]);
+  const [reasonsLoading, setReasonsLoading] = useState(true);
+  const [newReason, setNewReason] = useState("");
+  const [addingReason, setAddingReason] = useState(false);
+  const [busyReasonId, setBusyReasonId] = useState<string | null>(null);
+
+  const fetchReasons = useCallback(async () => {
+    if (!accountId) return;
+    setReasonsLoading(true);
+    const { data } = await supabase
+      .from("deal_loss_reasons")
+      .select("*")
+      .order("position")
+      .order("created_at");
+    setReasons((data as DealLossReason[] | null) ?? []);
+    setReasonsLoading(false);
+  }, [supabase, accountId]);
+
+  useEffect(() => {
+    if (accountId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchReasons();
+    }
+  }, [accountId, fetchReasons]);
+
+  async function handleAddReason() {
+    const label = newReason.trim();
+    if (!label || !accountId) return;
+    setAddingReason(true);
+    const { error } = await supabase
+      .from("deal_loss_reasons")
+      .insert({ account_id: accountId, label, position: reasons.length });
+    setAddingReason(false);
+    if (error) {
+      toast.error(t('reasonAddFailed'));
+      return;
+    }
+    setNewReason("");
+    await fetchReasons();
+  }
+
+  async function handleDeleteReason(reason: DealLossReason) {
+    setBusyReasonId(reason.id);
+    const { error } = await supabase
+      .from("deal_loss_reasons")
+      .delete()
+      .eq("id", reason.id);
+    setBusyReasonId(null);
+    if (error) {
+      toast.error(t('reasonDeleteFailed'));
+      return;
+    }
+    setReasons((prev) => prev.filter((r) => r.id !== reason.id));
+  }
+
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
@@ -124,6 +182,88 @@ export function DealsSettings() {
                 tCommon('save')
               )}
             </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <TrendingDown className="size-4 text-primary" />
+            {t('lossReasonsTitle')}
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            {t('lossReasonsDescription')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {canEditSettings && (
+            <div className="flex gap-2">
+              <Input
+                value={newReason}
+                onChange={(e) => setNewReason(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddReason();
+                  }
+                }}
+                placeholder={t('lossReasonPlaceholder')}
+                className="border-border bg-muted text-foreground"
+              />
+              <Button
+                onClick={handleAddReason}
+                disabled={addingReason || !newReason.trim()}
+                className="shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {addingReason ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    <Plus className="size-4" />
+                    {tCommon('add')}
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {reasonsLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : reasons.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('lossReasonsEmpty')}</p>
+          ) : (
+            <ul className="flex flex-wrap gap-1.5">
+              {reasons.map((reason) => (
+                <li
+                  key={reason.id}
+                  className="group flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-foreground"
+                >
+                  {reason.label}
+                  {canEditSettings && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteReason(reason)}
+                      disabled={busyReasonId === reason.id}
+                      aria-label={t('lossReasonDeleteAria', { label: reason.label })}
+                      className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
+                    >
+                      {busyReasonId === reason.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <X className="size-3" />
+                      )}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {!canEditSettings && (
+            <p className="text-xs text-muted-foreground">{t('adminOnlyHint')}</p>
           )}
         </CardContent>
       </Card>

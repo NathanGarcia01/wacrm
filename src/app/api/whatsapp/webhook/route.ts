@@ -65,6 +65,12 @@ interface WhatsAppMessage {
   button?: { payload: string; text: string }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
+  /** Set when the customer shares a WhatsApp contact card. Meta allows
+   *  multiple contacts per message; we render/store all of them. */
+  contacts?: Array<{
+    name?: { formatted_name?: string }
+    phones?: Array<{ phone?: string; wa_id?: string }>
+  }>
 }
 
 interface WhatsAppWebhookEntry {
@@ -725,13 +731,15 @@ async function processMessage(
   //   message_id, status, created_at
 
   // The messages.content_type CHECK constraint (widened in migration 010
-  // to add 'interactive' for button/list taps) allows:
-  //   text, image, document, audio, video, location, template, interactive
+  // to add 'interactive' for button/list taps, and migration 048 to add
+  // 'contacts' for shared contact cards) allows:
+  //   text, image, document, audio, video, location, template,
+  //   interactive, contacts
   // Map incoming WhatsApp types that aren't in that list to the closest
   // allowed value so the INSERT doesn't fail with a constraint error.
   const ALLOWED_CONTENT_TYPES = new Set([
     'text', 'image', 'document', 'audio', 'video',
-    'location', 'template', 'interactive',
+    'location', 'template', 'interactive', 'contacts',
   ])
   const contentType = ALLOWED_CONTENT_TYPES.has(message.type)
     ? message.type
@@ -1183,6 +1191,21 @@ async function parseMessageContent(
       // Quick Reply button tap on a template message. Render like a
       // normal text message using the button's visible label.
       return { ...empty, contentText: message.button?.text || null }
+
+    case 'contacts': {
+      // Customer shared one or more WhatsApp contact cards. Meta doesn't
+      // support media for this type, so there's nothing to download —
+      // just format a readable line per contact into contentText.
+      const lines = (message.contacts ?? []).map((c) => {
+        const name = c.name?.formatted_name || '—'
+        const phone = c.phones?.[0]?.phone || c.phones?.[0]?.wa_id || '—'
+        return `📋 Contato compartilhado: ${name} — ${phone}`
+      })
+      return {
+        ...empty,
+        contentText: lines.join('\n') || '📋 Contato compartilhado',
+      }
+    }
 
     default:
       return {

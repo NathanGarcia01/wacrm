@@ -184,7 +184,9 @@ export type ContentType =
   | 'location'
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
-  | 'interactive';
+  | 'interactive'
+  /** Customer shared one or more WhatsApp contact cards. */
+  | 'contacts';
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface Message {
@@ -390,6 +392,16 @@ export interface QuickReply {
   shortcut?: string;
   created_at: string;
   updated_at: string;
+}
+
+/** Account-configurable quick-fill chip shown in the deal-lost dialog
+ *  (deal-form.tsx). `deals.lost_reason` itself stays free text. */
+export interface DealLossReason {
+  id: string;
+  account_id: string;
+  label: string;
+  position: number;
+  created_at: string;
 }
 
 export type NpsTriggerType = 'manual_close' | 'inactivity';

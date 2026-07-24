@@ -328,7 +328,8 @@
       "noMessagesYet": "No messages yet",
       "sendTemplateToStart": "Send a template to start the conversation",
       "editFailed": "Failed to edit message",
-      "deleteFailed": "Failed to delete message"
+      "deleteFailed": "Failed to delete message",
+      "deleteMetaWarning": "Deleted here, but WhatsApp did not confirm the deletion: {reason}"
     },
     "tagPicker": {
       "addFailed": "Failed to add tag",
@@ -382,7 +383,7 @@
       "moreAria": "More options",
       "editMessage": "Edit message",
       "deleteMessage": "Delete message",
-      "deleteConfirm": "Delete this message? This only removes it from your view here in the CRM — the customer still sees the original message on their WhatsApp."
+      "deleteConfirm": "Delete this message? We also try to delete it on the customer's WhatsApp, but that is not always possible (depends on the message type and age) — if it does not confirm, they may still see it even though it is deleted here in the CRM."
     },
     "bubble": {
       "unavailableSuffix": "unavailable",
@@ -396,6 +397,7 @@
       "downloadAria": "Download",
       "templateBadge": "Template",
       "locationShared": "Location shared",
+      "contactShared": "Contact shared",
       "buttonReply": "Button reply",
       "interactiveReplyFallback": "[Interactive reply]",
       "unsupportedMessageType": "[Unsupported message type]",
@@ -1468,7 +1470,14 @@
       "adminOnlyHint": "Only account admins can change the default currency.",
       "saveFailed": "Failed to save default currency",
       "saved": "Default currency updated",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "lossReasonsTitle": "Loss reasons",
+      "lossReasonsDescription": "Quick-fill suggestions shown when marking a deal as lost. The reason text stays free-form — this only customizes the shortcuts.",
+      "lossReasonPlaceholder": "E.g. Price too high",
+      "lossReasonsEmpty": "No reasons added yet — using the system defaults.",
+      "lossReasonDeleteAria": "Delete reason \"{label}\"",
+      "reasonAddFailed": "Failed to add reason",
+      "reasonDeleteFailed": "Failed to delete reason"
     },
     "fieldsAndTags": {
       "title": "Fields & tags",

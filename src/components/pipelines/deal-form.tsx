@@ -11,6 +11,7 @@ import type {
   Contact,
   Conversation,
   Deal,
+  DealLossReason,
   DealProduct,
   DealStatus,
   PipelineStage,
@@ -97,6 +98,10 @@ export function DealForm({
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  // Account-configurable quick-fill chips for the lost-reason dialog
+  // (Settings → Deals). Falls back to the hardcoded LOST_REASON_CHIPS
+  // below when the account hasn't customized them.
+  const [customLossReasons, setCustomLossReasons] = useState<DealLossReason[]>([]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
 
@@ -179,7 +184,7 @@ export function DealForm({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p, cat] = await Promise.all([
+      const [c, p, cat, reasons] = await Promise.all([
         supabase.from("contacts").select("*").order("name"),
         supabase.from("profiles").select("*").order("full_name"),
         supabase
@@ -187,11 +192,17 @@ export function DealForm({
           .select("*")
           .eq("is_active", true)
           .order("name"),
+        supabase
+          .from("deal_loss_reasons")
+          .select("*")
+          .order("position")
+          .order("created_at"),
       ]);
       if (cancelled) return;
       setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
       setCatalog((cat.data ?? []) as ProductCatalogItem[]);
+      setCustomLossReasons((reasons.data ?? []) as DealLossReason[]);
     })();
     return () => {
       cancelled = true;
@@ -368,12 +379,24 @@ export function DealForm({
     setProducts((prev) => prev.filter((p) => p.id !== productId));
   }
 
-  function handleReasonChip(key: (typeof LOST_REASON_CHIPS)[number]) {
-    if (key === "other") {
-      setLostReason("");
-      return;
-    }
-    setLostReason(t(`lostReasonChips.${key}`));
+  // Custom, account-configured chips (Settings → Deals) take over the
+  // whole quick-fill row when any exist; otherwise fall back to the
+  // hardcoded defaults. Either way an "other" chip clears the field for
+  // free typing.
+  const lossReasonChips: { key: string; label: string; isOther?: boolean }[] =
+    customLossReasons.length > 0
+      ? [
+          ...customLossReasons.map((r) => ({ key: r.id, label: r.label })),
+          { key: "__other__", label: t("lostReasonChips.other"), isOther: true },
+        ]
+      : LOST_REASON_CHIPS.map((key) => ({
+          key,
+          label: t(`lostReasonChips.${key}`),
+          isOther: key === "other",
+        }));
+
+  function handleReasonChip(chip: { label: string; isOther?: boolean }) {
+    setLostReason(chip.isOther ? "" : chip.label);
   }
 
   async function confirmMarkLost() {
@@ -1044,14 +1067,14 @@ export function DealForm({
 
           <div className="space-y-3">
             <div className="flex flex-wrap gap-1.5">
-              {LOST_REASON_CHIPS.map((key) => (
+              {lossReasonChips.map((chip) => (
                 <button
-                  key={key}
+                  key={chip.key}
                   type="button"
-                  onClick={() => handleReasonChip(key)}
+                  onClick={() => handleReasonChip(chip)}
                   className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
                 >
-                  {t(`lostReasonChips.${key}`)}
+                  {chip.label}
                 </button>
               ))}
             </div>

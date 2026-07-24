@@ -709,6 +709,44 @@ export async function deleteMessageTemplate(
 }
 
 // ============================================================
+// Delete a sent message
+// ============================================================
+
+export interface DeleteWhatsAppMessageArgs {
+  accessToken: string
+  /** Meta's message_id (wamid) of the message to delete. */
+  messageId: string
+}
+
+/**
+ * Ask Meta to delete a previously-sent message. Called directly on the
+ * message node (not the phone-number messages endpoint) per Meta's
+ * DELETE /{message-id} convention.
+ *
+ * Best-effort from the caller's point of view: not every message is
+ * eligible for deletion on Meta's side (age, type, delivery state), so
+ * callers should treat a thrown MetaApiError as non-fatal and fall back
+ * to the local CRM-side soft delete rather than blocking the user.
+ */
+export async function deleteWhatsAppMessage(
+  args: DeleteWhatsAppMessageArgs
+): Promise<void> {
+  const { accessToken, messageId } = args
+  const url = `${META_API_BASE}/${messageId}`
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ messaging_product: 'whatsapp' }),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+}
+
+// ============================================================
 // Reactions
 // ============================================================
 

@@ -998,10 +998,12 @@ export function MessageThread({
   );
 
   // ---- CRM-local message edit/delete ----
-  // Neither has a WhatsApp Cloud API equivalent (no edit/delete endpoint
-  // for a sent message exists) — both are DB-only, with the UI making
-  // that limitation explicit (see MessageBubble's "edited" tag / deleted
-  // placeholder and message-actions.tsx's delete confirm copy).
+  // Editing has no WhatsApp Cloud API equivalent — it's DB-only, with
+  // the UI making that explicit (see MessageBubble's "edited" tag).
+  // Deleting goes through /api/whatsapp/delete-message, which attempts
+  // a best-effort Meta-side delete before always soft-deleting locally
+  // (see 034_message_edit_delete.sql) — the confirm copy in
+  // message-actions.tsx still warns that Meta's side isn't guaranteed.
 
   const handleStartEdit = useCallback((msg: Message) => {
     setEditingMessageId(msg.id);
@@ -1042,22 +1044,37 @@ export function MessageThread({
 
   const handleDeleteMessage = useCallback(
     async (messageId: string) => {
-      const supabase = createClient();
-      const deletedAt = new Date().toISOString();
-      const { error } = await supabase
-        .from("messages")
-        .update({ deleted_at: deletedAt })
-        .eq("id", messageId);
+      try {
+        const res = await fetch("/api/whatsapp/delete-message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message_id: messageId }),
+        });
+        const payload = await res.json().catch(() => ({}));
 
-      if (error) {
-        console.error("Failed to delete message:", error);
+        if (!res.ok) {
+          const reason = payload?.error || `HTTP ${res.status}`;
+          console.error("Failed to delete message:", reason);
+          toast.error(t("deleteFailed"));
+          return;
+        }
+
+        // Meta's DELETE isn't guaranteed for every message (age, type,
+        // delivery state) — the route still soft-deletes locally either
+        // way, but surface the Meta-side failure so it's visible instead
+        // of silently swallowed.
+        if (payload?.metaError) {
+          console.error("[delete-message] Meta did not confirm deletion:", payload.metaError);
+          toast.warning(t("deleteMetaWarning", { reason: payload.metaError }));
+        }
+
+        onUpdateMessage(messageId, { deleted_at: new Date().toISOString() });
+      } catch (err) {
+        console.error("Failed to delete message:", err);
         toast.error(t("deleteFailed"));
-        return;
       }
-
-      onUpdateMessage(messageId, { deleted_at: deletedAt });
     },
-    [onUpdateMessage],
+    [onUpdateMessage, t],
   );
 
   // Empty state — same WhatsApp-style doodle background as the active

@@ -1,15 +1,19 @@
 -- ============================================================
 -- Local (CRM-only) message edit + delete.
 --
--- The WhatsApp Cloud API has no endpoint to edit or delete a message
--- once sent — confirmed against the official Meta docs and multiple
--- third-party references. So this is intentionally CRM-side only:
--- editing rewrites `content_text` in place and stamps `edited_at`;
--- "deleting" stamps `deleted_at` (soft delete — content_text is kept
--- in the row, just hidden behind the deleted_at check in the UI) and
--- the bubble renders a "[Mensagem apagada]" placeholder instead. The
--- customer's own WhatsApp app is never touched and still shows the
--- original message — the UI must make that clear.
+-- Meta's Cloud API has no endpoint to edit a message once sent, so
+-- editing is CRM-side only: rewrites `content_text` in place and
+-- stamps `edited_at`. Deleting attempts a best-effort DELETE against
+-- Meta first (see /api/whatsapp/delete-message and
+-- lib/whatsapp/meta-api.ts's deleteWhatsAppMessage) — not every
+-- message is eligible on Meta's side (age, type, delivery state) — and
+-- ALWAYS stamps `deleted_at` locally regardless of Meta's response
+-- (soft delete — content_text is kept in the row, just hidden behind
+-- the deleted_at check in the UI, which renders a "[Mensagem apagada]"
+-- placeholder instead). If Meta didn't confirm the deletion, the
+-- customer's own WhatsApp app may still show the original message —
+-- the UI surfaces that as a warning rather than pretending it always
+-- succeeds.
 --
 -- Idempotent — safe to run multiple times.
 -- ============================================================

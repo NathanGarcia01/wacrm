@@ -328,7 +328,8 @@
       "noMessagesYet": "Nenhuma mensagem ainda",
       "sendTemplateToStart": "Envie um template para iniciar a conversa",
       "editFailed": "Falha ao editar mensagem",
-      "deleteFailed": "Falha ao apagar mensagem"
+      "deleteFailed": "Falha ao apagar mensagem",
+      "deleteMetaWarning": "Apagada aqui, mas o WhatsApp não confirmou a exclusão: {reason}"
     },
     "tagPicker": {
       "addFailed": "Falha ao adicionar tag",
@@ -382,7 +383,7 @@
       "moreAria": "Mais opções",
       "editMessage": "Editar mensagem",
       "deleteMessage": "Apagar mensagem",
-      "deleteConfirm": "Apagar esta mensagem? Isso remove apenas da sua visualização aqui no CRM — o cliente continua vendo a mensagem original no WhatsApp dele."
+      "deleteConfirm": "Apagar esta mensagem? Tentamos apagar também no WhatsApp do cliente, mas isso nem sempre é possível (depende do tipo e do tempo da mensagem) — se não confirmar, ela continua visível para ele mesmo apagada aqui no CRM."
     },
     "bubble": {
       "unavailableSuffix": "indisponível",
@@ -396,6 +397,7 @@
       "downloadAria": "Baixar",
       "templateBadge": "Template",
       "locationShared": "Localização compartilhada",
+      "contactShared": "Contato compartilhado",
       "buttonReply": "Resposta por botão",
       "interactiveReplyFallback": "[Resposta interativa]",
       "unsupportedMessageType": "[Tipo de mensagem não suportado]",
@@ -1468,7 +1470,14 @@
       "adminOnlyHint": "Somente administradores da conta podem alterar a moeda padrão.",
       "saveFailed": "Falha ao salvar a moeda padrão",
       "saved": "Moeda padrão atualizada",
-      "saving": "Salvando..."
+      "saving": "Salvando...",
+      "lossReasonsTitle": "Motivos de perda",
+      "lossReasonsDescription": "Sugestões rápidas mostradas ao marcar um negócio como perdido. O texto do motivo continua livre — isto só personaliza os atalhos.",
+      "lossReasonPlaceholder": "Ex: Preço muito alto",
+      "lossReasonsEmpty": "Nenhum motivo cadastrado ainda — usando as sugestões padrão do sistema.",
+      "lossReasonDeleteAria": "Excluir motivo \"{label}\"",
+      "reasonAddFailed": "Falha ao adicionar motivo",
+      "reasonDeleteFailed": "Falha ao excluir motivo"
     },
     "fieldsAndTags": {
       "title": "Campos e tags",

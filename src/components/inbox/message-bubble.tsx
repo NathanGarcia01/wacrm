@@ -11,6 +11,7 @@ import {
   XCircle,
   FileText,
   MapPin,
+  Contact,
   LayoutTemplate,
   ImageOff,
   CornerDownLeft,
@@ -304,6 +305,16 @@ function MessageContent({ message }: { message: Message }) {
         <div className="flex items-center gap-2 text-sm">
           <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span>{message.content_text || t("locationShared")}</span>
+        </div>
+      );
+
+    case "contacts":
+      return (
+        <div className="flex items-start gap-2 text-sm">
+          <Contact className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="whitespace-pre-wrap break-words">
+            {message.content_text || t("contactShared")}
+          </span>
         </div>
       );
 

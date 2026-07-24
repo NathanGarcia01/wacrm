@@ -80,6 +80,25 @@ const nextConfig: NextConfig = {
    *     the correct production headers for hashed assets.
    *   - /api/*          — no-store. API responses are per-user and
    *     must never be shared across requests at the edge.
+   *   - Authenticated dashboard routes (/dashboard, /inbox, /contacts,
+   *     /pipelines, /broadcasts, /automations, /settings, /reports —
+   *     same list middleware.ts treats as protected) — no-store.
+   *     These used to fall into the "everything else" public bucket
+   *     below on the assumption that Next.js + Supabase auth would
+   *     keep per-user responses out of a shared cache — they don't:
+   *     this header rule is applied by Next.js itself to every
+   *     matching response, INCLUDING the RSC differential-fetch
+   *     requests the client router makes for in-app navigations (e.g.
+   *     clicking a different conversation in /inbox does a
+   *     `router.replace` that still hits this same rule). A `public,
+   *     s-maxage=300` there lets Render's edge (or any intermediary)
+   *     cache one conversation's RSC payload and serve it back for a
+   *     different one, which the client router can't reconcile — it
+   *     falls back to a full hard navigation to recover. Symptom: the
+   *     whole page visibly reloads (URL flash, favicon spinner)
+   *     instead of just swapping the thread. `no-store` sidesteps all
+   *     of that; these routes are per-user and dynamic anyway, so
+   *     there's no caching benefit being given up.
    *   - Everything else — public, brief s-maxage + generous
    *     stale-while-revalidate. The edge serves instantly from cache
    *     for the first 5 min, then returns cached content while
@@ -87,26 +106,34 @@ const nextConfig: NextConfig = {
    *     chunk-hash drift self-heals within ~5 min with no user-
    *     visible latency.
    *
-   *   Note: dynamic dashboard routes (/inbox, /contacts, /pipelines,
-   *   /broadcasts, etc.) are server-rendered per request — Next.js
-   *   and Supabase auth already prevent them from being served
-   *   from a shared cache. The s-maxage here is a ceiling; Next.js
-   *   and auth middleware still set `private` / `no-store` for
-   *   per-user responses.
-   *
    * Security headers are appended via a separate catch-all rule
    * below — Next.js merges headers from every matching rule, so
    * they apply to every response regardless of which cache rule
    * matched.
    */
   async headers() {
+    // Keep in sync with `protectedPaths` in src/middleware.ts.
+    const DASHBOARD_PATHS = [
+      "dashboard",
+      "inbox",
+      "contacts",
+      "pipelines",
+      "broadcasts",
+      "automations",
+      "settings",
+      "reports",
+    ];
     return [
       {
         source: "/api/:path*",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
-        source: "/:path((?!_next/static|_next/image|api).*)",
+        source: `/(${DASHBOARD_PATHS.join("|")})/:path*`,
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: `/:path((?!_next/static|_next/image|api|${DASHBOARD_PATHS.join("|")}).*)`,
         headers: [
           {
             key: "Cache-Control",

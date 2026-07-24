@@ -328,7 +328,8 @@
       "noMessagesYet": "Aún no hay mensajes",
       "sendTemplateToStart": "Envía un template para iniciar la conversación",
       "editFailed": "Error al editar el mensaje",
-      "deleteFailed": "Error al eliminar el mensaje"
+      "deleteFailed": "Error al eliminar el mensaje",
+      "deleteMetaWarning": "Eliminado aquí, pero WhatsApp no confirmó la eliminación: {reason}"
     },
     "tagPicker": {
       "addFailed": "Error al agregar el tag",
@@ -382,7 +383,7 @@
       "moreAria": "Más opciones",
       "editMessage": "Editar mensaje",
       "deleteMessage": "Eliminar mensaje",
-      "deleteConfirm": "¿Eliminar este mensaje? Esto solo lo quita de tu vista aquí en el CRM — el cliente sigue viendo el mensaje original en su WhatsApp."
+      "deleteConfirm": "¿Eliminar este mensaje? También intentamos eliminarlo en el WhatsApp del cliente, pero eso no siempre es posible (depende del tipo y la antigüedad del mensaje) — si no se confirma, puede que él lo siga viendo aunque aquí en el CRM ya esté eliminado."
     },
     "bubble": {
       "unavailableSuffix": "no disponible",
@@ -396,6 +397,7 @@
       "downloadAria": "Descargar",
       "templateBadge": "Template",
       "locationShared": "Ubicación compartida",
+      "contactShared": "Contacto compartido",
       "buttonReply": "Respuesta por botón",
       "interactiveReplyFallback": "[Respuesta interactiva]",
       "unsupportedMessageType": "[Tipo de mensaje no compatible]",
@@ -1468,7 +1470,14 @@
       "adminOnlyHint": "Solo los administradores de la cuenta pueden cambiar la moneda predeterminada.",
       "saveFailed": "Error al guardar la moneda predeterminada",
       "saved": "Moneda predeterminada actualizada",
-      "saving": "Guardando..."
+      "saving": "Guardando...",
+      "lossReasonsTitle": "Motivos de pérdida",
+      "lossReasonsDescription": "Sugerencias rápidas mostradas al marcar un negocio como perdido. El texto del motivo sigue siendo libre — esto solo personaliza los atajos.",
+      "lossReasonPlaceholder": "Ej: Precio demasiado alto",
+      "lossReasonsEmpty": "Aún no hay motivos agregados — usando las sugerencias predeterminadas.",
+      "lossReasonDeleteAria": "Eliminar motivo \"{label}\"",
+      "reasonAddFailed": "Error al agregar motivo",
+      "reasonDeleteFailed": "Error al eliminar motivo"
     },
     "fieldsAndTags": {
       "title": "Campos y etiquetas",
