@@ -137,17 +137,59 @@ export async function GET(request: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let matchedConfig: any = null
     let matchedTable: 'whatsapp_channels' | 'whatsapp_config' = 'whatsapp_channels'
-    for (const config of [...(channels ?? []), ...(configs ?? [])]) {
+    // Diagnostics only — never logs the ciphertext or either plaintext
+    // token, just counts, so this is safe to leave in production logs.
+    // `decryptFailures` specifically distinguishes "every row's
+    // decrypt() threw" (almost always ENCRYPTION_KEY mismatch between
+    // whatever encrypted the row and this process's env var, or
+    // corrupted ciphertext) from "decrypted fine, just didn't match the
+    // token Meta sent" (the caller typed/pasted the wrong value).
+    let rowsWithToken = 0
+    let decryptFailures = 0
+    const candidates: Array<{
+      config: { id: string; verify_token: string | null }
+      table: 'whatsapp_channels' | 'whatsapp_config'
+    }> = [
+      ...(channels ?? []).map((c: { id: string; verify_token: string | null }) => ({
+        config: c,
+        table: 'whatsapp_channels' as const,
+      })),
+      ...(configs ?? []).map((c: { id: string; verify_token: string | null }) => ({
+        config: c,
+        table: 'whatsapp_config' as const,
+      })),
+    ]
+    for (const { config, table } of candidates) {
       if (!config.verify_token) continue
+      rowsWithToken++
       try {
         if (decrypt(config.verify_token) === verifyToken) {
           matchedConfig = config
-          matchedTable = (channels ?? []).includes(config) ? 'whatsapp_channels' : 'whatsapp_config'
+          matchedTable = table
           break
         }
-      } catch {
-        // Malformed / wrong-key token row — skip it and keep checking.
+      } catch (err) {
+        decryptFailures++
+        console.error(
+          '[webhook] verify_token decrypt failed for',
+          table,
+          'row',
+          config.id,
+          '—',
+          err instanceof Error ? err.message : err,
+        )
       }
+    }
+
+    if (!matchedConfig && rowsWithToken > 0 && decryptFailures === rowsWithToken) {
+      console.error(
+        `[webhook] every verify_token row (${rowsWithToken}) failed to decrypt — ` +
+          'this almost always means ENCRYPTION_KEY in this environment does not ' +
+          'match the key that encrypted the stored value (e.g. it differs between ' +
+          'local and Render, or was rotated without re-saving the WhatsApp channel). ' +
+          'Re-check ENCRYPTION_KEY, or re-enter the channel credentials in ' +
+          'Settings so they get re-encrypted under the current key.',
+      )
     }
 
     if (matchedConfig) {
