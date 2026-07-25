@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useTheme } from "@/hooks/use-theme";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
   BarChart3,
@@ -215,6 +216,7 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { mode } = useTheme();
   const totalUnread = useTotalUnread();
   const tNav = useTranslations("nav");
   const tSidebar = useTranslations("sidebar");
@@ -317,18 +319,23 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           {/* Logo row. On mobile we put a close button here; on desktop the
               close button is hidden since the sidebar is always-visible. */}
           <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <MessageSquare className="h-4 w-4" />
-              </div>
-              <span
-                className={cn(
-                  "text-sm font-semibold text-foreground",
-                  collapsed && "lg:hidden",
-                )}
-              >
-                Funilly
-              </span>
+            <Link href="/dashboard" className="flex items-center gap-2 overflow-hidden">
+              {/* Icon-only mark — hidden except in the desktop collapsed
+                  rail, where there's no room for the wordmark. */}
+              <img
+                src="/logo-icon.svg"
+                alt="Funilly"
+                className={cn("hidden h-8 w-8 shrink-0", collapsed && "lg:block")}
+              />
+              {/* Full icon+wordmark lockup — shown on mobile (always
+                  expanded) and desktop-expanded; swaps for the
+                  dark-background variant since the sidebar itself
+                  follows the light/dark mode toggle. */}
+              <img
+                src={mode === "dark" ? "/logo-dark.svg" : "/logo.svg"}
+                alt="Funilly"
+                className={cn("h-7 w-auto shrink-0", collapsed && "lg:hidden")}
+              />
             </Link>
             <button
               type="button"

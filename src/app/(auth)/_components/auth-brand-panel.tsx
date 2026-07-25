@@ -1,4 +1,3 @@
-import { MessageSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 export function AuthBrandPanel() {
@@ -28,10 +27,9 @@ export function AuthBrandPanel() {
 
       <div className="relative z-10 flex flex-col gap-10">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1D9E75]">
-            <MessageSquare className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-lg font-semibold text-white">Funilly</span>
+          {/* Fixed dark background (#060810) regardless of the app's own
+              light/dark toggle — always the white-text lockup. */}
+          <img src="/logo-dark.svg" alt="Funilly" className="h-8 w-auto" />
         </div>
 
         <div className="flex flex-col gap-6">
