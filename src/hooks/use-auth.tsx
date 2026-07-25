@@ -51,6 +51,17 @@ interface AccountSummary {
   /** Default deal currency (ISO-4217). NOT NULL DEFAULT 'USD' in the
    *  DB (migration 021); narrowed to DEFAULT_CURRENCY when absent. */
   default_currency: string;
+  /** Internal accounts bypass billing entirely — never gated, never
+   *  shown a trial banner. */
+  is_internal: boolean;
+  /** Hard admin kill-switch (migration 050). False blocks access
+   *  regardless of is_internal or subscription status. */
+  is_active: boolean;
+  /** Null when the account has no subscription row at all (shouldn't
+   *  happen after migration 050, but forks/edge cases may lack one). */
+  subscriptionStatus: string | null;
+  /** ISO trial end date, null when not on a trial (or no subscription). */
+  trialEnd: string | null;
 }
 
 interface AuthContextValue {
@@ -145,7 +156,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, account:accounts!inner(id, name, default_currency)",
+          // `subscriptions(...)` nested one level further — needs the
+          // `subscriptions_select` RLS policy (migration 050) or this
+          // silently comes back empty for every non-service-role caller.
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end))",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -171,7 +185,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: string;
               name: string;
               default_currency: string | null;
+              is_internal?: boolean | null;
+              is_active?: boolean | null;
+              subscriptions?:
+                | { status: string | null; trial_end: string | null }
+                | { status: string | null; trial_end: string | null }[]
+                | null;
             } | null);
+        // subscriptions is UNIQUE on account_id, but PostgREST's typed
+        // client surfaces a nested embed as either an object or a
+        // single-element array depending on inferred cardinality — same
+        // normalization as the admin panel's shapeAccountRow.
+        const subscriptionRaw = accountRaw
+          ? Array.isArray(accountRaw.subscriptions)
+            ? (accountRaw.subscriptions[0] ?? null)
+            : (accountRaw.subscriptions ?? null)
+          : null;
         // Narrow default_currency defensively: forks running pre-021
         // schemas won't have the column, so a missing/null value reads
         // as the safe USD fallback rather than crashing the picker.
@@ -180,6 +209,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               id: accountRaw.id,
               name: accountRaw.name,
               default_currency: accountRaw.default_currency ?? DEFAULT_CURRENCY,
+              // Defensive fallbacks for forks on pre-050 schemas missing
+              // these columns: default is_active to true so a missing
+              // column never bricks access, and is_internal to false so
+              // a missing column never grants a free billing bypass.
+              is_internal: accountRaw.is_internal ?? false,
+              is_active: accountRaw.is_active ?? true,
+              subscriptionStatus: subscriptionRaw?.status ?? null,
+              trialEnd: subscriptionRaw?.trial_end ?? null,
             }
           : null;
 

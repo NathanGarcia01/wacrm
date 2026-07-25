@@ -2561,5 +2561,29 @@
     "automationSaved": "Automatización creada con éxito",
     "flowSaved": "Flujo creado con éxito",
     "close": "Cerrar"
+  },
+  "billing": {
+    "trialBanner": {
+      "expiresIn": "🎉 Tu prueba gratuita vence en {days, plural, one {# día} other {# días}}",
+      "urgentExpiresIn": "⚠️ Tu prueba vence en {days, plural, one {# día} other {# días}}! Suscríbete ahora",
+      "subscribeNow": "Suscribirse ahora"
+    },
+    "trialExpired": {
+      "title": "Tu prueba gratuita venció",
+      "description": "Suscríbete a un plan para seguir usando Funilly.",
+      "cta": "Suscribirse ahora"
+    },
+    "accountDisabled": {
+      "title": "Cuenta desactivada",
+      "description": "Esta cuenta fue desactivada. Contacta al soporte para restaurar el acceso.",
+      "contact": "Contactar soporte"
+    },
+    "plansPage": {
+      "title": "Elige tu plan",
+      "subtitle": "Sigue usando Funilly sin interrupciones.",
+      "perSeat": "por usuario / mes",
+      "contactSales": "Hablar con ventas",
+      "backToDashboard": "Volver al panel"
+    }
   }
 }

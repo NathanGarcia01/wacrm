@@ -14,6 +14,10 @@ let refreshedCookies: Array<{
   value: string;
   options: Record<string, unknown>;
 }> = [];
+// `null` = account is active (the common case, default in every test
+// that doesn't care about this) — only set to `false` to exercise the
+// is_active-gate redirect.
+let mockIsActive: boolean | null = null;
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (
@@ -32,6 +36,18 @@ vi.mock("@supabase/ssr", () => ({
         return { data: { user: mockUser } };
       },
     },
+    // Only the is_active lookup (profiles -> accounts) goes through
+    // `.from()` in the middleware today — this stub is intentionally
+    // narrow, not a general Supabase query mock.
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: mockIsActive === null ? null : { accounts: { is_active: mockIsActive } },
+          }),
+        }),
+      }),
+    }),
   }),
 }));
 
@@ -43,6 +59,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   mockUser = null;
   refreshedCookies = [];
+  mockIsActive = null;
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -109,5 +126,50 @@ describe("middleware — refreshed auth cookies survive redirects", () => {
     // No redirect — the normal NextResponse.next() already carries cookies.
     expect(res.headers.get("location")).toBeNull();
     expect(res.cookies.get(ROTATED.name)?.value).toBe(ROTATED.value);
+  });
+});
+
+describe("middleware — is_active gate (migration 050)", () => {
+  it("redirects a signed-in user whose account is deactivated to /account-disabled", async () => {
+    mockUser = { id: "user-1" };
+    mockIsActive = false;
+
+    const res = await middleware(
+      new NextRequest("https://app.test/dashboard"),
+    );
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/account-disabled");
+  });
+
+  it("does not redirect an active account", async () => {
+    mockUser = { id: "user-1" };
+    mockIsActive = true;
+
+    const res = await middleware(
+      new NextRequest("https://app.test/dashboard"),
+    );
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("does not loop-redirect /account-disabled itself", async () => {
+    mockUser = { id: "user-1" };
+    mockIsActive = false;
+
+    const res = await middleware(
+      new NextRequest("https://app.test/account-disabled"),
+    );
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("does not check is_active for a non-protected path", async () => {
+    mockUser = { id: "user-1" };
+    mockIsActive = false;
+
+    const res = await middleware(new NextRequest("https://app.test/billing/plans"));
+
+    expect(res.headers.get("location")).toBeNull();
   });
 });

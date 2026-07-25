@@ -2561,5 +2561,29 @@
     "automationSaved": "Automation created successfully",
     "flowSaved": "Flow created successfully",
     "close": "Close"
+  },
+  "billing": {
+    "trialBanner": {
+      "expiresIn": "🎉 Your free trial expires in {days, plural, one {# day} other {# days}}",
+      "urgentExpiresIn": "⚠️ Your trial expires in {days, plural, one {# day} other {# days}}! Subscribe now",
+      "subscribeNow": "Subscribe now"
+    },
+    "trialExpired": {
+      "title": "Your free trial has expired",
+      "description": "Subscribe to a plan to keep using Funilly.",
+      "cta": "Subscribe now"
+    },
+    "accountDisabled": {
+      "title": "Account disabled",
+      "description": "This account has been disabled. Contact support to restore access.",
+      "contact": "Contact support"
+    },
+    "plansPage": {
+      "title": "Choose your plan",
+      "subtitle": "Keep using Funilly without interruptions.",
+      "perSeat": "per user / month",
+      "contactSales": "Talk to sales",
+      "backToDashboard": "Back to dashboard"
+    }
   }
 }

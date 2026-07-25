@@ -17,15 +17,22 @@ export function getResendClient(): Resend | null {
 }
 
 /**
- * `funilly.tech` needs its DNS records (SPF/DKIM) verified in the
- * Resend dashboard before Resend will send from a `@funilly.tech`
- * address. Until an operator sets RESEND_FROM_EMAIL to a verified
+ * `www.funilly.tech` needs its DNS records (SPF/DKIM) verified in the
+ * Resend dashboard before Resend will send from a `@www.funilly.tech`
+ * address — an unverified sending domain makes Resend reject the send
+ * outright. Until an operator sets RESEND_FROM_EMAIL to a verified
  * sender, fall back to Resend's own shared sandbox address so
  * transactional email still goes out instead of failing outright.
  *
- * TODO(ops): once funilly.tech is verified in Resend, set
- *   RESEND_FROM_EMAIL="Funilly <noreply@funilly.tech>"
- * in the deployment env and this fallback stops being used.
+ * Note: a Resend account with no verified domain at all is also
+ * restricted to delivering only to the account owner's own address,
+ * regardless of which "from" address is used — if welcome emails
+ * aren't reaching real signups, check that first (Resend dashboard →
+ * Domains) before assuming this fallback is the problem.
+ *
+ * TODO(ops): once www.funilly.tech is verified in Resend, set
+ *   RESEND_FROM_EMAIL="Funilly <noreply@www.funilly.tech>"
+ * in the deployment env (Render) and this fallback stops being used.
  */
 export function getWelcomeEmailFrom(): string {
   return process.env.RESEND_FROM_EMAIL?.trim() || "Funilly <onboarding@resend.dev>";

@@ -106,6 +106,33 @@ export async function middleware(request: NextRequest) {
     return withRefreshedCookies(NextResponse.redirect(url))
   }
 
+  // Deactivated accounts (accounts.is_active = false, migration 050) —
+  // a hard admin kill-switch, checked here (not just client-side in
+  // <AccessGate>) so a disabled account can't reach a protected page's
+  // server-rendered content at all. Query is scoped to protected paths
+  // only, same set as the auth check above, to avoid a DB round trip on
+  // every request. Skips '/account-disabled' itself to avoid a loop.
+  if (
+    user &&
+    request.nextUrl.pathname !== '/account-disabled' &&
+    protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  ) {
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('accounts!inner(is_active)')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    const accountRaw = (profileRow as { accounts?: { is_active: boolean } | { is_active: boolean }[] } | null)
+      ?.accounts
+    const isActive = Array.isArray(accountRaw) ? accountRaw[0]?.is_active : accountRaw?.is_active
+    if (isActive === false) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/account-disabled'
+      url.search = ''
+      return withRefreshedCookies(NextResponse.redirect(url))
+    }
+  }
+
   // API routes that need auth (not webhooks)
   if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {

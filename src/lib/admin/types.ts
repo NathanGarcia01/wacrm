@@ -55,6 +55,7 @@ export interface AdminAccountRow {
   owner_user_id: string
   created_at: string
   is_internal: boolean
+  is_active: boolean
   subscription: AccountSubscription | null
   owner: AccountOwner | null
   plan: Plan | null

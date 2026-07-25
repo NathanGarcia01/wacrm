@@ -4,6 +4,7 @@ import { STATUS_META } from "@/lib/admin/types"
 import { trialDaysRemaining } from "@/lib/admin/trial"
 import { formatCurrency } from "@/lib/currency"
 import { AccountActions } from "./account-actions"
+import { EditAccountModal } from "./edit-account-modal"
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—"
@@ -65,11 +66,18 @@ export function AccountsTable({
                   >
                     {row.name}
                   </Link>
-                  {row.is_internal && (
-                    <div className="text-[10px] font-medium tracking-wide text-[#60A5FA] uppercase">
-                      Interna
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {row.is_internal && (
+                      <span className="text-[10px] font-medium tracking-wide text-[#60A5FA] uppercase">
+                        Interna
+                      </span>
+                    )}
+                    {!row.is_active && (
+                      <span className="text-[10px] font-medium tracking-wide text-[#F87171] uppercase">
+                        Inativa
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="text-white/80">{row.owner?.full_name ?? "—"}</div>
@@ -109,7 +117,10 @@ export function AccountsTable({
                 <td className="px-4 py-3 text-white/70">{fmtDate(sub?.current_period_end ?? null)}</td>
                 <td className="px-4 py-3 text-white/70">{fmtDate(row.created_at)}</td>
                 <td className="px-4 py-3 text-right">
-                  <AccountActions account={row} plans={plans} role={role} />
+                  <div className="flex items-center justify-end gap-2">
+                    {role === "owner" && <EditAccountModal account={row} plans={plans} />}
+                    <AccountActions account={row} plans={plans} role={role} />
+                  </div>
                 </td>
               </tr>
             )

@@ -2561,5 +2561,29 @@
     "automationSaved": "Automação criada com sucesso",
     "flowSaved": "Fluxo criado com sucesso",
     "close": "Fechar"
+  },
+  "billing": {
+    "trialBanner": {
+      "expiresIn": "🎉 Seu trial gratuito expira em {days, plural, one {# dia} other {# dias}}",
+      "urgentExpiresIn": "⚠️ Seu trial expira em {days, plural, one {# dia} other {# dias}}! Assine agora",
+      "subscribeNow": "Assinar agora"
+    },
+    "trialExpired": {
+      "title": "Seu trial gratuito expirou",
+      "description": "Assine um plano para continuar usando o Funilly.",
+      "cta": "Assinar agora"
+    },
+    "accountDisabled": {
+      "title": "Conta desativada",
+      "description": "Esta conta foi desativada. Entre em contato com o suporte para reativar o acesso.",
+      "contact": "Falar com o suporte"
+    },
+    "plansPage": {
+      "title": "Escolha seu plano",
+      "subtitle": "Continue usando o Funilly sem interrupções.",
+      "perSeat": "por usuário / mês",
+      "contactSales": "Falar com vendas",
+      "backToDashboard": "Voltar para o painel"
+    }
   }
 }
