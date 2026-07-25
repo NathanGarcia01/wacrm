@@ -71,13 +71,18 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  // Auth pages - redirect to dashboard if already logged in.
+  // Auth pages (+ the public marketing home) - redirect to dashboard
+  // if already logged in. `/` is the marketing/sales site (see
+  // src/app/(marketing)/page.tsx) for logged-out visitors, but an
+  // authenticated user landing there should drop straight into the
+  // app instead of seeing the sales pitch again.
   // Exception: when an invite token is in the query string we
   // send the already-signed-in user to /join/<token> instead so
   // they can accept the invitation in one click. Without this,
   // a forwarded invite link to someone who's already signed in
   // would silently drop them on /dashboard.
   if (user && (
+    request.nextUrl.pathname === '/' ||
     request.nextUrl.pathname === '/login' ||
     request.nextUrl.pathname === '/signup' ||
     request.nextUrl.pathname === '/forgot-password'

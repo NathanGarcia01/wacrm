@@ -70,6 +70,25 @@ const ROTATED = {
   options: { path: "/", httpOnly: true },
 };
 
+describe("middleware — public marketing home at /", () => {
+  it("redirects a signed-in user away from / to /dashboard", async () => {
+    mockUser = { id: "user-1" };
+
+    const res = await middleware(new NextRequest("https://app.test/"));
+
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/dashboard");
+  });
+
+  it("passes through (no redirect) for a logged-out visitor on /", async () => {
+    mockUser = null;
+
+    const res = await middleware(new NextRequest("https://app.test/"));
+
+    expect(res.headers.get("location")).toBeNull();
+  });
+});
+
 describe("middleware — refreshed auth cookies survive redirects", () => {
   it("carries the rotated token when redirecting a signed-in user off /login", async () => {
     mockUser = { id: "user-1" };
