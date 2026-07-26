@@ -6,6 +6,7 @@ import {
   verifyPhoneNumber,
 } from '@/lib/whatsapp/meta-api'
 import { encrypt } from '@/lib/whatsapp/encryption'
+import { deleteEvolutionInstance } from '@/lib/whatsapp/evolution-client'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -175,6 +176,26 @@ export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const { id } = await context.params
     const { supabase, accountId } = await requireRole('admin')
+
+    // Best-effort remote teardown BEFORE the DB delete — once the row
+    // is gone we lose the instance name we'd need to clean it up, and
+    // an orphaned Evolution session left running is worse than a
+    // delete that occasionally leaves a stale instance (the account_id
+    // + timestamp naming means it can never collide with a future one).
+    const { data: existing } = await supabase
+      .from('whatsapp_channels')
+      .select('channel_type, evolution_instance_name')
+      .eq('id', id)
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (existing?.channel_type === 'evolution' && existing.evolution_instance_name) {
+      await deleteEvolutionInstance(existing.evolution_instance_name).catch((err) =>
+        console.warn(
+          '[whatsapp/channels] Evolution instance delete failed (continuing with DB delete):',
+          err instanceof Error ? err.message : err,
+        ),
+      )
+    }
 
     const { error } = await supabase
       .from('whatsapp_channels')

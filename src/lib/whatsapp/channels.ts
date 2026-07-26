@@ -28,6 +28,14 @@ export interface ResolvedChannel {
   phoneNumberId: string
   wabaId: string | null
   accessToken: string
+  /** 'cloud_api' for every legacy/env-fallback resolution (they predate
+   *  Evolution support) and for normal Meta channels. 'evolution' only
+   *  when resolved from a whatsapp_channels row created via
+   *  POST /api/whatsapp/channels/evolution. */
+  channelType: 'cloud_api' | 'evolution'
+  /** Set only when channelType is 'evolution' — the Evolution API
+   *  instance name send/receive routes key off instead of phoneNumberId. */
+  evolutionInstanceName: string | null
 }
 
 async function fromLegacyConfig(
@@ -45,6 +53,8 @@ async function fromLegacyConfig(
     phoneNumberId: data.phone_number_id,
     wabaId: data.waba_id ?? null,
     accessToken: decrypt(data.access_token),
+    channelType: 'cloud_api',
+    evolutionInstanceName: null,
   }
 }
 
@@ -52,7 +62,14 @@ function fromEnv(): ResolvedChannel | null {
   const phoneNumberId = process.env.NEXT_PUBLIC_WHATSAPP_PHONE_NUMBER_ID
   const accessToken = process.env.WHATSAPP_TOKEN
   if (!phoneNumberId || !accessToken) return null
-  return { channelId: null, phoneNumberId, wabaId: null, accessToken }
+  return {
+    channelId: null,
+    phoneNumberId,
+    wabaId: null,
+    accessToken,
+    channelType: 'cloud_api',
+    evolutionInstanceName: null,
+  }
 }
 
 /**
@@ -70,7 +87,7 @@ export async function resolveDefaultChannel(
 ): Promise<ResolvedChannel | null> {
   const { data } = await admin
     .from('whatsapp_channels')
-    .select('id, phone_number_id, waba_id, access_token_encrypted')
+    .select('id, phone_number_id, waba_id, access_token_encrypted, channel_type, evolution_instance_name')
     .eq('account_id', accountId)
     .eq('is_active', true)
     .order('is_default', { ascending: false })
@@ -84,6 +101,8 @@ export async function resolveDefaultChannel(
       phoneNumberId: data.phone_number_id,
       wabaId: data.waba_id ?? null,
       accessToken: decrypt(data.access_token_encrypted),
+      channelType: data.channel_type === 'evolution' ? 'evolution' : 'cloud_api',
+      evolutionInstanceName: data.evolution_instance_name ?? null,
     }
   }
 
@@ -105,7 +124,7 @@ export async function resolveChannelById(
 
   const { data } = await admin
     .from('whatsapp_channels')
-    .select('id, phone_number_id, waba_id, access_token_encrypted')
+    .select('id, phone_number_id, waba_id, access_token_encrypted, channel_type, evolution_instance_name')
     .eq('id', channelId)
     .eq('account_id', accountId)
     .eq('is_active', true)
@@ -118,6 +137,8 @@ export async function resolveChannelById(
     phoneNumberId: data.phone_number_id,
     wabaId: data.waba_id ?? null,
     accessToken: decrypt(data.access_token_encrypted),
+    channelType: data.channel_type === 'evolution' ? 'evolution' : 'cloud_api',
+    evolutionInstanceName: data.evolution_instance_name ?? null,
   }
 }
 
@@ -135,7 +156,7 @@ export async function resolveChannelByPhoneNumberId(
 ): Promise<(ResolvedChannel & { accountId: string }) | null> {
   const { data: channelRows, error: channelError } = await admin
     .from('whatsapp_channels')
-    .select('id, account_id, phone_number_id, waba_id, access_token_encrypted')
+    .select('id, account_id, phone_number_id, waba_id, access_token_encrypted, channel_type, evolution_instance_name')
     .eq('phone_number_id', phoneNumberId)
 
   if (channelError) {
@@ -155,6 +176,8 @@ export async function resolveChannelByPhoneNumberId(
       phoneNumberId: row.phone_number_id,
       wabaId: row.waba_id ?? null,
       accessToken: decrypt(row.access_token_encrypted),
+      channelType: row.channel_type === 'evolution' ? 'evolution' : 'cloud_api',
+      evolutionInstanceName: row.evolution_instance_name ?? null,
     }
   }
 
@@ -191,7 +214,44 @@ export async function resolveChannelByPhoneNumberId(
     phoneNumberId: row.phone_number_id,
     wabaId: row.waba_id ?? null,
     accessToken: decrypt(row.access_token),
+    channelType: 'cloud_api',
+    evolutionInstanceName: null,
   }
+}
+
+/**
+ * Inbound Evolution webhook lookup: the payload tells us which
+ * `instance` sent the event, not which account it belongs to. Mirrors
+ * resolveChannelByPhoneNumberId's shape/error handling but keys off
+ * evolution_instance_name — Evolution instances don't have a
+ * phone_number_id at all (see migration 052).
+ */
+export async function resolveChannelByEvolutionInstance(
+  admin: SupabaseClient,
+  instanceName: string,
+): Promise<{ channelId: string; accountId: string } | null> {
+  const { data: rows, error } = await admin
+    .from('whatsapp_channels')
+    .select('id, account_id')
+    .eq('channel_type', 'evolution')
+    .eq('evolution_instance_name', instanceName)
+
+  if (error) {
+    console.error('Error fetching whatsapp_channels for evolution instance:', instanceName, error)
+    return null
+  }
+  if (!rows || rows.length !== 1) {
+    if (rows && rows.length > 1) {
+      console.error(
+        `Multiple whatsapp_channels (${rows.length}) found for evolution instance:`,
+        instanceName,
+        '— inbound message dropped.',
+      )
+    }
+    return null
+  }
+
+  return { channelId: rows[0].id, accountId: rows[0].account_id }
 }
 
 /**

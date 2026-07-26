@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Plus, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { WhatsAppChannelFormDialog } from './whatsapp-channel-form-dialog';
+import { WhatsAppChannelTypePicker } from './whatsapp-channel-type-picker';
+import { EvolutionChannelDialog } from './evolution-channel-dialog';
 
 export interface WhatsAppChannel {
   id: string;
@@ -21,6 +23,8 @@ export interface WhatsAppChannel {
   registered: boolean;
   last_registration_error: string | null;
   created_at: string;
+  channel_type: 'cloud_api' | 'evolution';
+  evolution_status: 'open' | 'connecting' | 'close' | 'disconnected' | null;
 }
 
 /**
@@ -40,6 +44,13 @@ export function WhatsAppChannelList() {
   // Id of the channel with an action in flight — disables its row's
   // buttons so a double-click can't fire the same PATCH/DELETE twice.
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // "Adicionar número" flow: type picker → (Cloud API form | Evolution
+  // QR dialog). evolutionDialog also doubles as the "Reconectar" flow
+  // for an existing channel (reconnectChannelId set, name step skipped).
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
+  const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false);
+  const [reconnectChannelId, setReconnectChannelId] = useState<string | undefined>(undefined);
 
   const fetchChannels = useCallback(async () => {
     setLoading(true);
@@ -61,13 +72,29 @@ export function WhatsAppChannelList() {
   }, [fetchChannels]);
 
   function openCreateDialog() {
-    setEditingChannel(null);
-    setDialogOpen(true);
+    setTypePickerOpen(true);
   }
 
   function openEditDialog(channel: WhatsAppChannel) {
     setEditingChannel(channel);
     setDialogOpen(true);
+  }
+
+  function openReconnectDialog(channel: WhatsAppChannel) {
+    setReconnectChannelId(channel.id);
+    setEvolutionDialogOpen(true);
+  }
+
+  function handleSelectCloudApi() {
+    setTypePickerOpen(false);
+    setEditingChannel(null);
+    setDialogOpen(true);
+  }
+
+  function handleSelectEvolution() {
+    setTypePickerOpen(false);
+    setReconnectChannelId(undefined);
+    setEvolutionDialogOpen(true);
   }
 
   async function patchChannel(channel: WhatsAppChannel, body: Record<string, unknown>) {
@@ -168,7 +195,14 @@ export function WhatsAppChannelList() {
                     <Badge variant={channel.is_active ? 'outline' : 'secondary'}>
                       {channel.is_active ? tCommon('active') : tCommon('inactive')}
                     </Badge>
-                    {!channel.registered && (
+                    {channel.channel_type === 'evolution' ? (
+                      <EvolutionStatusBadge status={channel.evolution_status} t={t} />
+                    ) : channel.registered ? (
+                      <Badge className="bg-primary/10 text-primary border-primary/30 gap-1">
+                        <CheckCircle2 className="size-3" />
+                        {t('cloudApiStatusRegistered')}
+                      </Badge>
+                    ) : (
                       <Badge
                         variant="destructive"
                         className="gap-1"
@@ -180,7 +214,9 @@ export function WhatsAppChannelList() {
                     )}
                   </div>
                   <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                    {channel.display_phone_number || channel.phone_number_id}
+                    {channel.channel_type === 'evolution'
+                      ? t('evolutionCardTitle')
+                      : channel.display_phone_number || channel.phone_number_id}
                   </p>
                 </div>
 
@@ -205,14 +241,25 @@ export function WhatsAppChannelList() {
                   >
                     {channel.is_active ? t('deactivateButton') : t('activateButton')}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(channel)}
-                    className="border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                  >
-                    {tCommon('edit')}
-                  </Button>
+                  {channel.channel_type === 'evolution' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openReconnectDialog(channel)}
+                      className="border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      {t('reconnectButton')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditDialog(channel)}
+                      className="border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      {tCommon('edit')}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="icon"
@@ -229,12 +276,54 @@ export function WhatsAppChannelList() {
         )}
       </CardContent>
 
+      <WhatsAppChannelTypePicker
+        open={typePickerOpen}
+        onOpenChange={setTypePickerOpen}
+        onSelectCloudApi={handleSelectCloudApi}
+        onSelectEvolution={handleSelectEvolution}
+      />
+
       <WhatsAppChannelFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         channel={editingChannel}
         onSaved={fetchChannels}
       />
+
+      <EvolutionChannelDialog
+        open={evolutionDialogOpen}
+        onOpenChange={setEvolutionDialogOpen}
+        reconnectChannelId={reconnectChannelId}
+        onSaved={fetchChannels}
+      />
     </Card>
+  );
+}
+
+function EvolutionStatusBadge({
+  status,
+  t,
+}: {
+  status: WhatsAppChannel['evolution_status'];
+  t: ReturnType<typeof useTranslations>;
+}) {
+  if (status === 'open') {
+    return (
+      <Badge className="bg-primary/10 text-primary border-primary/30 gap-1">
+        <CheckCircle2 className="size-3" />
+        {t('evolutionStatusOpen')}
+      </Badge>
+    );
+  }
+  if (status === 'connecting') {
+    return <Badge variant="secondary">{t('evolutionStatusConnecting')}</Badge>;
+  }
+  // 'close' and the unused-in-practice 'disconnected' default both
+  // read as the same "not connected" state to the user.
+  return (
+    <Badge variant="destructive" className="gap-1">
+      <AlertTriangle className="size-3" />
+      {t('evolutionStatusClose')}
+    </Badge>
   );
 }

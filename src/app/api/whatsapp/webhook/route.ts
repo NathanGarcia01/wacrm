@@ -5,8 +5,12 @@ import { resolveChannelByPhoneNumberId, resolveAccountOwnerUserId } from '@/lib/
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { extensionForMimeType } from '@/lib/whatsapp/mime'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
+import {
+  ensureOpenDealForContact,
+  findOrCreateContact,
+  findOrCreateConversation,
+} from '@/lib/whatsapp/inbound-message'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -470,79 +474,6 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
 }
 
 /**
- * A contact's very first-ever inbound message gets a live card on the
- * pipeline — covers both a brand-new contact and one whose row already
- * existed (CSV-imported, added as broadcast audience) but never
- * messaged before. Callers MUST gate this on `isFirstInboundMessage`
- * (same gate as the Ativo/Receptivo origin tag above) — an existing
- * contact who already has a history and just sends another reply must
- * NOT get a deal auto-created; that over-eager behavior is exactly what
- * commit 13e8331 reverted.
- *
- * Title is the contact's name, falling back to their phone when no
- * name is on file — never a generic placeholder like "Novo Lead".
- *
- * Best-effort: failures here must not break the main inbound-message
- * flow, so errors are swallowed with a log.
- */
-async function ensureOpenDealForContact(
-  accountId: string,
-  configOwnerUserId: string,
-  contactId: string,
-  contactName: string,
-  contactPhone: string,
-) {
-  try {
-    const { data: existingOpenDeal, error: existingErr } = await supabaseAdmin()
-      .from('deals')
-      .select('id')
-      .eq('contact_id', contactId)
-      .eq('status', 'open')
-      .limit(1)
-      .maybeSingle()
-    if (existingErr) {
-      console.error('[webhook] open-deal lookup failed:', existingErr.message)
-      return
-    }
-    if (existingOpenDeal) return // already has one — never duplicate
-
-    const { data: defaultPipeline, error: pipelineErr } = await supabaseAdmin()
-      .from('pipelines')
-      .select('id')
-      .eq('account_id', accountId)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (pipelineErr || !defaultPipeline) return // no pipeline to file it under
-
-    const { data: firstStage, error: stageErr } = await supabaseAdmin()
-      .from('pipeline_stages')
-      .select('id')
-      .eq('pipeline_id', defaultPipeline.id)
-      .order('position', { ascending: true })
-      .limit(1)
-      .maybeSingle()
-    if (stageErr || !firstStage) return // pipeline has no stages yet
-
-    const { error: insertErr } = await supabaseAdmin().from('deals').insert({
-      user_id: configOwnerUserId,
-      account_id: accountId,
-      pipeline_id: defaultPipeline.id,
-      stage_id: firstStage.id,
-      contact_id: contactId,
-      title: contactName || contactPhone,
-      value: 0,
-      status: 'open',
-    })
-    if (insertErr) {
-      console.error('[webhook] failed to auto-create deal:', insertErr.message)
-    }
-  } catch (err) {
-    console.error('ensureOpenDealForContact failed:', err)
-  }
-}
-
-/**
  * When a customer taps a Quick Reply button on a template message,
  * correlate the tap back to the broadcast_recipients row that sent that
  * template so reports can show "X clicked button A, Y clicked button B".
@@ -720,6 +651,7 @@ async function processMessage(
 
   // Find or create contact
   const contactOutcome = await findOrCreateContact(
+    supabaseAdmin(),
     accountId,
     configOwnerUserId,
     senderPhone,
@@ -730,6 +662,7 @@ async function processMessage(
 
   // Find or create conversation
   const conversation = await findOrCreateConversation(
+    supabaseAdmin(),
     accountId,
     configOwnerUserId,
     contactRecord.id,
@@ -909,6 +842,7 @@ async function processMessage(
     // pipeline card; an existing contact just sending another message
     // never does. See ensureOpenDealForContact's docstring.
     await ensureOpenDealForContact(
+      supabaseAdmin(),
       accountId,
       configOwnerUserId,
       contactRecord.id,
@@ -1257,132 +1191,6 @@ async function parseMessageContent(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ContactRow = any
-
-interface ContactOutcome {
-  contact: ContactRow
-  /** True when this call created the row; drives new_contact_created
-   *  automation dispatch in processMessage. */
-  wasCreated: boolean
-}
-
-async function findOrCreateContact(
-  accountId: string,
-  configOwnerUserId: string,
-  phone: string,
-  name: string
-): Promise<ContactOutcome | null> {
-  // Find an existing contact for this account by phone. The shared
-  // helper pre-filters in SQL by the last-8-digit suffix (so we don't
-  // pull every contact on every inbound message) then applies the
-  // strict `phonesMatch` in JS on the small candidate set. The same
-  // helper backs the manual contact form and CSV import, so all three
-  // paths agree on what "same number" means (issue #212).
-  const existingContact = await findExistingContact(
-    supabaseAdmin(),
-    accountId,
-    phone,
-  )
-
-  if (existingContact) {
-    // Deliberately does NOT sync `name` from the WhatsApp profile name
-    // here. This used to overwrite the contact's name on every inbound
-    // message where the two differed — which meant any agent
-    // correction (or CSV-imported real name) got silently clobbered by
-    // the customer's own WhatsApp display name the next time they
-    // texted (bug #4). The contact record is the source of truth once
-    // it exists; only the initial insert below seeds name from the
-    // WhatsApp profile.
-    return { contact: existingContact, wasCreated: false }
-  }
-
-  // Create new contact. account_id is the tenancy column;
-  // user_id is the NOT NULL FK audit column (no inbound message
-  // has a single "user who created" it — we attribute to the
-  // WhatsApp config owner as a stable default).
-  const { data: newContact, error: createError } = await supabaseAdmin()
-    .from('contacts')
-    .insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      phone,
-      name: name || phone,
-    })
-    .select()
-    .single()
-
-  if (createError) {
-    // Lost a race: a concurrent inbound delivery (or another path)
-    // created this contact between our lookup and insert, and the
-    // unique index (migration 022) rejected the duplicate. Re-resolve
-    // the existing row instead of dropping the message.
-    if (isUniqueViolation(createError)) {
-      const raced = await findExistingContact(supabaseAdmin(), accountId, phone)
-      if (raced) return { contact: raced, wasCreated: false }
-    }
-    console.error('Error creating contact:', createError)
-    return null
-  }
-
-  return { contact: newContact, wasCreated: true }
-}
-
-async function findOrCreateConversation(
-  accountId: string,
-  configOwnerUserId: string,
-  contactId: string,
-  // Which whatsapp_channels row received the message that triggered
-  // this lookup. Null (legacy whatsapp_config fallback) leaves an
-  // existing conversation's channel_id untouched rather than clearing
-  // it — only a resolved channel ever overwrites it.
-  channelId: string | null,
-) {
-  // Look for existing conversation in this account
-  const { data: existing, error: findError } = await supabaseAdmin()
-    .from('conversations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .single()
-
-  if (!findError && existing) {
-    // Keep channel_id current — a contact may start messaging a
-    // different number than the one that first created this
-    // conversation, and the inbox badge should reflect the latest one.
-    if (channelId && existing.channel_id !== channelId) {
-      const { data: updated, error: updateError } = await supabaseAdmin()
-        .from('conversations')
-        .update({ channel_id: channelId })
-        .eq('id', existing.id)
-        .select()
-        .single()
-      if (updateError) {
-        console.error('Error updating conversation channel_id:', updateError)
-        return existing
-      }
-      return updated
-    }
-    return existing
-  }
-
-  // Create new conversation. Same tenancy + audit split as
-  // findOrCreateContact above.
-  const { data: newConv, error: createError } = await supabaseAdmin()
-    .from('conversations')
-    .insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      contact_id: contactId,
-      channel_id: channelId,
-    })
-    .select()
-    .single()
-
-  if (createError) {
-    console.error('Error creating conversation:', createError)
-    return null
-  }
-
-  return newConv
-}
+// findOrCreateContact / findOrCreateConversation now live in
+// @/lib/whatsapp/inbound-message — shared with the Evolution API
+// webhook (see that module's header comment for why).

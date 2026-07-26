@@ -39,7 +39,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('whatsapp_channels')
       .select(
-        'id, name, phone_number_id, waba_id, display_phone_number, is_active, is_default, registered_at, last_registration_error, created_at',
+        'id, name, phone_number_id, waba_id, display_phone_number, is_active, is_default, registered_at, last_registration_error, created_at, channel_type, evolution_status',
       )
       .eq('account_id', accountId)
       .order('is_default', { ascending: false })
