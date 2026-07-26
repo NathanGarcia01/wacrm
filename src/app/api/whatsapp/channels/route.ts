@@ -7,6 +7,7 @@ import {
   verifyPhoneNumber,
 } from '@/lib/whatsapp/meta-api'
 import { encrypt } from '@/lib/whatsapp/encryption'
+import { checkChannelLimit } from '@/lib/billing/server'
 
 // Lazy-initialised service-role client. Needed to detect a phone_number_id
 // already claimed by a *different* account — under RLS, the caller's own
@@ -96,6 +97,14 @@ export async function POST(request: Request) {
       if (typeof pin !== 'string' || !/^\d{6}$/.test(pin)) {
         return NextResponse.json({ error: 'PIN must be exactly 6 digits.' }, { status: 400 })
       }
+    }
+
+    // Plan gate — checked before the Meta verification call below so a
+    // maxed-out account doesn't burn a Graph API round trip just to be
+    // rejected anyway.
+    const channelLimit = await checkChannelLimit(supabase, accountId)
+    if (!channelLimit.allowed) {
+      return NextResponse.json({ error: channelLimit.error }, { status: 403 })
     }
 
     // Reject if another account already claimed this phone_number_id —

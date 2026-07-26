@@ -1240,7 +1240,9 @@
         "channelAll": "Todos los números",
         "clearFilters": "Limpiar filtros",
         "activeFilters": "{count, plural, one {# filtro activo} other {# filtros activos}}"
-      }
+      },
+      "monthlyUsage": "{count} de {max} transmisiones usadas este mes",
+      "monthlyLimitReached": "Límite mensual alcanzado — actualiza para enviar más"
     },
     "detail": {
       "funnel": "Embudo",
@@ -1973,7 +1975,8 @@
         "evolutionStatusConnecting": "Código QR pendiente",
         "evolutionStatusClose": "Desconectado",
         "cloudApiStatusRegistered": "Conectado",
-        "reconnectButton": "Reconectar"
+        "reconnectButton": "Reconectar",
+        "channelLimitReached": "Se alcanzó el límite de {max} número(s) de tu plan. Actualiza para agregar más."
       },
       "metaPricing": {
         "title": "Tarifas de Meta (ROI de Difusiones)",
@@ -2589,7 +2592,8 @@
     "saveFailed": "Error al guardar",
     "automationSaved": "Automatización creada con éxito",
     "flowSaved": "Flujo creado con éxito",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "upgradeRequiredHint": "Las automatizaciones con IA solo están disponibles en el plan Business"
   },
   "billing": {
     "trialBanner": {
@@ -2613,6 +2617,9 @@
       "perSeat": "por usuario / mes",
       "contactSales": "Hablar con ventas",
       "backToDashboard": "Volver al panel"
+    },
+    "upgradeBadge": {
+      "label": "Actualización necesaria"
     }
   }
 }

@@ -1240,7 +1240,9 @@
         "channelAll": "Todos os números",
         "clearFilters": "Limpar filtros",
         "activeFilters": "{count, plural, one {# filtro ativo} other {# filtros ativos}}"
-      }
+      },
+      "monthlyUsage": "{count} de {max} transmissões usadas este mês",
+      "monthlyLimitReached": "Limite mensal atingido — faça upgrade para enviar mais"
     },
     "detail": {
       "funnel": "Funil",
@@ -1973,7 +1975,8 @@
         "evolutionStatusConnecting": "QR Code pendente",
         "evolutionStatusClose": "Desconectado",
         "cloudApiStatusRegistered": "Conectado",
-        "reconnectButton": "Reconectar"
+        "reconnectButton": "Reconectar",
+        "channelLimitReached": "Limite de {max} número(s) do seu plano atingido. Faça upgrade para adicionar mais."
       },
       "metaPricing": {
         "title": "Tarifas da Meta (ROI de Transmissões)",
@@ -2589,7 +2592,8 @@
     "saveFailed": "Falha ao salvar",
     "automationSaved": "Automação criada com sucesso",
     "flowSaved": "Fluxo criado com sucesso",
-    "close": "Fechar"
+    "close": "Fechar",
+    "upgradeRequiredHint": "Automações com IA disponíveis apenas no plano Business"
   },
   "billing": {
     "trialBanner": {
@@ -2613,6 +2617,9 @@
       "perSeat": "por usuário / mês",
       "contactSales": "Falar com vendas",
       "backToDashboard": "Voltar para o painel"
+    },
+    "upgradeBadge": {
+      "label": "Upgrade necessário"
     }
   }
 }

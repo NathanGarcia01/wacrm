@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateAutomationDraft } from "@/lib/ai/generate-automation";
+import { getAccountPlanFeatures } from "@/lib/billing/server";
 
 /**
  * POST /api/ai/generate-automation
@@ -18,6 +19,26 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Plan gate — hasAI is Business-only. Checked server-side (not just
+  // the modal hiding its trigger button) so a direct call to this
+  // route can't bypass it.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("account_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const accountId = profile?.account_id as string | undefined;
+  if (!accountId) {
+    return NextResponse.json({ error: "Your profile is not linked to an account." }, { status: 403 });
+  }
+  const features = await getAccountPlanFeatures(supabase, accountId);
+  if (!features.hasAI) {
+    return NextResponse.json(
+      { error: "Automações com IA não estão disponíveis no seu plano atual. Faça upgrade para o plano Business." },
+      { status: 403 },
+    );
   }
 
   const body = (await request.json().catch(() => null)) as { description?: string } | null;

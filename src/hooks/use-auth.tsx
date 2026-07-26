@@ -62,6 +62,17 @@ interface AccountSummary {
   subscriptionStatus: string | null;
   /** ISO trial end date, null when not on a trial (or no subscription). */
   trialEnd: string | null;
+  /** `plans.code` ("starter" | "pro" | "business") for the account's
+   *  subscription — feeds getPlanFeatures() (src/lib/billing/features.ts).
+   *  Null when there's no subscription/plan row; callers pass that
+   *  straight through and getPlanFeatures treats it as Starter-level. */
+  planCode: string | null;
+}
+
+interface SubscriptionEmbed {
+  status: string | null;
+  trial_end: string | null;
+  plans?: { code: string } | { code: string }[] | null;
 }
 
 interface AuthContextValue {
@@ -159,7 +170,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // `subscriptions(...)` nested one level further — needs the
           // `subscriptions_select` RLS policy (migration 050) or this
           // silently comes back empty for every non-service-role caller.
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end))",
+          // `plans(code)` nested a level deeper still, off
+          // subscriptions.plan_id — needs `plans_select` (migration
+          // 050, USING (true)) which is already public-readable.
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -188,8 +202,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               is_internal?: boolean | null;
               is_active?: boolean | null;
               subscriptions?:
-                | { status: string | null; trial_end: string | null }
-                | { status: string | null; trial_end: string | null }[]
+                | SubscriptionEmbed
+                | SubscriptionEmbed[]
                 | null;
             } | null);
         // subscriptions is UNIQUE on account_id, but PostgREST's typed
@@ -200,6 +214,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? Array.isArray(accountRaw.subscriptions)
             ? (accountRaw.subscriptions[0] ?? null)
             : (accountRaw.subscriptions ?? null)
+          : null;
+        // Same object-vs-array ambiguity one level deeper, for the
+        // subscription's own `plans(code)` embed.
+        const planRaw = subscriptionRaw
+          ? Array.isArray(subscriptionRaw.plans)
+            ? (subscriptionRaw.plans[0] ?? null)
+            : (subscriptionRaw.plans ?? null)
           : null;
         // Narrow default_currency defensively: forks running pre-021
         // schemas won't have the column, so a missing/null value reads
@@ -217,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               is_active: accountRaw.is_active ?? true,
               subscriptionStatus: subscriptionRaw?.status ?? null,
               trialEnd: subscriptionRaw?.trial_end ?? null,
+              planCode: planRaw?.code ?? null,
             }
           : null;
 

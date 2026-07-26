@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { encrypt } from '@/lib/whatsapp/encryption'
+import { checkChannelLimit } from '@/lib/billing/server'
 import {
   createEvolutionInstance,
   deleteEvolutionInstance,
@@ -47,6 +48,11 @@ export async function POST(request: Request) {
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     if (!name) {
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    }
+
+    const channelLimit = await checkChannelLimit(supabase, accountId)
+    if (!channelLimit.allowed) {
+      return NextResponse.json({ error: channelLimit.error }, { status: 403 })
     }
 
     let webhookUrl: string

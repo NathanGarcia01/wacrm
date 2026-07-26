@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { WhatsAppChannelFormDialog } from './whatsapp-channel-form-dialog';
 import { WhatsAppChannelTypePicker } from './whatsapp-channel-type-picker';
 import { EvolutionChannelDialog } from './evolution-channel-dialog';
+import { usePlanFeatures } from '@/hooks/use-feature-gate';
+import { UpgradeBadge } from '@/components/billing/upgrade-badge';
 
 export interface WhatsAppChannel {
   id: string;
@@ -51,6 +53,9 @@ export function WhatsAppChannelList() {
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false);
   const [reconnectChannelId, setReconnectChannelId] = useState<string | undefined>(undefined);
+
+  const { maxChannels } = usePlanFeatures();
+  const atChannelLimit = channels.length >= maxChannels;
 
   const fetchChannels = useCallback(async () => {
     setLoading(true);
@@ -162,13 +167,18 @@ export function WhatsAppChannelList() {
             {t('description')}
           </CardDescription>
         </div>
-        <Button
-          onClick={openCreateDialog}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground shrink-0"
-        >
-          <Plus className="size-4" />
-          {t('addButton')}
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {atChannelLimit && <UpgradeBadge />}
+          <Button
+            onClick={openCreateDialog}
+            disabled={atChannelLimit}
+            title={atChannelLimit ? t('channelLimitReached', { max: maxChannels }) : undefined}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            <Plus className="size-4" />
+            {t('addButton')}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {loading ? (

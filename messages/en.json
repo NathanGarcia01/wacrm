@@ -1240,7 +1240,9 @@
         "channelAll": "All numbers",
         "clearFilters": "Clear filters",
         "activeFilters": "{count, plural, one {# active filter} other {# active filters}}"
-      }
+      },
+      "monthlyUsage": "{count} of {max} broadcasts used this month",
+      "monthlyLimitReached": "Monthly limit reached — upgrade to send more"
     },
     "detail": {
       "funnel": "Funnel",
@@ -1973,7 +1975,8 @@
         "evolutionStatusConnecting": "QR Code pending",
         "evolutionStatusClose": "Disconnected",
         "cloudApiStatusRegistered": "Connected",
-        "reconnectButton": "Reconnect"
+        "reconnectButton": "Reconnect",
+        "channelLimitReached": "Your plan's limit of {max} number(s) has been reached. Upgrade to add more."
       },
       "metaPricing": {
         "title": "Meta rates (Broadcast ROI)",
@@ -2589,7 +2592,8 @@
     "saveFailed": "Failed to save",
     "automationSaved": "Automation created successfully",
     "flowSaved": "Flow created successfully",
-    "close": "Close"
+    "close": "Close",
+    "upgradeRequiredHint": "AI automations are only available on the Business plan"
   },
   "billing": {
     "trialBanner": {
@@ -2613,6 +2617,9 @@
       "perSeat": "per user / month",
       "contactSales": "Talk to sales",
       "backToDashboard": "Back to dashboard"
+    },
+    "upgradeBadge": {
+      "label": "Upgrade required"
     }
   }
 }

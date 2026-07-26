@@ -16,6 +16,7 @@ import { AccountActions } from "@/components/admin/account-actions"
 import { ImpersonateButton } from "@/components/admin/impersonate-button"
 import { AccountUsageStatsRow } from "@/components/admin/account-usage-stats"
 import { AccountEventTimeline } from "@/components/admin/account-event-timeline"
+import { PlanLimitsCard } from "@/components/admin/plan-limits-card"
 
 function fmtDate(iso: string | null): string {
   if (!iso) return "—"
@@ -82,6 +83,9 @@ export default async function AccountDetailPage({ params }: PageProps) {
             <AccountActions account={account} plans={plans} role={currentAdmin.role} />
           </div>
         </div>
+
+        {/* Plan limits */}
+        <PlanLimitsCard planCode={account.plan?.code ?? null} isInternal={account.is_internal} />
 
         {/* Owner + members */}
         <div className="rounded-xl border border-[#22242A] bg-[#141417] p-5">

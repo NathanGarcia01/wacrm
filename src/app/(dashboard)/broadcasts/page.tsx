@@ -17,6 +17,7 @@ import {
 import { Radio, Plus, Loader2 } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
+import { usePlanFeatures } from '@/hooks/use-feature-gate';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { resolvePeriod } from '@/lib/reports/period';
@@ -71,6 +72,7 @@ export default function BroadcastsPage() {
   const router = useRouter();
   const canCreate = useCan('send-messages');
   const { accountId } = useAuth();
+  const { maxBroadcastsPerMonth } = usePlanFeatures();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +147,16 @@ export default function BroadcastsPage() {
         : resolvePeriod(filters.periodKey, filters.customFrom, filters.customTo),
     [filters.periodKey, filters.customFrom, filters.customTo],
   );
+
+  // Monthly usage counter — only meaningful for a plan with a finite
+  // cap (Starter, 500/month); Pro/Business read maxBroadcastsPerMonth
+  // as Infinity, so the bar just doesn't render for them.
+  const broadcastsThisMonth = useMemo(() => {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    return broadcasts.filter((b) => new Date(b.created_at) >= monthStart).length;
+  }, [broadcasts]);
 
   const filteredBroadcasts = useMemo(() => {
     return broadcasts.filter((b) => {
@@ -269,6 +281,29 @@ export default function BroadcastsPage() {
           {t('newBroadcast')}
         </GatedButton>
       </div>
+
+      {Number.isFinite(maxBroadcastsPerMonth) && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium text-foreground">
+              {t('monthlyUsage', { count: broadcastsThisMonth, max: maxBroadcastsPerMonth })}
+            </span>
+            {broadcastsThisMonth >= maxBroadcastsPerMonth && (
+              <span className="text-xs font-medium text-destructive">{t('monthlyLimitReached')}</span>
+            )}
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-1.5 rounded-full ${
+                broadcastsThisMonth >= maxBroadcastsPerMonth ? 'bg-destructive' : 'bg-primary'
+              }`}
+              style={{
+                width: `${Math.min(100, percent(broadcastsThisMonth, maxBroadcastsPerMonth))}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {broadcasts.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-border bg-card">

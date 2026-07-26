@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useFeatureGate } from "@/hooks/use-feature-gate";
+import { UpgradeBadge } from "@/components/billing/upgrade-badge";
 
 type Target = "automation" | "flow";
 
@@ -80,6 +82,7 @@ interface AiGenerateModalProps {
 
 export function AiGenerateModal({ target, onSaved }: AiGenerateModalProps) {
   const t = useTranslations("aiGenerate");
+  const hasAI = useFeatureGate("hasAI");
   const [open, setOpen] = useState(false);
   const [description, setDescription] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -172,6 +175,24 @@ export function AiGenerateModal({ target, onSaved }: AiGenerateModalProps) {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!hasAI) {
+    return (
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          disabled
+          title={t("upgradeRequiredHint")}
+          className="gap-1.5 border-primary/40 text-primary opacity-50"
+        >
+          <Sparkles className="h-4 w-4" />
+          {t("buttonLabel")}
+        </Button>
+        <UpgradeBadge />
+      </div>
+    );
   }
 
   return (
