@@ -3,6 +3,7 @@ import type { AdminAccountRow, AdminRole, Plan, SubscriptionStatus } from "@/lib
 import { STATUS_META } from "@/lib/admin/types"
 import { trialDaysRemaining } from "@/lib/admin/trial"
 import { formatCurrency } from "@/lib/currency"
+import { formatDocument } from "@/lib/document"
 import { AccountActions } from "./account-actions"
 import { EditAccountModal } from "./edit-account-modal"
 
@@ -34,11 +35,12 @@ export function AccountsTable({
 
   return (
     <div className="overflow-x-auto rounded-xl border border-[#22242A] bg-[#141417]">
-      <table className="w-full min-w-[1280px] text-left text-sm">
+      <table className="w-full min-w-[1420px] text-left text-sm">
         <thead>
           <tr className="border-b border-[#22242A] text-xs text-white/40">
             <th className="px-4 py-3 font-medium">Account</th>
             <th className="px-4 py-3 font-medium">Owner</th>
+            <th className="px-4 py-3 font-medium">CPF/CNPJ</th>
             <th className="px-4 py-3 font-medium">Plano</th>
             <th className="px-4 py-3 font-medium">Status</th>
             <th className="px-4 py-3 font-medium">Trial vence em</th>
@@ -82,6 +84,18 @@ export function AccountsTable({
                 <td className="px-4 py-3">
                   <div className="text-white/80">{row.owner?.full_name ?? "—"}</div>
                   <div className="text-xs text-white/40">{row.owner?.email ?? "—"}</div>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-white/70">
+                  {row.document ? (
+                    <>
+                      {formatDocument(row.document)}
+                      <div className="text-[10px] tracking-wide text-white/30 uppercase">
+                        {row.document_type}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="text-white/30">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-white/70">{row.plan?.name ?? "—"}</td>
                 <td className="px-4 py-3">

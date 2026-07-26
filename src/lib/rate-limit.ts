@@ -168,6 +168,12 @@ export const RATE_LIMITS = {
    *  the guessable-identifier surface (an email is far easier to know
    *  than ADMIN_SECRET), so this bounds password-guessing attempts. */
   adminLogin: { limit: 5, windowMs: 15 * 60_000 },
+  /** CPF/CNPJ pre-check on signup (public, per-IP). This endpoint is
+   *  an existence oracle by design (it has to tell the user "this
+   *  document already has an account"), so the limit is tighter than
+   *  invitationPeek — enough for someone fixing a couple of typos,
+   *  not enough for bulk-enumerating which documents are registered. */
+  validateDocument: { limit: 10, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

@@ -62,6 +62,8 @@ interface RawAccountRow {
   created_at: string
   is_internal: boolean
   is_active: boolean
+  document: string | null
+  document_type: "cpf" | "cnpj" | null
   // account_id is UNIQUE on subscriptions, so PostgREST returns a
   // single object (or null) here, never an array — don't index [0].
   subscriptions: AccountSubscription | null
@@ -90,6 +92,8 @@ function shapeAccountRow(
     created_at: r.created_at,
     is_internal: r.is_internal,
     is_active: r.is_active,
+    document: r.document,
+    document_type: r.document_type,
     subscription: sub,
     owner: owner ? { user_id: owner.user_id, full_name: owner.full_name, email: owner.email } : null,
     plan: sub ? (plansById.get(sub.plan_id) ?? null) : null,
@@ -155,7 +159,7 @@ export async function getAccountsPage(
   let query = admin
     .from('accounts')
     .select(
-      `id, name, owner_user_id, created_at, is_internal, is_active, ${subscriptionEmbed}, profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)`,
+      `id, name, owner_user_id, created_at, is_internal, is_active, document, document_type, ${subscriptionEmbed}, profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)`,
       { count: 'exact' },
     )
     .order('created_at', { ascending: false })
@@ -445,7 +449,7 @@ export async function getAccountById(accountId: string): Promise<AdminAccountRow
   const { data, error } = await admin
     .from('accounts')
     .select(
-      'id, name, owner_user_id, created_at, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(*), profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)',
+      'id, name, owner_user_id, created_at, is_internal, is_active, document, document_type, subscriptions!subscriptions_account_id_fkey(*), profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)',
     )
     .eq('id', accountId)
     .maybeSingle()
@@ -554,7 +558,7 @@ export async function getAccountMembers(accountId: string): Promise<AccountMembe
 }
 
 const ACCOUNTS_EMBED_SELECT =
-  'id, name, owner_user_id, created_at, is_internal, is_active, subscriptions!subscriptions_account_id_fkey!inner(*), profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)'
+  'id, name, owner_user_id, created_at, is_internal, is_active, document, document_type, subscriptions!subscriptions_account_id_fkey!inner(*), profiles!profiles_account_id_fkey(user_id, full_name, email, account_role)'
 
 /** Shared tail for the alert-card queries below — plans lookup +
  *  last-sign-in batch + shaping, once. */

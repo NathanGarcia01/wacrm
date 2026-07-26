@@ -1335,6 +1335,9 @@
       "verifyThenAcceptHint": "Verify your email, then accept the invitation to join your team.",
       "getStartedHint": "Get started with Funilly",
       "fullNameLabel": "Full name",
+      "documentLabel": "CPF or CNPJ (Brazilian tax ID)",
+      "documentPlaceholder": "000.000.000-00",
+      "documentInvalid": "Invalid CPF or CNPJ. Check the numbers you entered.",
       "emailLabel": "Email",
       "passwordLabel": "Password",
       "passwordPlaceholder": "At least 6 characters",
@@ -1376,7 +1379,8 @@
     "shared": {
       "orContinueWith": "or continue with",
       "continueWithGoogle": "Continue with Google",
-      "secureConnection": "Secure, encrypted connection"
+      "secureConnection": "Secure, encrypted connection",
+      "connectionError": "Could not connect to the server"
     },
     "resetPassword": {
       "title": "Create new password",

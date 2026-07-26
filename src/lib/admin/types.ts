@@ -56,6 +56,11 @@ export interface AdminAccountRow {
   created_at: string
   is_internal: boolean
   is_active: boolean
+  /** Raw digits, no mask — `document_type` disambiguates 11-digit CPF
+   *  from an unusually-short/legacy value. Both null for every account
+   *  created before migration 051. */
+  document: string | null
+  document_type: "cpf" | "cnpj" | null
   subscription: AccountSubscription | null
   owner: AccountOwner | null
   plan: Plan | null

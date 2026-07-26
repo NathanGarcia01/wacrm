@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Loader2, Pencil } from "lucide-react"
 import type { AdminAccountRow, Plan, SubscriptionStatus } from "@/lib/admin/types"
 import { STATUS_META } from "@/lib/admin/types"
+import { formatDocument } from "@/lib/document"
 
 const STATUS_OPTIONS: SubscriptionStatus[] = [
   "trialing",
@@ -114,6 +115,21 @@ export function EditAccountModal({ account, plans }: { account: AdminAccountRow;
                   onChange={(e) => setOwnerEmail(e.target.value)}
                   className="h-8 w-full rounded-lg border border-[#22242A] bg-[#0A0A0B] px-2.5 text-sm text-white outline-none focus:border-[#60A5FA]"
                 />
+              </Field>
+
+              <Field label="CPF/CNPJ">
+                <div className="flex h-8 w-full items-center rounded-lg border border-[#22242A] bg-[#0A0A0B]/50 px-2.5 font-mono text-sm text-white/60">
+                  {account.document ? (
+                    <>
+                      {formatDocument(account.document)}
+                      <span className="ml-2 text-[10px] tracking-wide text-white/30 uppercase">
+                        {account.document_type}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-white/30">Não informado</span>
+                  )}
+                </div>
               </Field>
 
               <div className="grid grid-cols-2 gap-3">

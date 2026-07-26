@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CheckCircle, ShieldCheck } from "lucide-react";
 import { AuthShell } from "../_components/auth-shell";
 import { GoogleIcon } from "../_components/google-icon";
+import { formatDocument, onlyDigits, validateDocument } from "@/lib/document";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -31,6 +32,7 @@ function SignupPageInner() {
   const inviteToken = searchParams.get("invite");
 
   const [fullName, setFullName] = useState("");
+  const [document, setDocument] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -53,7 +55,36 @@ function SignupPageInner() {
       return;
     }
 
+    // Client-side checksum check first — instant feedback, no network
+    // round trip for the common "typo in the CPF" case. The server
+    // route re-validates this too (never trust the client), plus does
+    // the uniqueness lookup this page has no DB access for.
+    const documentDigits = onlyDigits(document);
+    const { valid: documentValid, type: documentType } = validateDocument(documentDigits);
+    if (!documentValid || !documentType) {
+      setError(t("documentInvalid"));
+      return;
+    }
+
     setLoading(true);
+
+    try {
+      const checkRes = await fetch("/api/auth/validate-document", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: documentDigits }),
+      });
+      const checkBody = await checkRes.json().catch(() => ({}));
+      if (!checkRes.ok || !checkBody.valid) {
+        setError(checkBody.error ?? t("documentInvalid"));
+        setLoading(false);
+        return;
+      }
+    } catch {
+      setError(tShared("connectionError"));
+      setLoading(false);
+      return;
+    }
 
     // If we have an invite token, point Supabase's verification
     // email back at the join page so the user can accept after
@@ -69,13 +100,25 @@ function SignupPageInner() {
       options: {
         data: {
           full_name: fullName,
+          document: documentDigits,
+          document_type: documentType,
         },
         ...(emailRedirectTo ? { emailRedirectTo } : {}),
       },
     });
 
     if (error) {
-      setError(error.message);
+      // The one case handle_new_user() (migration 051) deliberately
+      // fails signUp() for: a document that won the race against the
+      // pre-check above. Supabase wraps DB-trigger failures in a
+      // generic message, so this can't show the precise "já
+      // cadastrado" copy — surfacing *some* actionable text beats the
+      // raw "Database error saving new user".
+      setError(
+        error.message.toLowerCase().includes("database error")
+          ? t("documentInvalid")
+          : error.message,
+      );
       setLoading(false);
       return;
     }
@@ -160,6 +203,26 @@ function SignupPageInner() {
             placeholder="João da Silva"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
+            required
+            className="h-11 rounded-lg border border-white/8 bg-white/4 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/20"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="document"
+            className="text-[11px] font-medium tracking-wide text-white/30 uppercase"
+          >
+            {t("documentLabel")}
+          </label>
+          <input
+            id="document"
+            type="text"
+            inputMode="numeric"
+            placeholder={t("documentPlaceholder")}
+            value={document}
+            onChange={(e) => setDocument(formatDocument(e.target.value))}
+            maxLength={18}
             required
             className="h-11 rounded-lg border border-white/8 bg-white/4 px-3.5 text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/20"
           />

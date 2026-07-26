@@ -1335,6 +1335,9 @@
       "verifyThenAcceptHint": "Confirme seu email e depois aceite o convite para entrar na sua equipe.",
       "getStartedHint": "Comece a usar o Funilly",
       "fullNameLabel": "Nome completo",
+      "documentLabel": "CPF ou CNPJ",
+      "documentPlaceholder": "000.000.000-00",
+      "documentInvalid": "CPF ou CNPJ inválido. Confira os números digitados.",
       "emailLabel": "Email",
       "passwordLabel": "Senha",
       "passwordPlaceholder": "Pelo menos 6 caracteres",
@@ -1376,7 +1379,8 @@
     "shared": {
       "orContinueWith": "ou continue com",
       "continueWithGoogle": "Continuar com Google",
-      "secureConnection": "Conexão segura e criptografada"
+      "secureConnection": "Conexão segura e criptografada",
+      "connectionError": "Não foi possível conectar ao servidor"
     },
     "resetPassword": {
       "title": "Criar nova senha",
