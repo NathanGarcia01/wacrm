@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import Stripe from 'stripe'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { stripe } from '@/lib/admin/stripe'
 
@@ -100,6 +101,32 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url })
   } catch (err) {
+    // toErrorResponse() only logs the raw `err` object and always
+    // returns a generic "Internal server error" to the client (by
+    // design — server internals shouldn't leak on the wire). That
+    // makes a StripeError's actual reason (e.g. "No such price" when
+    // STRIPE_SECRET_KEY points at a different mode/account than the
+    // one the price id was created in) easy to miss in logs that
+    // aren't pretty-printing nested error objects. Log the fields
+    // that actually explain *why* explicitly before falling through.
+    if (err instanceof Stripe.errors.StripeError) {
+      console.error('[billing/checkout] Stripe error:', {
+        type: err.type,
+        code: err.code,
+        statusCode: err.statusCode,
+        message: err.message,
+        requestId: err.requestId,
+        param: 'param' in err ? err.param : undefined,
+      })
+    } else if (err instanceof Error) {
+      console.error('[billing/checkout] unhandled error:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+      })
+    } else {
+      console.error('[billing/checkout] unhandled non-Error throw:', err)
+    }
     return toErrorResponse(err)
   }
 }
