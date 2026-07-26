@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronRight, CreditCard, Loader2 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -36,7 +36,7 @@ export function SettingsOverview({
 }: {
   onSelect: (section: SettingsSection) => void;
 }) {
-  const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers } =
+  const { user, profile, accountId, accountRole, defaultCurrency, canManageMembers, canEditSettings } =
     useAuth();
   const { mode, theme } = useTheme();
   const t = useTranslations('settings.overview');
@@ -294,6 +294,32 @@ export function SettingsOverview({
           );
         })}
       </div>
+
+      {/* Billing — a plain external link (not a SettingsSection tile
+          above) since it opens Stripe's own hosted Customer Portal
+          rather than a panel rendered inside this app. Admin+ only,
+          matching the role gate on GET /api/billing/portal server-side —
+          hiding it for lower roles avoids them ever hitting that
+          route's 403 JSON response directly. */}
+      {canEditSettings && (
+        <a
+          href="/api/billing/portal"
+          className="mt-3 flex items-center gap-3.5 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary-soft-2 hover:bg-card-2"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+            <CreditCard className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-foreground">
+              {t('manageSubscription')}
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {t('manageSubscriptionSubtitle')}
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </a>
+      )}
     </section>
   );
 }

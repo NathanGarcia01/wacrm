@@ -1660,7 +1660,9 @@
       "modeAccent": "Modo {mode} · Color {accent}",
       "loading": "Cargando…",
       "modeLight": "claro",
-      "modeDark": "oscuro"
+      "modeDark": "oscuro",
+      "manageSubscription": "Gestionar suscripción",
+      "manageSubscriptionSubtitle": "Tarjeta, facturas y cancelación — abre el portal de Stripe"
     },
     "nps": {
       "title": "Satisfacción (NPS)",
@@ -2615,8 +2617,12 @@
       "title": "Elige tu plan",
       "subtitle": "Sigue usando Funilly sin interrupciones.",
       "perSeat": "por usuario / mes",
-      "contactSales": "Hablar con ventas",
-      "backToDashboard": "Volver al panel"
+      "backToDashboard": "Volver al panel",
+      "seatsLabel": "Cantidad de seats",
+      "totalLabel": "Total: {total}/mes para {seats} seat(s)",
+      "currentPlanBadge": "Plan actual",
+      "subscribeButton": "Suscribirse ahora",
+      "checkoutFailed": "No fue posible iniciar el checkout. Intenta de nuevo."
     },
     "upgradeBadge": {
       "label": "Actualización necesaria"
