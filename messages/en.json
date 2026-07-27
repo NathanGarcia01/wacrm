@@ -1182,7 +1182,17 @@
       "pipelineStage": "Funnel Stage",
       "custom": "Custom",
       "addTagsTitle": "Add a tag to every recipient on send",
-      "addTagsHint": "Selected tags are applied to each contact as soon as their message is sent successfully."
+      "addTagsHint": "Selected tags are applied to each contact as soon as their message is sent successfully.",
+      "evolutionChannelBadge": "⚠️ Unofficial channel",
+      "evolutionRiskTitle": "⚠️ Warning — Ban Risk",
+      "evolutionRiskIntro": "You're about to send a bulk broadcast using a number connected via QR Code (unofficial).",
+      "evolutionRiskBody": "This method is not approved by Meta and may result in:",
+      "evolutionRiskItem1": "Temporary number block",
+      "evolutionRiskItem2": "Permanent WhatsApp account ban",
+      "evolutionRiskItem3": "Loss of all conversation history",
+      "evolutionRiskRecommendation": "We recommend using Meta's Official API for bulk broadcasts.",
+      "evolutionRiskConfirmation": "By continuing, you confirm that you understand the risks and take full responsibility for this use.",
+      "evolutionRiskAccept": "I understand the risks, continue"
     },
     "status": {
       "draft": "Draft",

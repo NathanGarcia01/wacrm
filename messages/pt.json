@@ -1182,7 +1182,17 @@
       "pipelineStage": "Etapa do Funil",
       "custom": "Personalizado",
       "addTagsTitle": "Adicionar tag a todos os destinatários ao enviar",
-      "addTagsHint": "As tags selecionadas são aplicadas a cada contato assim que a mensagem é enviada com sucesso."
+      "addTagsHint": "As tags selecionadas são aplicadas a cada contato assim que a mensagem é enviada com sucesso.",
+      "evolutionChannelBadge": "⚠️ Canal não oficial",
+      "evolutionRiskTitle": "⚠️ Atenção — Risco de Banimento",
+      "evolutionRiskIntro": "Você está prestes a fazer um disparo em massa usando um número conectado via QR Code (não oficial).",
+      "evolutionRiskBody": "Este método não é homologado pela Meta e pode resultar em:",
+      "evolutionRiskItem1": "Bloqueio temporário do número",
+      "evolutionRiskItem2": "Banimento permanente da conta WhatsApp",
+      "evolutionRiskItem3": "Perda de todo o histórico de conversas",
+      "evolutionRiskRecommendation": "Recomendamos usar a API Oficial da Meta para disparos em massa.",
+      "evolutionRiskConfirmation": "Ao continuar, você confirma que entende os riscos e assume total responsabilidade pelo uso.",
+      "evolutionRiskAccept": "Entendo os riscos, continuar"
     },
     "status": {
       "draft": "Rascunho",

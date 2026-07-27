@@ -1182,7 +1182,17 @@
       "pipelineStage": "Etapa del Embudo",
       "custom": "Personalizado",
       "addTagsTitle": "Agregar una tag a todos los destinatarios al enviar",
-      "addTagsHint": "Las tags seleccionadas se aplican a cada contacto en cuanto su mensaje se envía con éxito."
+      "addTagsHint": "Las tags seleccionadas se aplican a cada contacto en cuanto su mensaje se envía con éxito.",
+      "evolutionChannelBadge": "⚠️ Canal no oficial",
+      "evolutionRiskTitle": "⚠️ Atención — Riesgo de Baneo",
+      "evolutionRiskIntro": "Estás a punto de hacer un envío masivo usando un número conectado vía código QR (no oficial).",
+      "evolutionRiskBody": "Este método no está homologado por Meta y puede resultar en:",
+      "evolutionRiskItem1": "Bloqueo temporal del número",
+      "evolutionRiskItem2": "Baneo permanente de la cuenta de WhatsApp",
+      "evolutionRiskItem3": "Pérdida de todo el historial de conversaciones",
+      "evolutionRiskRecommendation": "Recomendamos usar la API Oficial de Meta para envíos masivos.",
+      "evolutionRiskConfirmation": "Al continuar, confirmas que entiendes los riesgos y asumes toda la responsabilidad por su uso.",
+      "evolutionRiskAccept": "Entiendo los riesgos, continuar"
     },
     "status": {
       "draft": "Borrador",

@@ -23,7 +23,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   ArrowLeft,
@@ -79,6 +78,23 @@ interface WhatsAppChannelOption {
   name: string;
   display_phone_number: string | null;
   is_default: boolean;
+  channel_type: 'cloud_api' | 'evolution';
+}
+
+// "Per session" — sessionStorage clears when the tab/browser session
+// ends, so the warning resurfaces next time the user opens the app,
+// unlike localStorage which would silently stop showing it forever
+// after the first accept.
+const EVOLUTION_RISK_ACK_KEY = 'funilly:evolution-broadcast-risk-ack';
+
+function hasAcceptedEvolutionRisk(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.sessionStorage.getItem(EVOLUTION_RISK_ACK_KEY) === 'true';
+}
+
+function markEvolutionRiskAccepted(): void {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.setItem(EVOLUTION_RISK_ACK_KEY, 'true');
 }
 
 type QualityRating = 'GREEN' | 'YELLOW' | 'RED' | 'UNKNOWN';
@@ -147,6 +163,15 @@ function QualityBadge({ quality, loading }: { quality: QualityRating; loading: b
   );
 }
 
+function EvolutionChannelBadge() {
+  const t = useTranslations('broadcasts.step4');
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-gold-soft px-2 py-0.5 text-[11px] font-medium text-gold">
+      {t('evolutionChannelBadge')}
+    </span>
+  );
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
   const minutes = Math.round(seconds / 60);
@@ -169,6 +194,7 @@ export function Step4ScheduleSend({
 }: Step4Props) {
   const t = useTranslations('broadcasts.step4');
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showRiskWarning, setShowRiskWarning] = useState(false);
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
 
@@ -276,6 +302,12 @@ export function Step4ScheduleSend({
     [channels],
   );
 
+  const selectedChannel = useMemo(
+    () => channels.find((c) => c.id === selectedChannelId) ?? null,
+    [channels, selectedChannelId],
+  );
+  const isEvolutionChannel = selectedChannel?.channel_type === 'evolution';
+
   useEffect(() => {
     let cancelled = false;
     async function loadQuality() {
@@ -365,11 +397,23 @@ export function Step4ScheduleSend({
             <SelectContent className="border-border bg-popover">
               {channels.map((c) => (
                 <SelectItem key={c.id} value={c.id}>
-                  {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
+                  <span className="flex items-center gap-2">
+                    {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
+                    {c.channel_type === 'evolution' && <EvolutionChannelBadge />}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        </div>
+      )}
+
+      {/* Standalone warning for the channel that will actually send —
+          shown even with a single channel (and thus no picker above),
+          since that's the common case and the risk still applies. */}
+      {isEvolutionChannel && (
+        <div>
+          <EvolutionChannelBadge />
         </div>
       )}
 
@@ -619,18 +663,71 @@ export function Step4ScheduleSend({
             </Button>
           )}
 
-          <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-          <DialogTrigger
-            render={
-              <Button
-                disabled={!canConfirm}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              />
-            }
+          <Button
+            disabled={!canConfirm}
+            onClick={() => {
+              // Evolution (QR Code / unofficial) channels get an extra
+              // ban-risk gate before the normal confirm dialog — but
+              // only once per browser session, so re-sending a second
+              // broadcast in the same sitting doesn't nag again.
+              if (isEvolutionChannel && !hasAcceptedEvolutionRisk()) {
+                setShowRiskWarning(true);
+              } else {
+                setShowConfirm(true);
+              }
+            }}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             <Send className="h-4 w-4" />
             {scheduleEnabled ? t('scheduleBroadcast') : t('sendBroadcast')}
-          </DialogTrigger>
+          </Button>
+
+          <Dialog open={showRiskWarning} onOpenChange={setShowRiskWarning}>
+            <DialogContent className="border-border bg-popover sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-popover-foreground">
+                  {t('evolutionRiskTitle')}
+                </DialogTitle>
+                <DialogDescription render={<div className="space-y-3 text-muted-foreground" />}>
+                  <p>{t('evolutionRiskIntro')}</p>
+                  <p>{t('evolutionRiskBody')}</p>
+                  <ul className="list-disc space-y-1 pl-5">
+                    <li>{t('evolutionRiskItem1')}</li>
+                    <li>{t('evolutionRiskItem2')}</li>
+                    <li>{t('evolutionRiskItem3')}</li>
+                  </ul>
+                  <p>{t('evolutionRiskRecommendation')}</p>
+                  <p className="font-medium text-popover-foreground">
+                    {t('evolutionRiskConfirmation')}
+                  </p>
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowRiskWarning(false);
+                    onBack();
+                  }}
+                  className="border-border text-muted-foreground"
+                >
+                  {t('cancel')}
+                </Button>
+                <Button
+                  onClick={() => {
+                    markEvolutionRiskAccepted();
+                    setShowRiskWarning(false);
+                    setShowConfirm(true);
+                  }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  {t('evolutionRiskAccept')}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
           <DialogContent className="border-border bg-popover sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="text-popover-foreground">{t('confirmBroadcast')}</DialogTitle>
