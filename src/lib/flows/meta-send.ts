@@ -2,6 +2,7 @@ import {
   sendInteractiveButtons,
   sendInteractiveList,
   sendMediaMessage,
+  sendTemplateMessage,
   sendTextMessage,
   type InteractiveButton,
   type InteractiveListSection,
@@ -140,6 +141,122 @@ export async function engineSendText(
     .from('conversations')
     .update({
       last_message_text: args.text,
+      last_message_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.conversationId)
+
+  return { whatsapp_message_id: waMessageId }
+}
+
+interface SendTemplateEngineArgs {
+  accountId: string
+  userId: string
+  conversationId: string
+  contactId: string
+  templateName: string
+  language?: string
+  /** Positional params for Meta's `{{1}}`, `{{2}}`, … placeholders —
+   *  already sorted numerically by the caller (see workflow-engine.ts's
+   *  `send_template` case, which mirrors automations/engine.ts's
+   *  numeric-key sort so a >=10-variable template doesn't scramble). */
+  params?: string[]
+}
+
+/**
+ * Send an approved Meta WhatsApp template from the Flows engine.
+ *
+ * Used by the workflow-mode runner's `send_template` node — the only
+ * way to message a contact outside the 24h customer-service window.
+ * Mirrors `src/lib/automations/meta-send.ts`'s `engineSendTemplate`
+ * (same Meta call, same phone-variant retry), duplicated here rather
+ * than shared per this file's header note: the two engines don't share
+ * senders so they don't fight over each other's shape.
+ */
+export async function engineSendTemplate(
+  args: SendTemplateEngineArgs,
+): Promise<{ whatsapp_message_id: string }> {
+  const db = supabaseAdmin()
+
+  const { data: contact, error: contactErr } = await db
+    .from('contacts')
+    .select('id, phone')
+    .eq('id', args.contactId)
+    .eq('account_id', args.accountId)
+    .maybeSingle()
+  if (contactErr || !contact?.phone) {
+    throw new Error('contact not found for this account')
+  }
+
+  const sanitized = sanitizePhoneForMeta(contact.phone)
+  if (!isValidE164(sanitized)) {
+    throw new Error(`contact phone invalid: ${contact.phone}`)
+  }
+
+  const { data: conversationRow } = await db
+    .from('conversations')
+    .select('channel_id')
+    .eq('id', args.conversationId)
+    .eq('account_id', args.accountId)
+    .maybeSingle()
+  const config = await resolveChannelById(db, conversationRow?.channel_id ?? null, args.accountId)
+  if (!config) {
+    throw new Error('WhatsApp not configured for this account')
+  }
+
+  const accessToken = config.accessToken
+
+  const attempt = async (phone: string): Promise<string> => {
+    const r = await sendTemplateMessage({
+      phoneNumberId: config.phoneNumberId,
+      accessToken,
+      to: phone,
+      templateName: args.templateName,
+      language: args.language,
+      params: args.params,
+    })
+    return r.messageId
+  }
+
+  const variants = phoneVariants(sanitized)
+  let workingPhone = sanitized
+  let waMessageId = ''
+  let lastError: unknown = null
+  for (const v of variants) {
+    try {
+      waMessageId = await attempt(v)
+      workingPhone = v
+      lastError = null
+      break
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!isRecipientNotAllowedError(msg)) throw err
+      lastError = err
+    }
+  }
+  if (lastError) throw lastError
+
+  if (workingPhone !== sanitized) {
+    await db.from('contacts').update({ phone: workingPhone }).eq('id', contact.id)
+  }
+
+  const { error: msgErr } = await db.from('messages').insert({
+    conversation_id: args.conversationId,
+    sender_type: 'bot',
+    content_type: 'template',
+    content_text: null,
+    template_name: args.templateName,
+    message_id: waMessageId,
+    status: 'sent',
+  })
+  if (msgErr) {
+    throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`)
+  }
+
+  await db
+    .from('conversations')
+    .update({
+      last_message_text: `[template:${args.templateName}]`,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

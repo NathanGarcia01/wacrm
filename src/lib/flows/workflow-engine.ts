@@ -42,7 +42,7 @@ import type {
   NpsReceivedTriggerConfig,
 } from "@/types";
 import { supabaseAdmin } from "./admin-client";
-import { engineSendMedia, engineSendText } from "./meta-send";
+import { engineSendMedia, engineSendTemplate, engineSendText } from "./meta-send";
 import { sendNpsSurvey } from "@/lib/nps/send-survey";
 import {
   endRun,
@@ -63,6 +63,7 @@ import type {
   RandomizerNodeConfig,
   SendMediaNodeConfig,
   SendMessageNodeConfig,
+  SendTemplateNodeConfig,
   SendWebhookNodeConfig,
   SetTagNodeConfig,
   StartFlowNodeConfig,
@@ -384,6 +385,55 @@ async function advanceWorkflow(
             detail: err instanceof Error ? err.message : String(err),
           });
           await endRun(db, run.id, "failed", "send_media_failed");
+          return;
+        }
+        currentKey = cfg.next_node_key;
+        continue;
+      }
+
+      case "send_template": {
+        const cfg = node.config as unknown as SendTemplateNodeConfig;
+        try {
+          if (!run.contact_id) throw new Error("send_template needs a contact");
+          const conversationId = await resolveConversationId(db, run);
+          // Meta templates use positional {{1}}, {{2}}, … placeholders,
+          // so params MUST go out in strict numeric order — a
+          // lexicographic sort of "1","2",…,"10" would scramble any
+          // template with >=10 variables. Mirrors
+          // automations/engine.ts's identical send_template sort.
+          const params = cfg.variables
+            ? Object.keys(cfg.variables)
+                .sort((a, b) => {
+                  const na = Number(a);
+                  const nb = Number(b);
+                  const aNum = Number.isFinite(na);
+                  const bNum = Number.isFinite(nb);
+                  if (aNum && bNum) return na - nb;
+                  if (aNum) return -1;
+                  if (bNum) return 1;
+                  return a.localeCompare(b);
+                })
+                .map((k) => String(cfg.variables![k]))
+            : [];
+          const { whatsapp_message_id } = await engineSendTemplate({
+            accountId: run.account_id,
+            userId: run.user_id,
+            conversationId,
+            contactId: run.contact_id,
+            templateName: cfg.template_name,
+            language: cfg.language,
+            params,
+          });
+          await logEvent(db, run.id, "message_sent", node.node_key, {
+            node_type: "send_template",
+            whatsapp_message_id,
+          });
+        } catch (err) {
+          await logEvent(db, run.id, "error", node.node_key, {
+            reason: "send_template_failed",
+            detail: err instanceof Error ? err.message : String(err),
+          });
+          await endRun(db, run.id, "failed", "send_template_failed");
           return;
         }
         currentKey = cfg.next_node_key;

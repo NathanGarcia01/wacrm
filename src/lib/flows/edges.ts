@@ -61,6 +61,7 @@ export function deriveCanvasEdges(
       case "start":
       case "send_message":
       case "send_media":
+    case "send_template":
       case "collect_input":
       case "set_tag":
       case "start_flow":
@@ -210,6 +211,7 @@ export function outgoingSlots(
     case "start":
     case "send_message":
     case "send_media":
+    case "send_template":
     case "collect_input":
     case "set_tag":
     case "start_flow":
@@ -300,6 +302,7 @@ export function applyEdgeConnection(
     case "start":
     case "send_message":
     case "send_media":
+    case "send_template":
     case "collect_input":
     case "set_tag":
     case "start_flow":
@@ -410,6 +413,7 @@ function patchedConfigWithoutKey(
     case "start":
     case "send_message":
     case "send_media":
+    case "send_template":
     case "collect_input":
     case "set_tag":
     case "start_flow":

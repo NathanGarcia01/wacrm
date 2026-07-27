@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media";
 import { slugify, type BuilderNode } from "../shared";
 import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
@@ -121,6 +122,16 @@ export function NodeConfigForm({
       return (
         <SendMediaForm
           cfg={cfg as SendMediaCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "send_template":
+      return (
+        <SendTemplateForm
+          cfg={cfg as SendTemplateCfg}
           allNodes={allNodes}
           currentKey={node.node_key}
           onUpdateConfig={onUpdateConfig}
@@ -2015,6 +2026,185 @@ function SendMediaForm({
             placeholder={t("documentFilenamePlaceholder")}
             className="bg-muted text-xs"
           />
+        </div>
+      )}
+
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("afterSendAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+// ============================================================
+// send_template — workflow-mode only. Sends an approved Meta WhatsApp
+// template; see SendTemplateNodeConfig in src/lib/flows/types.ts.
+// ============================================================
+
+interface SendTemplateCfg {
+  template_name?: string;
+  language?: string;
+  variables?: Record<string, string>;
+  next_node_key?: string;
+}
+
+interface ApprovedTemplate {
+  id: string;
+  name: string;
+  language: string | null;
+  body_text: string;
+}
+
+/**
+ * Queries `message_templates` directly (not a `/api/*` round trip like
+ * `useUserTags`/`useAccountMembers` above) — mirrors
+ * `automations/automation-builder.tsx`'s `ResourcesProvider`, which
+ * does the same direct RLS-scoped query for the exact same picker.
+ * No dedicated list endpoint exists for this table, so matching the
+ * working pattern beats adding one.
+ */
+function useApprovedTemplates(): ApprovedTemplate[] {
+  const [templates, setTemplates] = useState<ApprovedTemplate[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("message_templates")
+        .select("id, name, language, body_text")
+        .eq("status", "APPROVED")
+        .order("name");
+      if (!cancelled) setTemplates((data as ApprovedTemplate[] | null) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return templates;
+}
+
+/** Counts the highest `{{N}}` placeholder in a template body — Meta's
+ *  templates use positional 1-indexed placeholders, not named ones. */
+function placeholderCount(bodyText: string): number {
+  const matches = bodyText.matchAll(/\{\{\s*(\d+)\s*\}\}/g);
+  let max = 0;
+  for (const m of matches) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
+}
+
+function SendTemplateForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: SendTemplateCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const templates = useApprovedTemplates();
+
+  const templateName = cfg.template_name ?? "";
+  const language = cfg.language ?? "";
+  const variables = cfg.variables ?? {};
+
+  // Encode name + language in the option value so two templates that
+  // share a name across languages stay distinct — same trick as
+  // automations' SendTemplateFields.
+  const toValue = (name: string, lang: string) => `${name}::${lang}`;
+  const current = templateName ? toValue(templateName, language) : "";
+  const selected = templates.find(
+    (tpl) => toValue(tpl.name, tpl.language ?? "") === current,
+  );
+  const placeholders = selected ? placeholderCount(selected.body_text) : 0;
+
+  return (
+    <>
+      {templates.length > 0 ? (
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("templateLabel")}
+          </label>
+          <select
+            value={current}
+            onChange={(e) => {
+              const [name, lang] = e.target.value.split("::");
+              // New template picked — its placeholder set is unrelated
+              // to whatever variables were filled in for the last one.
+              onUpdateConfig({
+                template_name: name ?? "",
+                language: lang ?? "",
+                variables: {},
+              });
+            }}
+            className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground"
+          >
+            <option value="">{t("selectTemplate")}</option>
+            {templates.map((tpl) => {
+              const lang = tpl.language ?? "";
+              return (
+                <option key={tpl.id} value={toValue(tpl.name, lang)}>
+                  {tpl.name} {lang ? `(${lang})` : ""}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t("templateNameLabel")}
+            </label>
+            <Input
+              value={templateName}
+              onChange={(e) => onUpdateConfig({ template_name: e.target.value })}
+              className="bg-muted text-xs"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t("templateLanguageLabel")}
+            </label>
+            <Input
+              value={language}
+              onChange={(e) => onUpdateConfig({ language: e.target.value })}
+              placeholder="pt_BR"
+              className="bg-muted text-xs"
+            />
+          </div>
+        </>
+      )}
+
+      {placeholders > 0 && (
+        <div className="space-y-2">
+          <label className="block text-xs text-muted-foreground">
+            {t("templateVariablesLabel")}
+          </label>
+          {Array.from({ length: placeholders }, (_, i) => String(i + 1)).map((key) => (
+            <div key={key} className="flex items-center gap-2">
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                {`{{${key}}}`}
+              </span>
+              <Input
+                value={variables[key] ?? ""}
+                onChange={(e) =>
+                  onUpdateConfig({ variables: { ...variables, [key]: e.target.value } })
+                }
+                placeholder={t("templateVariablePlaceholder")}
+                className="bg-muted text-xs"
+              />
+            </div>
+          ))}
         </div>
       )}
 

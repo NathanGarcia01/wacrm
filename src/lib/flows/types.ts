@@ -83,6 +83,25 @@ export interface SendListNodeConfig {
  * the builder forms, engine cases, and add-menu entries for no
  * meaningful behavioural difference.
  */
+/**
+ * Sends an approved Meta WhatsApp template message, then auto-advances
+ * — workflow-mode equivalent of automations' `send_template` step
+ * (`SendTemplateStepConfig` in src/types/index.ts, same field names so
+ * the automations→flows migration script can copy the config as-is).
+ * The only way to message a contact outside the 24h customer-service
+ * window. `variables` maps Meta's positional `{{1}}`, `{{2}}`, …
+ * placeholders by numeric key; the executor sorts numerically before
+ * sending (lexicographic sort of "1".."10" would scramble order),
+ * same as automations/engine.ts's send_template case. Only meaningful
+ * on run_mode='workflow'.
+ */
+export interface SendTemplateNodeConfig {
+  template_name: string;
+  language?: string;
+  variables?: Record<string, string>;
+  next_node_key: string;
+}
+
 export interface SendMediaNodeConfig {
   media_type: "image" | "video" | "document";
   /** Public URL Meta will fetch. Uploaded via the builder's file picker. */
@@ -407,6 +426,7 @@ export type FlowNodeConfig =
   | { node_type: "send_buttons"; config: SendButtonsNodeConfig }
   | { node_type: "send_list"; config: SendListNodeConfig }
   | { node_type: "send_media"; config: SendMediaNodeConfig }
+  | { node_type: "send_template"; config: SendTemplateNodeConfig }
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "wait"; config: WaitNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }

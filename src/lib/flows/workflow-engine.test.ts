@@ -142,6 +142,7 @@ vi.mock("./admin-client", () => {
 vi.mock("./meta-send", () => ({
   engineSendText: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
   engineSendMedia: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
+  engineSendTemplate: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
 vi.mock("@/lib/nps/send-survey", () => ({
@@ -149,6 +150,7 @@ vi.mock("@/lib/nps/send-survey", () => ({
 }));
 
 import { runFlowsForTrigger, startManualWorkflowRun } from "./workflow-engine";
+import { engineSendTemplate } from "./meta-send";
 
 const ACCOUNT = "acct-1";
 
@@ -410,6 +412,70 @@ describe("wait node", () => {
     // Parked, not ended — no terminal status write on flow_runs.
     expect(endedWithStatus("completed")).toBe(false);
     expect(endedWithStatus("failed")).toBe(false);
+  });
+});
+
+describe("send_template node", () => {
+  it("sends params in strict numeric order regardless of key insertion order", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.flows = [workflowFlow({ trigger_type: "deal_won" })];
+    h.state.nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "t" } },
+      {
+        node_key: "t",
+        node_type: "send_template",
+        config: {
+          template_name: "order_shipped",
+          language: "pt_BR",
+          // Deliberately out of order + double-digit key, mirroring
+          // automations/engine.ts's test for the same scramble bug:
+          // a lexicographic sort of "1","10","2" would put "10" second.
+          variables: { "10": "tenth", "2": "second", "1": "first" },
+          next_node_key: "end",
+        },
+      },
+      { node_key: "end", node_type: "end", config: {} },
+    ];
+
+    await runFlowsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "deal_won",
+      contactId: "c1",
+      context: { conversation_id: "conv-1" },
+    });
+
+    expect(engineSendTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateName: "order_shipped",
+        language: "pt_BR",
+        params: ["first", "second", "tenth"],
+      }),
+    );
+    expect(endedWithStatus("failed")).toBe(false);
+  });
+
+  it("fails the run when the send throws", async () => {
+    vi.mocked(engineSendTemplate).mockRejectedValueOnce(new Error("template not approved"));
+    h.state.owned = { id: "c1" };
+    h.state.flows = [workflowFlow({ trigger_type: "deal_won" })];
+    h.state.nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "t" } },
+      {
+        node_key: "t",
+        node_type: "send_template",
+        config: { template_name: "order_shipped", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "end", config: {} },
+    ];
+
+    await runFlowsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "deal_won",
+      contactId: "c1",
+      context: { conversation_id: "conv-1" },
+    });
+
+    expect(endedWithStatus("failed")).toBe(true);
   });
 });
 

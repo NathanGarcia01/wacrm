@@ -20,6 +20,7 @@ import {
   Ban,
   Clock,
   DollarSign,
+  FileText,
   Flag,
   FolderInput,
   FolderOutput,
@@ -58,6 +59,7 @@ export type NodeType =
   | "send_buttons"
   | "send_list"
   | "send_media"
+  | "send_template"
   | "collect_input"
   | "wait"
   | "condition"
@@ -120,6 +122,10 @@ export const NODE_META: Record<
   },
   send_media: {
     icon: Paperclip,
+    color: "text-cyan-400",
+  },
+  send_template: {
+    icon: FileText,
     color: "text-cyan-400",
   },
   collect_input: {
@@ -298,6 +304,12 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
       return caption
         ? `${label}: ${truncate(name, 30)} · ${truncate(caption, 40)}`
         : `${label}: ${truncate(name, 60)}`;
+    }
+    case "send_template": {
+      const name = typeof cfg.template_name === "string" ? cfg.template_name : "";
+      const language = typeof cfg.language === "string" ? cfg.language : "";
+      if (!name) return null;
+      return language ? `${name} (${language})` : name;
     }
     case "collect_input": {
       const prompt = typeof cfg.prompt_text === "string" ? cfg.prompt_text : "";

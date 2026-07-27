@@ -2345,6 +2345,7 @@
       "send_buttons": "Send buttons",
       "send_list": "Send list",
       "send_media": "Send media",
+      "send_template": "Send template",
       "collect_input": "Collect response",
       "wait": "Wait",
       "condition": "If / else",
@@ -2578,7 +2579,13 @@
       "webhookHeadersLabel": "Headers (JSON, optional)",
       "webhookHeadersPlaceholder": "{\"Authorization\": \"Bearer ...\"}",
       "webhookHeadersInvalidJson": "Invalid JSON.",
-      "webhookBodyLabel": "Body (optional — blank sends the run's context)"
+      "webhookBodyLabel": "Body (optional — blank sends the run's context)",
+      "templateLabel": "Approved template",
+      "selectTemplate": "Select a template",
+      "templateNameLabel": "Template name",
+      "templateLanguageLabel": "Template language",
+      "templateVariablesLabel": "Template variables",
+      "templateVariablePlaceholder": "Variable value"
     }
   },
   "aiGenerate": {

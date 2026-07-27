@@ -2345,6 +2345,7 @@
       "send_buttons": "Enviar botones",
       "send_list": "Enviar lista",
       "send_media": "Enviar medio",
+      "send_template": "Enviar plantilla",
       "collect_input": "Recopilar respuesta",
       "wait": "Esperar",
       "condition": "Si / si no",
@@ -2578,7 +2579,13 @@
       "webhookHeadersLabel": "Encabezados (JSON, opcional)",
       "webhookHeadersPlaceholder": "{\"Authorization\": \"Bearer ...\"}",
       "webhookHeadersInvalidJson": "JSON inválido.",
-      "webhookBodyLabel": "Cuerpo (opcional — en blanco envía el contexto de la ejecución)"
+      "webhookBodyLabel": "Cuerpo (opcional — en blanco envía el contexto de la ejecución)",
+      "templateLabel": "Plantilla aprobada",
+      "selectTemplate": "Selecciona una plantilla",
+      "templateNameLabel": "Nombre de la plantilla",
+      "templateLanguageLabel": "Idioma de la plantilla",
+      "templateVariablesLabel": "Variables de la plantilla",
+      "templateVariablePlaceholder": "Valor de la variable"
     }
   },
   "aiGenerate": {

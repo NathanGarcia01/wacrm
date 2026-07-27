@@ -182,6 +182,13 @@ export function defaultConfigFor(
         filename: "",
         next_node_key: "",
       };
+    case "send_template":
+      return {
+        template_name: "",
+        language: "",
+        variables: {},
+        next_node_key: "",
+      };
     case "collect_input":
       return {
         prompt_text: "",
