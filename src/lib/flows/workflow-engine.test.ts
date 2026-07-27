@@ -148,7 +148,7 @@ vi.mock("@/lib/nps/send-survey", () => ({
   sendNpsSurvey: vi.fn(async () => ({ sent: true })),
 }));
 
-import { runFlowsForTrigger } from "./workflow-engine";
+import { runFlowsForTrigger, startManualWorkflowRun } from "./workflow-engine";
 
 const ACCOUNT = "acct-1";
 
@@ -218,6 +218,65 @@ describe("runFlowsForTrigger — tenant isolation", () => {
     });
 
     expect(h.state.fromCalls).toContain("flows");
+  });
+});
+
+describe("startManualWorkflowRun", () => {
+  // Regression coverage for the bug this function was added to fix:
+  // POST /api/flows/trigger-manual used to always call the
+  // conversational engine's startManualRun regardless of the target
+  // flow's run_mode, so manually triggering a run_mode='workflow' flow
+  // (one containing automation-style nodes like assign_conversation)
+  // crashed with `unknown_node_type` — the conversational executor has
+  // no idea what that node type means.
+  const nodes = [
+    { node_key: "start", node_type: "start", config: { next_node_key: "e" } },
+    { node_key: "e", node_type: "end", config: {} },
+  ];
+
+  it("returns flow_not_found when no flow matches the id", async () => {
+    h.state.flows = [];
+
+    const result = await startManualWorkflowRun("missing-id", "c1", "conv-1");
+
+    expect(result).toEqual({ ok: false, error: "flow_not_found" });
+    expect(h.state.insertedRun).toBeNull();
+  });
+
+  it("returns flow_not_active for a draft/archived flow", async () => {
+    h.state.flows = [workflowFlow({ status: "draft" })];
+
+    const result = await startManualWorkflowRun("f1", "c1", "conv-1");
+
+    expect(result).toEqual({ ok: false, error: "flow_not_active" });
+    expect(h.state.insertedRun).toBeNull();
+  });
+
+  it("returns wrong_run_mode for a conversational-mode flow — never falls through to executing it here", async () => {
+    h.state.flows = [workflowFlow({ run_mode: "conversational" })];
+
+    const result = await startManualWorkflowRun("f1", "c1", "conv-1");
+
+    expect(result).toEqual({ ok: false, error: "wrong_run_mode" });
+    expect(h.state.insertedRun).toBeNull();
+  });
+
+  it("starts a run for a valid workflow-mode flow, carrying contact/conversation through", async () => {
+    h.state.flows = [workflowFlow()];
+    h.state.nodes = nodes;
+
+    const result = await startManualWorkflowRun("f1", "c1", "conv-1");
+
+    expect(result.ok).toBe(true);
+    expect(h.state.insertedRun).toMatchObject({
+      flow_id: "f1",
+      contact_id: "c1",
+      conversation_id: "conv-1",
+      run_mode: "workflow",
+    });
+    if (result.ok) {
+      expect(result.run_id).toBe(h.state.insertedRun?.id);
+    }
   });
 });
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { startManualRun } from '@/lib/flows/engine'
+import { startManualWorkflowRun } from '@/lib/flows/workflow-engine'
 
 /**
  * POST /api/flows/trigger-manual
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
   // account can see, so a 404 here means "not found or not yours".
   const { data: flow } = await supabase
     .from('flows')
-    .select('id, status')
+    .select('id, status, run_mode')
     .eq('id', flowId)
     .maybeSingle()
   if (!flow) {
@@ -49,7 +50,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'flow_not_active' }, { status: 422 })
   }
 
-  const result = await startManualRun(flowId, contactId, conversationId)
+  // run_mode='workflow' flows can contain automation-style nodes
+  // (assign_conversation, create_deal, …) that the conversational
+  // engine doesn't understand — route to whichever engine actually
+  // knows this flow's node vocabulary.
+  const result =
+    flow.run_mode === 'workflow'
+      ? await startManualWorkflowRun(flowId, contactId, conversationId)
+      : await startManualRun(flowId, contactId, conversationId)
   if (!result.ok) {
     const status = result.error === 'contact_has_active_run' ? 409 : 500
     return NextResponse.json({ error: result.error }, { status })

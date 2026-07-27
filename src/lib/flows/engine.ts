@@ -1150,7 +1150,7 @@ async function startNewRun(
 
 export type StartManualRunResult =
   | { ok: true; run_id: string }
-  | { ok: false; error: "flow_not_found" | "flow_not_active" | "flow_has_no_entry_node" | "contact_has_active_run" | string };
+  | { ok: false; error: "flow_not_found" | "flow_not_active" | "flow_has_no_entry_node" | "contact_has_active_run" | "wrong_run_mode" | string };
 
 export async function startManualRun(
   flowId: string,
@@ -1162,6 +1162,18 @@ export async function startManualRun(
   if (!flow) return { ok: false, error: "flow_not_found" };
   if (flow.status !== "active") return { ok: false, error: "flow_not_active" };
   if (!flow.entry_node_id) return { ok: false, error: "flow_has_no_entry_node" };
+  // This executor only knows the conversational node vocabulary
+  // (send_message/condition/send_buttons/…) — a run_mode='workflow'
+  // flow can contain automation-style nodes (assign_conversation,
+  // create_deal, …) that would blow up here with
+  // `unknown_node_type`. The caller (POST /api/flows/trigger-manual)
+  // is expected to branch on run_mode and call
+  // startManualWorkflowRun (src/lib/flows/workflow-engine.ts)
+  // instead — this guard is the backstop for any other caller that
+  // forgets to.
+  if (flow.run_mode !== "conversational") {
+    return { ok: false, error: "wrong_run_mode" };
+  }
 
   const existingActive = await loadActiveRunForContact(db, flow.account_id, contactId);
   if (existingActive) return { ok: false, error: "contact_has_active_run" };

@@ -158,6 +158,44 @@ export async function runFlowsForTrigger(
   }
 }
 
+export type StartManualWorkflowRunResult =
+  | { ok: true; run_id: string }
+  | {
+      ok: false;
+      error: "flow_not_found" | "flow_not_active" | "flow_has_no_entry_node" | "wrong_run_mode" | "failed_to_start";
+    };
+
+/**
+ * Manually starts a workflow-mode flow run — the `run_mode='workflow'`
+ * counterpart to the conversational engine's `startManualRun` (see
+ * `src/lib/flows/engine.ts`). `POST /api/flows/trigger-manual` calls
+ * this instead of `startManualRun` when the target flow's run_mode is
+ * `'workflow'`, since the conversational executor doesn't know
+ * automation-style node types (`assign_conversation`, `create_deal`,
+ * …) and fails with `unknown_node_type` if handed one.
+ *
+ * Deliberately no "one active run per contact" gate — unlike
+ * conversational mode, `idx_one_active_run_per_contact` only applies
+ * to `run_mode='conversational'`; multiple workflow runs for the same
+ * contact are allowed by design (see the Fase A migration note).
+ */
+export async function startManualWorkflowRun(
+  flowId: string,
+  contactId: string,
+  conversationId: string,
+): Promise<StartManualWorkflowRunResult> {
+  const db = supabaseAdmin();
+  const flow = await loadFlow(db, flowId);
+  if (!flow) return { ok: false, error: "flow_not_found" };
+  if (flow.status !== "active") return { ok: false, error: "flow_not_active" };
+  if (flow.run_mode !== "workflow") return { ok: false, error: "wrong_run_mode" };
+  if (!flow.entry_node_id) return { ok: false, error: "flow_has_no_entry_node" };
+
+  const runId = await startWorkflowRun(flow, contactId, { conversation_id: conversationId });
+  if (!runId) return { ok: false, error: "failed_to_start" };
+  return { ok: true, run_id: runId };
+}
+
 /**
  * Resume a run parked at a `wait` node. Called from
  * `/api/flows/pending-cron` after it grabs a due
@@ -208,9 +246,9 @@ async function startWorkflowRun(
   flow: FlowRow,
   contactId: string | null,
   context: WorkflowTriggerContext,
-): Promise<void> {
+): Promise<string | null> {
   const db = supabaseAdmin();
-  if (!flow.entry_node_id) return;
+  if (!flow.entry_node_id) return null;
 
   const { data: inserted, error } = await db
     .from("flow_runs")
@@ -229,7 +267,7 @@ async function startWorkflowRun(
     .maybeSingle();
   if (error || !inserted) {
     console.error("[workflow-engine] startWorkflowRun insert error:", error);
-    return;
+    return null;
   }
   const run = inserted as FlowRunRow;
   await logEvent(db, run.id, "started", flow.entry_node_id, {
@@ -248,6 +286,7 @@ async function startWorkflowRun(
 
   const nodes = await loadAllNodes(db, flow.id);
   await advanceWorkflow(db, run, flow.entry_node_id, nodes, context);
+  return run.id;
 }
 
 /**
