@@ -272,6 +272,7 @@ export default function BroadcastsPage() {
           </p>
         </div>
         <GatedButton
+          data-tour="broadcasts-new"
           canAct={canCreate}
           gateReason="create broadcasts"
           onClick={() => router.push('/broadcasts/new')}
@@ -335,7 +336,7 @@ export default function BroadcastsPage() {
               <p className="text-sm text-muted-foreground">{t('noBroadcastsMatchFilter')}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <div data-tour="broadcasts-list" className="overflow-x-auto rounded-xl border border-border bg-card">
               <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
@@ -346,7 +347,7 @@ export default function BroadcastsPage() {
                     </TableHead>
                     <TableHead className="hidden text-muted-foreground lg:table-cell">{t('columnDelivery')}</TableHead>
                     <TableHead className="hidden text-muted-foreground lg:table-cell">{t('columnRead')}</TableHead>
-                    <TableHead className="text-muted-foreground">{t('columnStatus')}</TableHead>
+                    <TableHead data-tour="broadcasts-status" className="text-muted-foreground">{t('columnStatus')}</TableHead>
                     <TableHead className="hidden text-muted-foreground sm:table-cell">{t('columnDate')}</TableHead>
                   </TableRow>
                 </TableHeader>

@@ -95,6 +95,7 @@ export function ConversationFiltersPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        data-tour="inbox-filters"
         className={cn(
           "inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground",
           activeCount > 0 && "text-primary",

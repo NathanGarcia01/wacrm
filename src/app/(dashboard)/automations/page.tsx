@@ -186,12 +186,14 @@ export default function AutomationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AiGenerateModal
-            target="automation"
-            onSaved={(id, editManually) =>
-              editManually ? router.push(`/automations/${id}/edit`) : load()
-            }
-          />
+          <div data-tour="automations-ai-create">
+            <AiGenerateModal
+              target="automation"
+              onSaved={(id, editManually) =>
+                editManually ? router.push(`/automations/${id}/edit`) : load()
+              }
+            />
+          </div>
           <GatedButton
             canAct={canCreate}
             gateReason="create automations"
@@ -240,7 +242,7 @@ export default function AutomationsPage() {
           </p>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul data-tour="automations-list" className="space-y-3">
           {automations.map((a) => (
             <AutomationCard
               key={a.id}

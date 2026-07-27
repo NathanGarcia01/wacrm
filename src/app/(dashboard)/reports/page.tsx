@@ -146,7 +146,7 @@ function ReportsPageInner() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Tabs value={tab} onValueChange={(v) => updateTab(v as ReportTab)}>
-          <TabsList>
+          <TabsList data-tour="reports-tabs">
             <TabsTrigger value="overview">Visão geral</TabsTrigger>
             <TabsTrigger value="pipeline">Pipeline &amp; Vendas</TabsTrigger>
             <TabsTrigger value="commissions">Comissões</TabsTrigger>

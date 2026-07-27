@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { OnboardingTourButton } from "@/components/onboarding/onboarding-tour-button";
 import {
   BarChart3,
   ChevronLeft,
@@ -415,6 +416,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </>
           )}
         </button>
+
+        {/* Onboarding tour replay — always available, any role. Sits
+            between the collapse toggle and the user section so it
+            reads as sidebar chrome rather than a nav destination. */}
+        <OnboardingTourButton collapsed={collapsed} />
 
         {/* User section */}
         <div className="shrink-0 border-t border-border p-3">

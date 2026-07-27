@@ -38,7 +38,7 @@ export function WhatsAppConfig() {
   }
 
   return (
-    <section className="animate-in fade-in-50 duration-200">
+    <section data-tour="settings-whatsapp" className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead title={t('title')} description={t('description')} />
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">

@@ -141,7 +141,7 @@ export function QuickRepliesSettings() {
   }
 
   return (
-    <section className="max-w-3xl animate-in fade-in-50 duration-200">
+    <section data-tour="settings-quick-replies" className="max-w-3xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
         title="Respostas Rápidas"
         description="Mensagens prontas que qualquer agente pode inserir na caixa de mensagem digitando '/'."

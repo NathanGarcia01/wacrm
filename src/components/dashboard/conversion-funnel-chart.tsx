@@ -17,7 +17,7 @@ interface ConversionFunnelChartProps {
 export function ConversionFunnelChart({ data, loading }: ConversionFunnelChartProps) {
   const t = useTranslations('dashboard')
   return (
-    <section className="rounded-xl border border-border bg-card">
+    <section data-tour="dashboard-chart" className="rounded-xl border border-border bg-card">
       <header className="border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">{t('conversionFunnel')}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">{t('conversionFunnelHint')}</p>

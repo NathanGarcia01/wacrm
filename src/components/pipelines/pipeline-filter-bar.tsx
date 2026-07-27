@@ -113,7 +113,10 @@ export function PipelineFilterBar({
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/60 p-3">
+    <div
+      data-tour="pipeline-filters"
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/60 p-3"
+    >
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">
           {t("statusLabel")}

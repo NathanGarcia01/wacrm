@@ -43,6 +43,10 @@ interface Profile {
   account_role: AccountRole | null;
   /** UI language — `pt` | `en` | `es`. NOT NULL DEFAULT 'pt' in the DB. */
   language: Locale;
+  /** Has this user finished (or skipped) the onboarding tour? Gates
+   *  whether <OnboardingTourProvider> auto-starts it on login.
+   *  NOT NULL DEFAULT false in the DB (migration 055). */
+  onboarding_completed: boolean;
 }
 
 interface AccountSummary {
@@ -173,7 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // `plans(code)` nested a level deeper still, off
           // subscriptions.plan_id — needs `plans_select` (migration
           // 050, USING (true)) which is already public-readable.
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -265,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           account_id: data.account_id ?? null,
           account_role: accountRole,
           language: isLocale(data.language) ? data.language : DEFAULT_LOCALE,
+          onboarding_completed: data.onboarding_completed ?? false,
         });
         setAccount(accountRow);
       }

@@ -157,7 +157,10 @@ export function PipelineBoard({
           natural layout. The board can still overflow horizontally on
           lg+ once a pipeline has many stages (columns keep a 260px
           min-width), so a thin scrollbar stays visible on desktop. */}
-      <div className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
+      <div
+        data-tour="pipeline-board"
+        className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none"
+      >
         {funnelStages.map((stage, i) => {
           const stageDeals = dealsByStage.get(stage.id) ?? [];
           const totalValue = stageDeals.reduce(
@@ -177,6 +180,7 @@ export function PipelineBoard({
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
               widthPx={width}
+              dataTourId={i === 0 ? "pipeline-stage-column" : undefined}
             />
           );
         })}
@@ -273,6 +277,7 @@ function StageColumn({
   onEditDeal,
   widthPx,
   isLostLike,
+  dataTourId,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -287,6 +292,10 @@ function StageColumn({
   /** Visually splits this column off from the narrowing sequence — see
    *  isLostLikeStage's caveats in the parent for how this is detected. */
   isLostLike?: boolean;
+  /** Onboarding tour anchor — only the caller's first rendered column
+   *  sets this, since StageColumn is rendered once per stage in a
+   *  `.map()` and a `data-tour` attribute needs a single DOM match. */
+  dataTourId?: string;
 }) {
   const t = useTranslations("pipelines");
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -303,6 +312,7 @@ function StageColumn({
     // on the inner messages region below — intentionally NOT here, so
     // a drag over the column header doesn't highlight the whole column.
     <div
+      data-tour={dataTourId}
       style={style}
       className={cn(
         "flex w-[85vw] min-w-[260px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:max-w-none lg:shrink lg:snap-none",

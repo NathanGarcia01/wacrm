@@ -727,6 +727,7 @@ function ContactsPageInner() {
             </Button>
           )}
           <GatedButton
+            data-tour="contacts-import"
             variant="outline"
             canAct={canEdit}
             gateReason="add or import contacts"
@@ -750,7 +751,7 @@ function ContactsPageInner() {
 
       {/* Search + filters */}
       <div className="space-y-2">
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div data-tour="contacts-search-filters" className="flex flex-col sm:flex-row gap-2">
           <div className="relative w-full max-w-sm">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
@@ -1162,7 +1163,7 @@ function ContactsPageInner() {
       )}
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <div data-tour="contacts-table" className="rounded-lg border border-border overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">

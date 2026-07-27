@@ -302,7 +302,7 @@ export function MembersTab() {
   }
 
   return (
-    <section className="animate-in fade-in-50 space-y-6 duration-200">
+    <section data-tour="settings-members" className="animate-in fade-in-50 space-y-6 duration-200">
       <SettingsPanelHead
         title={t('title')}
         description={t('description')}
