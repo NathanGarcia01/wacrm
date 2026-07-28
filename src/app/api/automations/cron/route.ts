@@ -25,11 +25,23 @@ export async function GET(request: Request) {
   }
 
   const admin = supabaseAdmin()
+  // Fase J (automations→flows unification): once an automation has a
+  // `migrated_to_flow_id`, new triggers stop reaching this engine
+  // entirely (dispatch already gates on `automations.is_active`, which
+  // migrated automations are flipped off after cutover — see the
+  // migration script). But `resumePendingExecution` itself never
+  // re-checks `is_active`, so a stray pre-cutover wait-step row would
+  // otherwise still fire the old engine and could double-send against
+  // the same event the new workflow-mode flow already handled. The
+  // `!inner` embed + `.is(...)` filter excludes those rows here as a
+  // second, independent guard. Non-migrated automations (the common
+  // case) are unaffected and keep draining exactly as before.
   const { data: due, error } = await admin
     .from('automation_pending_executions')
-    .select('*')
+    .select('*, automations!inner(migrated_to_flow_id)')
     .eq('status', 'pending')
     .lte('run_at', new Date().toISOString())
+    .is('automations.migrated_to_flow_id', null)
     .order('run_at', { ascending: true })
     .limit(50)
 
