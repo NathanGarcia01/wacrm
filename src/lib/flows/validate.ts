@@ -25,6 +25,28 @@
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
 
+// Node types `src/lib/flows/engine.ts` (conversational) doesn't
+// implement — everything else in `workflow-engine.ts`'s vocabulary that
+// is NOT in this set is a plain DB-write node also wired into the
+// conversational executor (assign_conversation, update_deal_stage,
+// mark_deal_lost, open_conversation). Keep in sync with the `if
+// (node.node_type === ...)` chain in engine.ts's advanceFromNodeKey.
+const CONVERSATIONAL_UNSUPPORTED_NODE_TYPES = new Set([
+  "send_template",
+  "wait",
+  "randomizer",
+  "start_flow",
+  "stop_flow",
+  "create_deal",
+  "update_deal_value",
+  "mark_deal_won",
+  "unassign_agent",
+  "update_contact_field",
+  "set_conversation_pending",
+  "close_conversation",
+  "send_webhook",
+]);
+
 export interface ValidationIssue {
   severity: "error" | "warning";
   scope: "flow" | "trigger" | "node";
@@ -40,6 +62,10 @@ interface FlowInput {
   trigger_type: "keyword_match" | "first_inbound_message" | "manual";
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
+  /** Optional so existing callers/tests that don't pass it keep their
+   *  current behavior (no run_mode/node_type cross-check). Callers
+   *  that know the flow's run_mode should pass it. */
+  run_mode?: "conversational" | "workflow";
 }
 
 interface NodeInput {
@@ -113,6 +139,26 @@ export function validateFlowForActivation(
   // Per-node rules (Meta limits + dead-end + edge resolution).
   for (const n of nodes) {
     issues.push(...validateNode(n, keys));
+  }
+
+  // run_mode/node_type cross-check — the node palette lets the builder
+  // add any node type regardless of run_mode, but `src/lib/flows/engine.ts`
+  // (the conversational executor) only implements a subset; the rest are
+  // workflow-only (`src/lib/flows/workflow-engine.ts`). Without this check
+  // a conversational flow could activate with a node its own engine can't
+  // run and crash on the customer's first real trigger — see the
+  // "VER ATUALIZAÇÃO" incident (58 failed runs / 57 customers over 4 days)
+  // that motivated this check.
+  if (flow.run_mode === "conversational") {
+    for (const n of nodes) {
+      if (!CONVERSATIONAL_UNSUPPORTED_NODE_TYPES.has(n.node_type)) continue;
+      issues.push({
+        severity: "error",
+        scope: "node",
+        node_key: n.node_key,
+        message: `"${n.node_type}" is a workflow-only node type and isn't supported in conversational flows.`,
+      });
+    }
   }
 
   // Reachability — every non-orphan node must be reachable from the

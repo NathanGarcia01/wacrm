@@ -379,6 +379,11 @@ export function FlowEditorProvider({
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
+          // This editor (list/canvas builder) only ever renders for
+          // run_mode='conversational' flows — see the FlowEditorProvider
+          // comment above. Hardcoded rather than threaded through
+          // BuilderState since it can never actually vary here.
+          run_mode: "conversational",
         },
         state.nodes,
       ),

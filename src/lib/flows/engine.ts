@@ -41,12 +41,16 @@ import {
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import {
+  type AssignConversationNodeConfig,
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
   type DispatchInboundInput,
   type DispatchInboundResult,
   type FlowNodeRow,
   type FlowRow,
+  type MarkDealLostNodeConfig,
+  type OpenConversationNodeConfig,
+  type UpdateDealStageNodeConfig,
   type FlowRunRow,
   type ParsedInbound,
   type SendButtonsNodeConfig,
@@ -538,6 +542,24 @@ function interpolateVars(template: string, vars: Record<string, unknown>): strin
   });
 }
 
+/** Mirrors workflow-engine.ts's resolveOpenDealId — same contract, same
+ *  "most recent open deal for this contact" resolution. */
+async function resolveOpenDealId(db: AdminClient, run: FlowRunRow): Promise<string> {
+  if (!run.contact_id) throw new Error("step needs a contact");
+  const { data, error } = await db
+    .from("deals")
+    .select("id")
+    .eq("account_id", run.account_id)
+    .eq("contact_id", run.contact_id)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`deal lookup failed: ${error.message}`);
+  if (!data?.id) throw new Error("no open deal for contact");
+  return data.id as string;
+}
+
 export async function endRun(
   db: AdminClient,
   runId: string,
@@ -788,6 +810,139 @@ async function advanceFromNodeKey(
       await logEvent(db, run.id, "completed", node.node_key);
       await endRun(db, run.id, "completed", "end_node");
       return { outcome: "completed" };
+    }
+    // The automation-style node types below (assign_conversation,
+    // update_deal_stage, mark_deal_lost, open_conversation) were built
+    // for workflow-mode flows (see workflow-engine.ts) but the builder
+    // never restricted them to that run_mode — a conversational flow
+    // could save and activate with these nodes, then crash the first
+    // time a customer reached one. Implementations mirror
+    // workflow-engine.ts's (same semantics: they're plain DB writes,
+    // nothing about them needs the wait-for-reply machinery that's
+    // actually unique to this engine).
+    if (node.node_type === "assign_conversation") {
+      const cfg = node.config as unknown as AssignConversationNodeConfig;
+      try {
+        if (!run.contact_id) throw new Error("assign_conversation needs a contact");
+        let agentId = cfg.agent_id;
+        if (cfg.mode === "round_robin") {
+          const { data: profiles } = await db
+            .from("profiles")
+            .select("user_id")
+            .eq("account_id", run.account_id);
+          const memberIds = (profiles ?? [])
+            .map((p) => p.user_id as string)
+            .filter(Boolean);
+          if (memberIds.length === 0) {
+            await logEvent(db, run.id, "node_entered", node.node_key, {
+              detail: "no agent resolved",
+            });
+            currentKey = cfg.next_node_key;
+            continue;
+          }
+          const { data: assignedRows } = await db
+            .from("conversations")
+            .select("assigned_agent_id")
+            .eq("account_id", run.account_id)
+            .in("assigned_agent_id", memberIds)
+            .neq("status", "closed");
+          const load = new Map<string, number>(memberIds.map((id) => [id, 0]));
+          for (const row of assignedRows ?? []) {
+            const id = row.assigned_agent_id as string | null;
+            if (id && load.has(id)) load.set(id, (load.get(id) ?? 0) + 1);
+          }
+          agentId = memberIds.reduce((best, id) =>
+            (load.get(id) ?? 0) < (load.get(best) ?? 0) ? id : best, memberIds[0]);
+        }
+        if (!agentId) {
+          await logEvent(db, run.id, "node_entered", node.node_key, {
+            detail: "no agent resolved",
+          });
+          currentKey = cfg.next_node_key;
+          continue;
+        }
+        await db
+          .from("conversations")
+          .update({ assigned_agent_id: agentId })
+          .eq("account_id", run.account_id)
+          .eq("contact_id", run.contact_id);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "assign_conversation_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "assign_conversation_failed");
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
+    }
+    if (node.node_type === "update_deal_stage") {
+      const cfg = node.config as unknown as UpdateDealStageNodeConfig;
+      try {
+        if (!cfg.stage_id) throw new Error("update_deal_stage needs stage_id");
+        const dealId = await resolveOpenDealId(db, run);
+        await db
+          .from("deals")
+          .update({ stage_id: cfg.stage_id, updated_at: new Date().toISOString() })
+          .eq("id", dealId)
+          .eq("account_id", run.account_id);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "update_deal_stage_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "update_deal_stage_failed");
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
+    }
+    if (node.node_type === "mark_deal_lost") {
+      const cfg = node.config as unknown as MarkDealLostNodeConfig;
+      try {
+        const dealId = await resolveOpenDealId(db, run);
+        // lost_at is set by the deals_set_lost_at DB trigger, same as
+        // workflow-engine.ts's / automations' mark_deal_lost.
+        await db
+          .from("deals")
+          .update({
+            status: "lost",
+            lost_reason: cfg.reason ?? null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", dealId)
+          .eq("account_id", run.account_id);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "mark_deal_lost_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "mark_deal_lost_failed");
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
+    }
+    if (node.node_type === "open_conversation") {
+      const cfg = node.config as unknown as OpenConversationNodeConfig;
+      try {
+        if (!run.contact_id) throw new Error("open_conversation needs a contact");
+        await db
+          .from("conversations")
+          .update({ status: "open", updated_at: new Date().toISOString() })
+          .eq("account_id", run.account_id)
+          .eq("contact_id", run.contact_id);
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "open_conversation_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "open_conversation_failed");
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
     }
     // Unknown node type — shouldn't happen given the CHECK constraint.
     await logEvent(db, run.id, "error", node.node_key, {

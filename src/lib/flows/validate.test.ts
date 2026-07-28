@@ -957,6 +957,68 @@ describe("validateFlowForActivation — unassign_agent / open_conversation / set
   }
 });
 
+describe("validateFlowForActivation — run_mode/node_type cross-check", () => {
+  // Regression coverage for the "VER ATUALIZAÇÃO" incident: a
+  // conversational flow saved with workflow-only nodes activated fine
+  // (no run_mode passed) and then crashed every real customer that
+  // reached one with unknown_node_type — see engine.ts's
+  // advanceFromNodeKey and the CONVERSATIONAL_UNSUPPORTED_NODE_TYPES
+  // comment in validate.ts.
+  const flowAt = (run_mode: "conversational" | "workflow") => ({
+    ...validFlow,
+    entry_node_id: "s",
+    run_mode,
+  });
+  const nodesWith = (nodeType: string) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "n" } },
+    { node_key: "n", node_type: nodeType, config: { next_node_key: "h" } },
+    { node_key: "h", node_type: "handoff", config: {} },
+  ];
+
+  it("flags a workflow-only node type on a conversational flow", () => {
+    const issues = validateFlowForActivation(
+      flowAt("conversational"),
+      nodesWith("create_deal"),
+    );
+    expect(
+      issues.some(
+        (i) => i.node_key === "n" && i.severity === "error" && i.message.includes("workflow-only"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag the same node type on a workflow-mode flow", () => {
+    const issues = validateFlowForActivation(
+      flowAt("workflow"),
+      nodesWith("create_deal"),
+    );
+    expect(issues.some((i) => i.message.includes("workflow-only"))).toBe(false);
+  });
+
+  it("does not flag it when run_mode is omitted (back-compat for callers that don't pass it)", () => {
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: "s" },
+      nodesWith("create_deal"),
+    );
+    expect(issues.some((i) => i.message.includes("workflow-only"))).toBe(false);
+  });
+
+  it("does not flag assign_conversation/update_deal_stage/mark_deal_lost/open_conversation on a conversational flow — engine.ts implements these", () => {
+    for (const nodeType of [
+      "assign_conversation",
+      "update_deal_stage",
+      "mark_deal_lost",
+      "open_conversation",
+    ]) {
+      const issues = validateFlowForActivation(
+        flowAt("conversational"),
+        nodesWith(nodeType),
+      );
+      expect(issues.some((i) => i.message.includes("workflow-only"))).toBe(false);
+    }
+  });
+});
+
 describe("validateFlowForActivation — send_webhook", () => {
   const baseFlow = { ...validFlow, entry_node_id: "s" };
   const nodesWith = (cfg: Record<string, unknown>) => [
