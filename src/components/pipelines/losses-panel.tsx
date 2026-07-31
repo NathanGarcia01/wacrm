@@ -25,13 +25,15 @@ interface LossesPanelProps {
   pipelineId: string;
   stages: PipelineStage[];
   assignedTo: string;
+  stageId: string;
+  tagIds: string[];
   period: PeriodRange | null;
   currency: string;
 }
 
 const REASON_CATEGORY = "Leads";
 
-export function LossesPanel({ pipelineId, stages, assignedTo, period, currency }: LossesPanelProps) {
+export function LossesPanel({ pipelineId, stages, assignedTo, stageId, tagIds, period, currency }: LossesPanelProps) {
   const t = useTranslations("pipelines.losses");
   const [data, setData] = useState<LossesReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export function LossesPanel({ pipelineId, stages, assignedTo, period, currency }
     setLoading(true);
     const db = createClient();
     const stageNameById = new Map(stages.map((s) => [s.id, s.name]));
-    loadLossesReport(db, { pipelineId, period, assignedTo, stageNameById })
+    loadLossesReport(db, { pipelineId, period, assignedTo, stageId, tagIds, stageNameById })
       .then((d) => {
         if (!cancelled) setData(d);
       })
@@ -60,7 +62,7 @@ export function LossesPanel({ pipelineId, stages, assignedTo, period, currency }
     return () => {
       cancelled = true;
     };
-  }, [pipelineId, period, assignedTo, stages]);
+  }, [pipelineId, period, assignedTo, stageId, tagIds, stages]);
 
   const totalValue = data?.deals.reduce((sum, d) => sum + d.value, 0) ?? 0;
 

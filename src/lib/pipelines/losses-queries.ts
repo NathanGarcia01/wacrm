@@ -39,6 +39,12 @@ export interface LossesReportData {
   deals: LossDealRow[]
 }
 
+interface DealContact {
+  name: string | null
+  phone: string | null
+  contact_tags?: { tag_id: string }[] | null
+}
+
 interface DealRow {
   id: string
   title: string
@@ -51,7 +57,7 @@ interface DealRow {
   created_at: string
   stage_id: string
   conversation_id: string | null
-  contact: { name: string | null; phone: string | null } | { name: string | null; phone: string | null }[] | null
+  contact: DealContact | DealContact[] | null
   assignee: { full_name: string | null; email: string } | { full_name: string | null; email: string }[] | null
 }
 
@@ -77,13 +83,15 @@ export async function loadLossesReport(
     pipelineId: string
     period: PeriodRange | null
     assignedTo: string // "" = all, "unassigned" = no assignee, else profile id
+    stageId: string // "" = all stages
+    tagIds: string[] // ANY-match against the deal's contact tags; [] = no restriction
     stageNameById: Map<string, string>
   },
 ): Promise<LossesReportData> {
-  const { pipelineId, period, assignedTo, stageNameById } = args
+  const { pipelineId, period, assignedTo, stageId, tagIds, stageNameById } = args
 
   const selectCols =
-    'id, title, value, currency, status, lost_reason, lost_at, won_at, created_at, stage_id, conversation_id, contact:contacts(name, phone), assignee:profiles!deals_assigned_to_fkey(full_name, email)'
+    'id, title, value, currency, status, lost_reason, lost_at, won_at, created_at, stage_id, conversation_id, contact:contacts(name, phone, contact_tags(tag_id)), assignee:profiles!deals_assigned_to_fkey(full_name, email)'
 
   let leadsQuery = db.from('deals').select('id', { count: 'exact', head: true }).eq('pipeline_id', pipelineId)
   if (period) leadsQuery = leadsQuery.gte('created_at', period.startISO).lt('created_at', period.endISO)
@@ -94,6 +102,13 @@ export async function loadLossesReport(
   if (period) lostQuery = lostQuery.gte('lost_at', period.startISO).lt('lost_at', period.endISO)
   if (assignedTo === 'unassigned') lostQuery = lostQuery.is('assigned_to', null)
   else if (assignedTo !== '') lostQuery = lostQuery.eq('assigned_to', assignedTo)
+  // Stage/tags mirror the board's filter bar (pipeline-filter-bar.tsx),
+  // which is also shown while viewing this tab — those controls were
+  // silently ignored here before. Tag ANY-match needs the contact's
+  // full tag list client-side (same join shape used by the board's
+  // filteredDeals), so it's applied after the fetch below rather than
+  // as a query predicate.
+  if (stageId !== '') lostQuery = lostQuery.eq('stage_id', stageId)
 
   let wonQuery = db
     .from('deals')
@@ -106,7 +121,14 @@ export async function loadLossesReport(
 
   const [leadsRes, lostRes, wonRes] = await Promise.all([leadsQuery, lostQuery, wonQuery])
 
-  const lostRows = (lostRes.data ?? []) as unknown as DealRow[]
+  const allLostRows = (lostRes.data ?? []) as unknown as DealRow[]
+  const lostRows =
+    tagIds.length === 0
+      ? allLostRows
+      : allLostRows.filter((d) => {
+          const contactTagIds = one(d.contact)?.contact_tags?.map((ct) => ct.tag_id) ?? []
+          return tagIds.some((id) => contactTagIds.includes(id))
+        })
   const leadsEntered = leadsRes.count ?? 0
   const totalWon = wonRes.count ?? 0
 

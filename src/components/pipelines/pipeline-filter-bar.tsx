@@ -55,6 +55,10 @@ interface PipelineFilterBarProps {
   profiles: Profile[];
   stages: PipelineStage[];
   tags: Tag[];
+  /** Hides the Status control — the Perdas tab already forces
+   *  status='lost' server-side, so showing it there let users toggle a
+   *  filter that silently did nothing. */
+  hideStatus?: boolean;
 }
 
 export function PipelineFilterBar({
@@ -63,6 +67,7 @@ export function PipelineFilterBar({
   profiles,
   stages,
   tags,
+  hideStatus,
 }: PipelineFilterBarProps) {
   const t = useTranslations("pipelines.filters");
   const activeCount = countActivePipelineFilters(filters);
@@ -117,28 +122,30 @@ export function PipelineFilterBar({
       data-tour="pipeline-filters"
       className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/60 p-3"
     >
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">
-          {t("statusLabel")}
-        </label>
-        <Select
-          items={statusItems}
-          value={filters.status}
-          onValueChange={(v) =>
-            onChange({ ...filters, status: v as DealStatus | "all" })
-          }
-        >
-          <SelectTrigger className="w-40 bg-muted">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("statusAll")}</SelectItem>
-            <SelectItem value="open">{t("statusOpen")}</SelectItem>
-            <SelectItem value="won">{t("statusWon")}</SelectItem>
-            <SelectItem value="lost">{t("statusLost")}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {!hideStatus && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            {t("statusLabel")}
+          </label>
+          <Select
+            items={statusItems}
+            value={filters.status}
+            onValueChange={(v) =>
+              onChange({ ...filters, status: v as DealStatus | "all" })
+            }
+          >
+            <SelectTrigger className="w-40 bg-muted">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("statusAll")}</SelectItem>
+              <SelectItem value="open">{t("statusOpen")}</SelectItem>
+              <SelectItem value="won">{t("statusWon")}</SelectItem>
+              <SelectItem value="lost">{t("statusLost")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">

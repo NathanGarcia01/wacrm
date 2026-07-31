@@ -600,6 +600,7 @@ export default function PipelinesPage() {
             profiles={profiles}
             stages={stages}
             tags={tags}
+            hideStatus={view === "losses"}
           />
           {view === "board" ? (
             <>
@@ -617,6 +618,8 @@ export default function PipelinesPage() {
               pipelineId={selectedPipelineId}
               stages={stages}
               assignedTo={filters.assignedTo}
+              stageId={filters.stageId}
+              tagIds={filters.tagIds}
               period={period}
               currency={defaultCurrency}
             />
