@@ -294,7 +294,7 @@ export async function GET(request: Request) {
           .from('broadcast_recipients')
           .select('id')
           .eq('contact_id', contact.id)
-          .eq('status', 'sent')
+          .in('status', ['sent', 'delivered', 'read', 'replied'])
           .gte('sent_at', cutoffIso)
           .limit(1)
           .maybeSingle()
