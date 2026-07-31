@@ -1369,7 +1369,8 @@
       "resetHint": "Digite seu email e enviaremos um link de redefinição",
       "emailLabel": "Email",
       "sending": "Enviando...",
-      "sendResetLink": "Enviar link de recuperação"
+      "sendResetLink": "Enviar link de recuperação",
+      "linkExpiredError": "Este link expirou ou foi aberto em um navegador diferente do que solicitou. Peça um novo link abaixo."
     },
     "brand": {
       "tag": "API Oficial Meta · WhatsApp Business",

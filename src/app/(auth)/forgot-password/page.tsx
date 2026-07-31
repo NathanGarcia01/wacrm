@@ -1,16 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import { AuthShell } from "../_components/auth-shell";
 
+// `useSearchParams` opts the component out of static prerendering
+// unless it sits under a Suspense boundary — same split used by
+// /login (see src/app/(auth)/login/page.tsx).
 export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordPageInner />
+    </Suspense>
+  );
+}
+
+function ForgotPasswordPageInner() {
   const t = useTranslations("auth.forgotPassword");
+  const searchParams = useSearchParams();
+  // Set by /auth/callback when a recovery link's code exchange failed —
+  // almost always because it was opened in a different browser/device
+  // than the one that requested it, so the PKCE code_verifier cookie
+  // wasn't there to match against.
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") === "link_expired" ? t("linkExpiredError") : null,
+  );
   const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const supabase = createClient();

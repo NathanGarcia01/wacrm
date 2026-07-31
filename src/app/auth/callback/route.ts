@@ -16,6 +16,17 @@ export async function GET(request: Request) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`);
     }
+    // Most common cause: the PKCE code_verifier cookie set when the
+    // recovery/signup link was requested only lives in that same
+    // browser — clicking the emailed link from a different browser or
+    // device (very common: request on desktop, open the email on
+    // phone) makes this exchange fail every time, not just sometimes.
+    // Previously this fell through to a bare /login redirect with no
+    // explanation, which reads as "the link does nothing".
+    console.error("[auth/callback] exchangeCodeForSession failed:", error.message);
+    if (next === "/reset-password") {
+      return NextResponse.redirect(`${origin}/forgot-password?error=link_expired`);
+    }
   }
 
   return NextResponse.redirect(`${origin}/login`);

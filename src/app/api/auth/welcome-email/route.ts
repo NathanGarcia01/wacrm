@@ -91,14 +91,21 @@ export async function POST(request: Request) {
     typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
 
   try {
-    await resend.emails.send({
+    const { error: sendError } = await resend.emails.send({
       from: getWelcomeEmailFrom(),
       to: user.email,
       subject: "Bem-vindo ao Funilly! Seu trial gratuito começou 🚀",
       html: welcomeEmailHtml({ name }),
     });
+    // resend.emails.send() resolves with { data, error } for API-level
+    // failures (e.g. unverified sending domain, restricted API key) — it
+    // does NOT throw for those, only for network-level failures. Without
+    // checking this field, a rejected send silently looked like success.
+    if (sendError) {
+      console.error("[welcome-email] erro:", sendError);
+    }
   } catch (err) {
-    console.error("[welcome-email] failed to send:", err);
+    console.error("[welcome-email] erro:", err);
   }
 
   return NextResponse.json({ ok: true });
