@@ -19,6 +19,13 @@ function supabaseAnon() {
     _anonClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      // Plain createClient() defaults to flowType 'implicit', unlike
+      // @supabase/ssr's browser/server clients (always 'pkce'). Without
+      // this, the recovery link comes back as #access_token=... instead
+      // of ?code=..., which /auth/callback/route.ts can't read (hash
+      // fragments never reach the server) — it falls through to a bare
+      // /login redirect instead of /reset-password.
+      { auth: { flowType: "pkce" } },
     );
   }
   return _anonClient;
