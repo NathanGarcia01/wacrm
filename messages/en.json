@@ -1370,8 +1370,7 @@
       "emailLabel": "Email",
       "sending": "Sending...",
       "sendResetLink": "Send recovery link",
-      "linkExpiredError": "This link expired or was opened in a different browser than the one that requested it. Ask for a new link below.",
-      "genericError": "Couldn't send the reset link. Please try again."
+      "linkExpiredError": "This link expired or was opened in a different browser than the one that requested it. Ask for a new link below."
     },
     "brand": {
       "tag": "Official Meta API · WhatsApp Business",

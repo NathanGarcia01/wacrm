@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import { AuthShell } from "../_components/auth-shell";
 
@@ -31,21 +32,28 @@ function ForgotPasswordPageInner() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const supabase = createClient();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const res = await fetch("/api/auth/forgot-password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+    // Must run on the browser client (@supabase/ssr's createBrowserClient,
+    // cookie-backed storage) — PKCE's code_verifier is generated here and
+    // has to still be readable from a cookie when /auth/callback later
+    // calls exchangeCodeForSession. A server-side call (previously
+    // POST /api/auth/forgot-password) generates the verifier in an
+    // in-memory store on the Node process instead, which never reaches
+    // the browser — the exchange then fails every time, not just across
+    // browsers.
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.funilly.tech";
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
     });
 
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? t("genericError"));
+    if (error) {
+      setError(error.message);
       setLoading(false);
       return;
     }

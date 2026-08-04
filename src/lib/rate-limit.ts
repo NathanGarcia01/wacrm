@@ -174,11 +174,6 @@ export const RATE_LIMITS = {
    *  invitationPeek — enough for someone fixing a couple of typos,
    *  not enough for bulk-enumerating which documents are registered. */
   validateDocument: { limit: 10, windowMs: 60_000 },
-  /** Password reset request (public, per-IP). Supabase's own /recover
-   *  endpoint already avoids confirming whether an email exists, but
-   *  this bounds someone using the endpoint to mail-bomb an arbitrary
-   *  address. */
-  forgotPassword: { limit: 5, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't
