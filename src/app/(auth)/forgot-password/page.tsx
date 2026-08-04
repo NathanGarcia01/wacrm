@@ -4,7 +4,6 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { createClient } from "@/lib/supabase/client";
 import { ArrowLeft, CheckCircle } from "lucide-react";
 import { AuthShell } from "../_components/auth-shell";
 
@@ -32,20 +31,21 @@ function ForgotPasswordPageInner() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.funilly.tech";
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
     });
 
-    if (error) {
-      setError(error.message);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error ?? t("genericError"));
       setLoading(false);
       return;
     }
