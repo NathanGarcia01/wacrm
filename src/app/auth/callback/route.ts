@@ -5,8 +5,17 @@ import { createClient } from "@/lib/supabase/server";
 // email-confirmation) links for a real session, then forwards the
 // visitor to whatever page requested the link via `next` — e.g.
 // /forgot-password sends people here with `next=/reset-password`.
+//
+// `origin` must NOT come from `new URL(request.url)` — behind Render's
+// proxy, Next.js resolves that to the app's internal bind address
+// (http://localhost:10000) instead of the public hostname, so every
+// redirect below silently sent users to localhost. Same fallback
+// pattern already used by the billing routes.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.funilly.tech";
+
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = SITE_URL;
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
 
