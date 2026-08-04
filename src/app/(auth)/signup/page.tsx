@@ -90,8 +90,9 @@ function SignupPageInner() {
     // email back at the join page so the user can accept after
     // verifying. Without a token, Supabase uses its default
     // redirect (the app root).
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.funilly.tech";
     const emailRedirectTo = inviteToken
-      ? `${window.location.origin}/join/${encodeURIComponent(inviteToken)}`
+      ? `${siteUrl}/join/${encodeURIComponent(inviteToken)}`
       : undefined;
 
     const { data, error } = await supabase.auth.signUp({
