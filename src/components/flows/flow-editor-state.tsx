@@ -52,6 +52,8 @@ import {
 } from "@/lib/flows/validate";
 import { unlinkNodeReferences } from "@/lib/flows/edges";
 import type { FlowNodeRow, FlowRow } from "@/lib/flows/types";
+import { createClient } from "@/lib/supabase/client";
+import type { Pipeline, PipelineStage } from "@/types";
 import { slugify, type BuilderNode, type NodeType } from "./shared";
 
 // ============================================================
@@ -121,6 +123,17 @@ export interface FlowEditorContextValue {
    */
   flashKey: string | null;
   requestFlash: (key: string) => void;
+
+  /**
+   * Account's pipelines/stages, fetched once on mount (RLS scopes
+   * them to the caller's account — same query automations' builder
+   * runs). Powers the update_deal_stage node's stage picker and its
+   * canvas/list preview text. Empty until the fetch resolves; forms
+   * that consume this fall back to a raw-UUID input when empty, same
+   * as useAccountMembers below.
+   */
+  pipelines: Pipeline[];
+  pipelineStages: PipelineStage[];
 }
 
 // ============================================================
@@ -352,6 +365,26 @@ export function FlowEditorProvider({
     },
     [],
   );
+
+  // ---- Pipelines/stages (update_deal_stage picker + previews) ----
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    void (async () => {
+      const [pipelinesRes, stagesRes] = await Promise.all([
+        supabase.from("pipelines").select("*").order("name"),
+        supabase.from("pipeline_stages").select("*").order("position"),
+      ]);
+      if (cancelled) return;
+      setPipelines((pipelinesRes.data as Pipeline[] | null) ?? []);
+      setPipelineStages((stagesRes.data as PipelineStage[] | null) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Browser-level reload / tab-close / external-link guard. SPA
   // navigation (sidebar links, back button) isn't covered — Next 16
@@ -607,6 +640,8 @@ export function FlowEditorProvider({
       deleteFlow,
       flashKey,
       requestFlash,
+      pipelines,
+      pipelineStages,
     }),
     [
       initialFlow,
@@ -628,6 +663,8 @@ export function FlowEditorProvider({
       deleteFlow,
       flashKey,
       requestFlash,
+      pipelines,
+      pipelineStages,
     ],
   );
 

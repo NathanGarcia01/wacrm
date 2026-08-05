@@ -414,9 +414,10 @@ function NodeCard({
   const tFlows = useTranslations("flows");
   const tNodeTypes = useTranslations("flows.nodeTypes");
   const tSummary = useTranslations("flows.summary");
+  const { pipelineStages } = useFlowEditor();
   const meta = NODE_META[node.node_type];
   const hasError = issues.some((i) => i.severity === "error");
-  const preview = summarizeNode(node, tSummary);
+  const preview = summarizeNode(node, tSummary, pipelineStages);
   return (
     <div
       ref={cardRef}

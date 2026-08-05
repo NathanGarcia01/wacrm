@@ -41,7 +41,9 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -49,6 +51,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media";
 import { slugify, type BuilderNode } from "../shared";
+import { useFlowEditor } from "../flow-editor-state";
 import { NextNodeRow, NodeKeySelect, TextRow, VariableChips } from "./fields";
 
 interface NodeConfigFormProps {
@@ -1418,6 +1421,7 @@ function UpdateDealStageForm({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
   const t = useTranslations("flows.forms");
+  const { pipelines, pipelineStages } = useFlowEditor();
 
   return (
     <>
@@ -1425,12 +1429,41 @@ function UpdateDealStageForm({
         <label className="mb-1 block text-xs text-muted-foreground">
           {t("dealStageLabel")}
         </label>
-        <Input
-          value={cfg.stage_id ?? ""}
-          onChange={(e) => onUpdateConfig({ stage_id: e.target.value })}
-          placeholder={t("dealStageUuidPlaceholder")}
-          className="bg-muted font-mono text-xs"
-        />
+        {pipelineStages.length > 0 ? (
+          <Select
+            value={cfg.stage_id ?? ""}
+            onValueChange={(v) => onUpdateConfig({ stage_id: v })}
+          >
+            <SelectTrigger className="w-full bg-muted">
+              <SelectValue placeholder={t("dealStageSelectPlaceholder")} />
+            </SelectTrigger>
+            <SelectContent>
+              {pipelines.map((p) => {
+                const stagesForPipeline = pipelineStages
+                  .filter((s) => s.pipeline_id === p.id)
+                  .sort((a, b) => a.position - b.position);
+                if (stagesForPipeline.length === 0) return null;
+                return (
+                  <SelectGroup key={p.id}>
+                    <SelectLabel>{p.name}</SelectLabel>
+                    {stagesForPipeline.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={cfg.stage_id ?? ""}
+            onChange={(e) => onUpdateConfig({ stage_id: e.target.value })}
+            placeholder={t("dealStageUuidPlaceholder")}
+            className="bg-muted font-mono text-xs"
+          />
+        )}
       </div>
       <NextNodeRow
         value={cfg.next_node_key ?? ""}

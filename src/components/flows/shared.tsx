@@ -45,6 +45,8 @@ import {
   Workflow,
 } from "lucide-react";
 
+import type { PipelineStage } from "@/types";
+
 // ============================================================
 // Node-type union — single source of truth for every place the UI
 // enumerates types (add menu, type pickers, switch statements). Kept
@@ -248,7 +250,11 @@ export function truncate(s: string, max = 80): string {
  *  plain module (can't call the hook itself). */
 type SummaryT = (key: string, values?: Record<string, string | number | Date>) => string;
 
-export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
+export function summarizeNode(
+  node: BuilderNode,
+  t: SummaryT,
+  pipelineStages?: PipelineStage[],
+): string | null {
   const cfg = node.config;
   switch (node.node_type) {
     case "start":
@@ -391,9 +397,13 @@ export function summarizeNode(node: BuilderNode, t: SummaryT): string | null {
     }
     case "update_deal_stage": {
       const stageId = typeof cfg.stage_id === "string" ? cfg.stage_id : "";
-      return stageId
-        ? `${t("updateDealStageSummary")} ${stageId.slice(0, 8)}…`
-        : t("updateDealStageSummary");
+      if (!stageId) return t("updateDealStageSummary");
+      const stage = pipelineStages?.find((s) => s.id === stageId);
+      // Stage list not loaded yet (or stage was deleted) — fall back
+      // to a UUID prefix so the card still shows *something*.
+      return stage
+        ? t("updateDealStageSummaryNamed", { stage: stage.name })
+        : `${t("updateDealStageSummary")} ${stageId.slice(0, 8)}…`;
     }
     case "update_deal_value": {
       const value = typeof cfg.value === "number" ? cfg.value : null;

@@ -116,8 +116,9 @@ function FlowNodeCard({ data, selected }: NodeProps) {
   const tSummary = useTranslations("flows.summary");
   const tEdges = useTranslations("flows.edges");
   const { node, isEntry, isFlashed } = data as NodeData;
+  const { pipelineStages } = useFlowEditor();
   const meta = NODE_META[node.node_type];
-  const summary = summarizeNode(node, tSummary);
+  const summary = summarizeNode(node, tSummary, pipelineStages);
   const Icon = meta.icon;
   const slots = outgoingSlots(node, tEdges);
   // Start nodes are entry-only; nothing ever targets them, so they
