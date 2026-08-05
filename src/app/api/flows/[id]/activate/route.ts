@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { validateFlowForActivation } from '@/lib/flows/validate'
+import type { FlowTriggerType } from '@/lib/flows/types'
 
 /**
  * POST /api/flows/[id]/activate
@@ -73,7 +74,7 @@ export async function POST(
     const issues = validateFlowForActivation(
       flow as {
         name: string
-        trigger_type: 'keyword_match' | 'first_inbound_message' | 'manual'
+        trigger_type: FlowTriggerType
         trigger_config: Record<string, unknown>
         entry_node_id: string | null
         run_mode: 'conversational' | 'workflow'

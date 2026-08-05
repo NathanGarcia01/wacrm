@@ -47,8 +47,8 @@ interface FlowRow {
   name: string;
   description: string | null;
   status: "draft" | "active" | "archived";
-  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
-  trigger_config: { keywords?: string[] } | Record<string, unknown>;
+  trigger_type: "keyword_match" | "first_inbound_message" | "manual" | "inactivity";
+  trigger_config: { keywords?: string[]; hours?: number } | Record<string, unknown>;
   execution_count: number;
   last_executed_at: string | null;
   created_at: string;
@@ -437,6 +437,11 @@ function describeTrigger(flow: FlowRow): string {
   }
   if (flow.trigger_type === "first_inbound_message") {
     return "Triggers on a contact's first-ever inbound message";
+  }
+  if (flow.trigger_type === "inactivity") {
+    const hours =
+      typeof flow.trigger_config.hours === "number" ? flow.trigger_config.hours : 24;
+    return `Triggers after ${hours}h of customer inactivity`;
   }
   return "Manual trigger";
 }

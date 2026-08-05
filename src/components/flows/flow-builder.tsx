@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   CircleAlert,
+  Clock,
   Plus,
   Trash2,
   ChevronDown,
@@ -280,6 +281,7 @@ function TriggerPanel({
       keyword_match: t("triggerKeywordOption"),
       first_inbound_message: t("triggerFirstInboundOption"),
       manual: t("triggerManualOption"),
+      inactivity: t("triggerInactivityOption"),
     }),
     [t],
   );
@@ -297,7 +299,19 @@ function TriggerPanel({
                 ...s,
                 trigger_type: v as BuilderState["trigger_type"],
                 trigger_config:
-                  v === "keyword_match" ? { keywords: [] } : v === "manual" ? {} : {},
+                  v === "keyword_match"
+                    ? { keywords: [] }
+                    : v === "inactivity"
+                      ? { hours: 24 }
+                      : {},
+                // 'inactivity' only ever fires through the workflow
+                // engine's inactivity-cron scan (runFlowsForTrigger
+                // filters on run_mode='workflow') — picking it must
+                // flip run_mode or the flow would sit active and never
+                // run. Switching back to a conversational trigger flips
+                // it back so the entry-node canvas keeps working as
+                // before.
+                run_mode: v === "inactivity" ? "workflow" : "conversational",
               }))
             }
           >
@@ -313,6 +327,9 @@ function TriggerPanel({
               </SelectItem>
               <SelectItem value="manual">
                 {t("triggerManualOption")}
+              </SelectItem>
+              <SelectItem value="inactivity">
+                {t("triggerInactivityOption")}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -335,6 +352,41 @@ function TriggerPanel({
                 }))
               }
             />
+          </div>
+        )}
+        {state.trigger_type === "inactivity" && (
+          <div>
+            <label className="mb-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              {t("inactivityHoursLabel")}
+            </label>
+            <Input
+              type="number"
+              min={1}
+              value={
+                typeof state.trigger_config.hours === "number"
+                  ? state.trigger_config.hours
+                  : 24
+              }
+              onChange={(e) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_config: {
+                    ...s.trigger_config,
+                    hours: Math.max(1, Number(e.target.value) || 1),
+                  },
+                }))
+              }
+              className="bg-muted"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("inactivityHoursHint", {
+                hours:
+                  typeof state.trigger_config.hours === "number"
+                    ? state.trigger_config.hours
+                    : 24,
+              })}
+            </p>
           </div>
         )}
       </div>

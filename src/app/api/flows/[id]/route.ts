@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
+import type { FlowTriggerType } from '@/lib/flows/types'
 
 /**
  * GET   /api/flows/[id]  — fetch one flow with its nodes.
@@ -73,10 +74,14 @@ export async function GET(
 interface PutBody {
   name?: string
   description?: string | null
-  trigger_type?: 'keyword_match' | 'first_inbound_message' | 'manual'
+  trigger_type?: FlowTriggerType
   trigger_config?: Record<string, unknown>
   entry_node_id?: string | null
   fallback_policy?: Record<string, unknown>
+  /** 'inactivity' (the first workflow-only trigger the builder's
+   *  TriggerPanel exposes, Fase G) needs this flipped to 'workflow' —
+   *  runFlowsForTrigger only scans run_mode='workflow' flows. */
+  run_mode?: 'conversational' | 'workflow'
   nodes?: Array<{
     node_key: string
     node_type: string
@@ -104,6 +109,16 @@ export async function PUT(
       { status: 400 },
     )
   }
+  if (
+    body.run_mode !== undefined &&
+    body.run_mode !== 'conversational' &&
+    body.run_mode !== 'workflow'
+  ) {
+    return NextResponse.json(
+      { error: "run_mode must be 'conversational' or 'workflow'" },
+      { status: 400 },
+    )
+  }
 
   const admin = supabaseAdmin()
 
@@ -123,6 +138,7 @@ export async function PUT(
     flowPatch.entry_node_id = body.entry_node_id
   if (body.fallback_policy !== undefined)
     flowPatch.fallback_policy = body.fallback_policy
+  if (body.run_mode !== undefined) flowPatch.run_mode = body.run_mode
 
   const { error: updErr } = await admin
     .from('flows')

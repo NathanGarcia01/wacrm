@@ -24,6 +24,7 @@
  */
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
+import type { FlowTriggerType } from "./types";
 
 // Node types `src/lib/flows/engine.ts` (conversational) doesn't
 // implement — everything else in `workflow-engine.ts`'s vocabulary that
@@ -57,9 +58,20 @@ export interface ValidationIssue {
   message: string;
 }
 
+// Trigger types the conversational engine's findEntryFlow() actually
+// discriminates (see FlowTriggerConfig in src/lib/flows/types.ts).
+// 'inactivity' only fires through the workflow engine's cron scan —
+// same run_mode/trigger cross-check rationale as
+// CONVERSATIONAL_UNSUPPORTED_NODE_TYPES below.
+const CONVERSATIONAL_TRIGGER_TYPES = new Set([
+  "keyword_match",
+  "first_inbound_message",
+  "manual",
+]);
+
 interface FlowInput {
   name: string;
-  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
+  trigger_type: FlowTriggerType;
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
   /** Optional so existing callers/tests that don't pass it keep their
@@ -159,6 +171,19 @@ export function validateFlowForActivation(
         message: `"${n.node_type}" is a workflow-only node type and isn't supported in conversational flows.`,
       });
     }
+    // Same mismatch, trigger side: 'inactivity' (and the rest of the
+    // automations vocabulary) only ever fires via runFlowsForTrigger,
+    // which filters on run_mode='workflow' — a conversational flow
+    // saved with one of these would activate clean and then just never
+    // run.
+    if (!CONVERSATIONAL_TRIGGER_TYPES.has(flow.trigger_type)) {
+      issues.push({
+        severity: "error",
+        scope: "trigger",
+        field: "trigger_type",
+        message: `"${flow.trigger_type}" is a workflow-only trigger and isn't supported in conversational flows.`,
+      });
+    }
   }
 
   // Reachability — every non-orphan node must be reachable from the
@@ -217,6 +242,17 @@ function validateTrigger(
           message: `${blanks} keyword${blanks === 1 ? " is" : "s are"} blank — they won't match anything.`,
         });
       }
+    }
+  }
+  if (trigger_type === "inactivity") {
+    const hours = trigger_config.hours;
+    if (typeof hours !== "number" || !Number.isFinite(hours) || hours <= 0) {
+      issues.push({
+        severity: "error",
+        scope: "trigger",
+        field: "trigger_config.hours",
+        message: "Inactivity triggers need a positive number of hours.",
+      });
     }
   }
   // first_inbound_message / manual have no config; nothing to validate.

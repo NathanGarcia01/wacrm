@@ -63,10 +63,19 @@ import { slugify, type BuilderNode, type NodeType } from "./shared";
 export interface BuilderState {
   name: string;
   description: string;
-  trigger_type: "keyword_match" | "first_inbound_message" | "manual";
+  /** 'inactivity' is the first workflow-only trigger this editor
+   *  exposes (Fase G) — picking it also flips `run_mode` to
+   *  'workflow' (see TriggerPanel in flow-builder.tsx). The other 12
+   *  automations-only trigger types still have no UI here. */
+  trigger_type: "keyword_match" | "first_inbound_message" | "manual" | "inactivity";
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
   status: FlowRow["status"];
+  /** Mutable copy of the flow's run mode — starts from `initialFlow`
+   *  and flips alongside trigger_type when the user picks a
+   *  workflow-only trigger. Threaded into both the validator
+   *  (run_mode/node_type cross-check) and `save()`. */
+  run_mode: FlowRow["run_mode"];
   nodes: BuilderNode[];
 }
 
@@ -312,15 +321,16 @@ export function FlowEditorProvider({
     name: initialFlow.name,
     description: initialFlow.description ?? "",
     // FlowRow.trigger_type accepts the full automations vocabulary as
-    // of migration 044, but this editor (the conversational list/canvas
-    // builder) only ever renders for run_mode='conversational' flows,
-    // which are still limited to these 3 values — no UI exists yet for
-    // authoring a workflow-mode flow's trigger. Safe to narrow here;
-    // revisit when the workflow trigger picker ships (Fase E-G).
+    // of migration 044; this editor's TriggerPanel exposes the 3
+    // conversational values plus 'inactivity' (the first workflow-only
+    // trigger it authors, Fase G). Anything else can still reach here
+    // via direct API use — narrowed the same way as before, the picker
+    // just won't render an option for it.
     trigger_type: initialFlow.trigger_type as BuilderState["trigger_type"],
     trigger_config: initialFlow.trigger_config as Record<string, unknown>,
     entry_node_id: initialFlow.entry_node_id,
     status: initialFlow.status,
+    run_mode: initialFlow.run_mode,
     nodes: initialNodes.map((n) => ({
       node_key: n.node_key,
       node_type: n.node_type as NodeType,
@@ -412,11 +422,7 @@ export function FlowEditorProvider({
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
-          // This editor (list/canvas builder) only ever renders for
-          // run_mode='conversational' flows — see the FlowEditorProvider
-          // comment above. Hardcoded rather than threaded through
-          // BuilderState since it can never actually vary here.
-          run_mode: "conversational",
+          run_mode: state.run_mode,
         },
         state.nodes,
       ),
@@ -440,6 +446,7 @@ export function FlowEditorProvider({
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
           entry_node_id: state.entry_node_id,
+          run_mode: state.run_mode,
           nodes: state.nodes,
         }),
       });
