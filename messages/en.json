@@ -174,7 +174,9 @@
       "voiceRecordingNotSupported": "Voice recording isn't supported in this browser.",
       "microphoneAccessDenied": "Microphone access denied or unavailable.",
       "changeChannel": "Change sending number",
-      "defaultChannel": "Main"
+      "defaultChannel": "Main",
+      "signatureOn": "Signature on — click to turn off",
+      "signatureOff": "Signature off — click to turn on"
     },
     "list": {
       "searchPlaceholder": "Search conversations...",
@@ -194,7 +196,8 @@
       "closeSelected": "Close conversations",
       "assignSelected": "Assign to agent",
       "unassignSelected": "Remove assignment",
-      "noMembersAvailable": "No members available"
+      "noMembersAvailable": "No members available",
+      "allChannels": "All channels"
     },
     "filters": {
       "filters": "Filters",
@@ -1755,6 +1758,9 @@
       "removePhoto": "Remove",
       "photoHint": "PNG, JPG, WebP, or GIF. Up to 2 MB.",
       "displayNameLabel": "Display name",
+      "signatureLabel": "Signature",
+      "signaturePlaceholder": "e.g. John Smith - Funilly Support",
+      "signatureHint": "Automatically added to the end of your inbox messages when the signature toggle is on.",
       "emailChangePendingPart1": "Check the inbox for",
       "emailChangePendingPart2": "and",
       "emailChangePendingPart3": "— both need to confirm before the change takes effect.",
@@ -2483,6 +2489,7 @@
       "noneOption": "— None —",
       "advanceTo": "Advance to",
       "sendMessageTextLabel": "Text sent to the customer",
+      "variablesHint": "Variables:",
       "collectInputPromptLabel": "Question sent to the customer",
       "collectInputVarKeyLabel": "Variable key (stored in flow_runs.vars; alphanumeric + underscore)",
       "collectInputVarKeyPlaceholder": "e.g. name, email, company",

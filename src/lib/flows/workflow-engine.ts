@@ -44,6 +44,7 @@ import type {
 import { supabaseAdmin } from "./admin-client";
 import { engineSendMedia, engineSendTemplate, engineSendText } from "./meta-send";
 import { sendNpsSurvey } from "@/lib/nps/send-survey";
+import { loadVariableContext, resolveVariables } from "./variables";
 import {
   endRun,
   evaluateConditionPredicate,
@@ -336,12 +337,17 @@ async function advanceWorkflow(
         try {
           if (!run.contact_id) throw new Error("send_message needs a contact");
           const conversationId = await resolveConversationId(db, run);
+          const varContext = await loadVariableContext(db, {
+            accountId: run.account_id,
+            contactId: run.contact_id,
+            conversationId,
+          });
           const { whatsapp_message_id } = await engineSendText({
             accountId: run.account_id,
             userId: run.user_id,
             conversationId,
             contactId: run.contact_id,
-            text: interpolate(cfg.text, run, context),
+            text: resolveVariables(interpolate(cfg.text, run, context), varContext),
           });
           await logEvent(db, run.id, "message_sent", node.node_key, {
             node_type: "send_message",
@@ -396,6 +402,11 @@ async function advanceWorkflow(
         try {
           if (!run.contact_id) throw new Error("send_template needs a contact");
           const conversationId = await resolveConversationId(db, run);
+          const varContext = await loadVariableContext(db, {
+            accountId: run.account_id,
+            contactId: run.contact_id,
+            conversationId,
+          });
           // Meta templates use positional {{1}}, {{2}}, … placeholders,
           // so params MUST go out in strict numeric order — a
           // lexicographic sort of "1","2",…,"10" would scramble any
@@ -413,7 +424,7 @@ async function advanceWorkflow(
                   if (bNum) return 1;
                   return a.localeCompare(b);
                 })
-                .map((k) => String(cfg.variables![k]))
+                .map((k) => resolveVariables(String(cfg.variables![k]), varContext))
             : [];
           const { whatsapp_message_id } = await engineSendTemplate({
             accountId: run.account_id,

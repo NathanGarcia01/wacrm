@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media";
 import { slugify, type BuilderNode } from "../shared";
-import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
+import { NextNodeRow, NodeKeySelect, TextRow, VariableChips } from "./fields";
 
 interface NodeConfigFormProps {
   node: BuilderNode;
@@ -85,6 +85,8 @@ export function NodeConfigForm({
             label={t("sendMessageTextLabel")}
             value={(cfg as { text?: string }).text ?? ""}
             onChange={(v) => onUpdateConfig({ text: v })}
+            rows={3}
+            variableChips
           />
           <NextNodeRow
             value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
@@ -2117,6 +2119,11 @@ function SendTemplateForm({
   const language = cfg.language ?? "";
   const variables = cfg.variables ?? {};
 
+  // Which {{N}} slot the chip row inserts into — the last-focused
+  // input, falling back to the first slot when nothing's been
+  // focused yet (e.g. a chip clicked before typing).
+  const [focusedVarKey, setFocusedVarKey] = useState<string | null>(null);
+
   // Encode name + language in the option value so two templates that
   // share a name across languages stay distinct — same trick as
   // automations' SendTemplateFields.
@@ -2200,11 +2207,21 @@ function SendTemplateForm({
                 onChange={(e) =>
                   onUpdateConfig({ variables: { ...variables, [key]: e.target.value } })
                 }
+                onFocus={() => setFocusedVarKey(key)}
                 placeholder={t("templateVariablePlaceholder")}
                 className="bg-muted text-xs"
               />
             </div>
           ))}
+          <VariableChips
+            onInsert={(token) => {
+              const key = focusedVarKey ?? "1";
+              const current = variables[key] ?? "";
+              onUpdateConfig({
+                variables: { ...variables, [key]: current ? `${current} ${token}` : token },
+              });
+            }}
+          />
         </div>
       )}
 

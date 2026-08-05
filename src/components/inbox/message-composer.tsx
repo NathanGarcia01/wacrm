@@ -23,6 +23,7 @@ import {
   Smile,
   Smartphone,
   Check,
+  Signature,
 } from "lucide-react";
 import EmojiPicker, { Theme as EmojiTheme, type EmojiClickData } from "emoji-picker-react";
 import { Button } from "@/components/ui/button";
@@ -140,6 +141,18 @@ function formatDuration(seconds: number): string {
  *  Meta-accepted format means no server ffmpeg / transcode step. */
 const OPUS_ENCODER_PATH = "/opus/encoderWorker.min.js";
 
+/** Per-session (persisted) toggle for auto-appending the agent's
+ *  signature (Settings → Perfil) to outgoing messages. */
+const SIGNATURE_TOGGLE_STORAGE_KEY = "funilly.signature_enabled";
+
+/** Appends "\n\n— <signature>" to `text`, or returns it unchanged when
+ *  the toggle is off or the agent hasn't set a signature. */
+function appendSignature(text: string, signature: string | null | undefined, enabled: boolean): string {
+  if (!enabled || !signature?.trim()) return text;
+  const trimmedSignature = `— ${signature.trim()}`;
+  return text ? `${text}\n\n${trimmedSignature}` : trimmedSignature;
+}
+
 export function MessageComposer({
   conversationId,
   sessionExpired,
@@ -163,8 +176,31 @@ export function MessageComposer({
   // the reply's content. `quickReplyQuery` is null when the dropdown is
   // closed, "" right after typing a bare "/", or the shortcut text typed
   // so far otherwise.
-  const { accountId } = useAuth();
+  const { accountId, profile } = useAuth();
   const supabase = useMemo(() => createClient(), []);
+
+  // Signature toggle — restored from localStorage in an effect (not the
+  // initializer) to avoid a hydration mismatch, same pattern as the
+  // channel picker's ACTIVE_CHANNEL_STORAGE_KEY in message-thread.tsx.
+  const [signatureEnabled, setSignatureEnabledState] = useState(false);
+  useEffect(() => {
+    try {
+      setSignatureEnabledState(localStorage.getItem(SIGNATURE_TOGGLE_STORAGE_KEY) === "true");
+    } catch {
+      // localStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, []);
+  const toggleSignature = useCallback(() => {
+    setSignatureEnabledState((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIGNATURE_TOGGLE_STORAGE_KEY, String(next));
+      } catch {
+        // Persistence is best-effort; ignore storage failures.
+      }
+      return next;
+    });
+  }, []);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const [quickReplyQuery, setQuickReplyQuery] = useState<string | null>(null);
   const [quickReplyIndex, setQuickReplyIndex] = useState(0);
@@ -285,7 +321,7 @@ export function MessageComposer({
 
     setSending(true);
     try {
-      onSend(trimmed, replyTo?.id);
+      onSend(appendSignature(trimmed, profile?.signature, signatureEnabled), replyTo?.id);
       setText("");
       setQuickReplyQuery(null);
       if (textareaRef.current) {
@@ -294,7 +330,7 @@ export function MessageComposer({
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+  }, [text, sending, sessionExpired, onSend, replyTo?.id, profile?.signature, signatureEnabled]);
 
   // Swaps the "/token" the cursor is inside for the picked reply's
   // content and re-derives it from `text` at call time (not a captured
@@ -525,21 +561,25 @@ export function MessageComposer({
 
   const sendDraft = useCallback(() => {
     if (!draft || busy) return;
+    // Audio takes no caption (Meta rejects it), so the signature never
+    // applies there. Everything else: trimmed caption + signature, or
+    // just the signature (still undefined when neither is present).
+    const caption =
+      draft.kind === "audio"
+        ? undefined
+        : appendSignature(draft.caption.trim(), profile?.signature, signatureEnabled) || undefined;
     onSendMedia({
       kind: draft.kind,
       mediaUrl: draft.mediaUrl,
       path: draft.path,
-      // Audio takes no caption (Meta rejects it). Everything else: the
-      // trimmed caption, or undefined when blank.
-      caption:
-        draft.kind === "audio" ? undefined : draft.caption.trim() || undefined,
+      caption,
       filename: draft.kind === "document" ? draft.filename : undefined,
       replyToId: replyTo?.id,
     });
     // The object is now owned by the sent message — clear without GC.
     setDraft(null);
     onClearReply?.();
-  }, [draft, busy, onSendMedia, replyTo?.id, onClearReply]);
+  }, [draft, busy, onSendMedia, replyTo?.id, onClearReply, profile?.signature, signatureEnabled]);
 
   // Discard GCs the staged object — it was uploaded but never sent.
   const discardDraft = useCallback(() => {
@@ -812,6 +852,26 @@ export function MessageComposer({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+
+          {/* Signature toggle — only worth showing once the agent has
+              actually set one in Settings → Perfil. */}
+          {profile?.signature && (
+            <button
+              type="button"
+              onClick={toggleSignature}
+              disabled={inputsDisabled}
+              title={signatureEnabled ? t("signatureOn") : t("signatureOff")}
+              aria-pressed={signatureEnabled}
+              className={cn(
+                "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md disabled:cursor-not-allowed disabled:opacity-50",
+                signatureEnabled
+                  ? "bg-primary-soft text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Signature className="h-4 w-4" />
+            </button>
           )}
 
           <GatedButton

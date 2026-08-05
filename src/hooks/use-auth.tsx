@@ -47,6 +47,10 @@ interface Profile {
    *  whether <OnboardingTourProvider> auto-starts it on login.
    *  NOT NULL DEFAULT false in the DB (migration 055). */
   onboarding_completed: boolean;
+  /** Agent signature appended to outgoing inbox messages when the
+   *  per-session signature toggle is on (migration 058). Null when the
+   *  user hasn't set one. */
+  signature: string | null;
 }
 
 interface AccountSummary {
@@ -177,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // `plans(code)` nested a level deeper still, off
           // subscriptions.plan_id — needs `plans_select` (migration
           // 050, USING (true)) which is already public-readable.
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, signature, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -270,6 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           account_role: accountRole,
           language: isLocale(data.language) ? data.language : DEFAULT_LOCALE,
           onboarding_completed: data.onboarding_completed ?? false,
+          signature: data.signature ?? null,
         });
         setAccount(accountRow);
       }

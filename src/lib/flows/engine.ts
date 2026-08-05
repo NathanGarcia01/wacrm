@@ -40,6 +40,7 @@ import {
   engineSendText,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
+import { loadVariableContext, resolveVariables } from "./variables";
 import {
   type AssignConversationNodeConfig,
   type CollectInputNodeConfig,
@@ -619,12 +620,17 @@ async function advanceFromNodeKey(
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
       try {
+        const varContext = await loadVariableContext(db, {
+          accountId: run.account_id,
+          contactId: run.contact_id,
+          conversationId: run.conversation_id,
+        });
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
     userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
-          text: interpolateVars(cfg.text, run.vars),
+          text: resolveVariables(interpolateVars(cfg.text, run.vars), varContext),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",

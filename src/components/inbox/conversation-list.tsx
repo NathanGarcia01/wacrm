@@ -5,7 +5,13 @@ import { useTranslations, useLocale } from "next-intl";
 import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Contact, Conversation, ConversationStatus, Profile } from "@/types";
+import type {
+  Contact,
+  Conversation,
+  ConversationStatus,
+  Profile,
+  WhatsAppChannelOption,
+} from "@/types";
 import {
   Search,
   ChevronDown,
@@ -61,6 +67,10 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 
 type InboxFilter = ConversationStatus | "all" | "unread";
 
+/** Persists the selected channel filter across sessions, same key
+ *  convention as the other inbox localStorage reads/writes. */
+const CHANNEL_FILTER_STORAGE_KEY = "wacrm:inbox:channelFilter";
+
 const FILTER_OPTIONS: { labelKey: string; value: InboxFilter }[] = [
   { labelKey: "all", value: "all" },
   { labelKey: "unread", value: "unread" },
@@ -86,6 +96,29 @@ export function ConversationList({
   );
   const [loading, setLoading] = useState(true);
 
+  // Channel filter — `null` means "Todos os canais" (default). Read from
+  // localStorage in an effect (not the initializer) to avoid a hydration
+  // mismatch, same pattern as CONTACT_PANEL_STORAGE_KEY in inbox/page.tsx.
+  const [channelFilter, setChannelFilterState] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CHANNEL_FILTER_STORAGE_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (stored) setChannelFilterState(stored);
+    } catch {
+      // localStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, []);
+  const setChannelFilter = useCallback((channelId: string | null) => {
+    setChannelFilterState(channelId);
+    try {
+      if (channelId) localStorage.setItem(CHANNEL_FILTER_STORAGE_KEY, channelId);
+      else localStorage.removeItem(CHANNEL_FILTER_STORAGE_KEY);
+    } catch {
+      // Persistence is best-effort; ignore storage failures.
+    }
+  }, []);
+
   // Multi-select — active whenever at least one conversation is
   // checked. Bulk actions write straight to Supabase; the parent
   // page's existing realtime subscription (inbox/page.tsx) picks up
@@ -108,18 +141,21 @@ export function ConversationList({
       .then(({ data }) => setProfiles((data ?? []) as Profile[]));
   }, []);
 
-  // Only worth showing "which number" per row when there's more than one
-  // active channel to disambiguate between — a single-channel account
-  // doesn't need the extra noise on every row.
-  const [multiChannel, setMultiChannel] = useState(false);
+  // Active channels on the account — drives both the per-row channel
+  // badge (only worth showing once there's more than one number to
+  // disambiguate between) and the channel filter dropdown.
+  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
   useEffect(() => {
     const supabase = createClient();
     supabase
       .from("whatsapp_channels")
-      .select("id", { count: "exact", head: true })
+      .select("id, name, display_phone_number, is_default")
       .eq("is_active", true)
-      .then(({ count }) => setMultiChannel((count ?? 0) > 1));
+      .order("is_default", { ascending: false })
+      .order("created_at", { ascending: true })
+      .then(({ data }) => setChannels((data as WhatsAppChannelOption[] | null) ?? []));
   }, []);
+  const multiChannel = channels.length > 1;
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -195,6 +231,10 @@ export function ConversationList({
       });
     }
 
+    if (channelFilter) {
+      result = result.filter((c) => c.channel_id === channelFilter);
+    }
+
     if (advancedFilters.assignedTo) {
       result = result.filter((c) =>
         advancedFilters.assignedTo === "unassigned"
@@ -244,7 +284,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, advancedFilters]);
+  }, [conversations, filter, search, advancedFilters, channelFilter]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,6 +351,9 @@ export function ConversationList({
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
   const activeFilterLabel = activeFilter ? t(activeFilter.labelKey) : t("all");
+  const activeChannelLabel = channelFilter
+    ? channels.find((c) => c.id === channelFilter)?.name ?? t("allChannels")
+    : t("allChannels");
 
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
@@ -437,6 +480,39 @@ export function ConversationList({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {multiChannel && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 max-w-[7rem] gap-1 truncate px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
+                  <Smartphone className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{activeChannelLabel}</span>
+                  <ChevronDown className="h-3 w-3 shrink-0" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="border-border bg-popover">
+                  <DropdownMenuItem
+                    onClick={() => setChannelFilter(null)}
+                    className={cn(
+                      "text-sm",
+                      channelFilter === null ? "text-primary" : "text-popover-foreground"
+                    )}
+                  >
+                    {t("allChannels")}
+                  </DropdownMenuItem>
+                  {channels.map((c) => (
+                    <DropdownMenuItem
+                      key={c.id}
+                      onClick={() => setChannelFilter(c.id)}
+                      className={cn(
+                        "text-sm",
+                        channelFilter === c.id ? "text-primary" : "text-popover-foreground"
+                      )}
+                    >
+                      {c.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             <ConversationFiltersPopover filters={advancedFilters} onChange={setAdvancedFilters} />
           </div>

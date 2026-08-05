@@ -31,16 +31,58 @@ import {
 import { cn } from "@/lib/utils";
 import { NODE_META, type BuilderNode } from "../shared";
 
+/** Named tokens `resolveVariables` (src/lib/flows/variables.ts) resolves
+ *  at send time — kept in sync with that file's switch by hand, since
+ *  it's a fixed, rarely-changing vocabulary. */
+export const FLOW_VARIABLE_KEYS = [
+  "nome",
+  "primeiro_nome",
+  "telefone",
+  "email",
+  "atendente",
+  "empresa",
+  "data",
+  "hora",
+] as const;
+
+/** Clickable `{{token}}` chips — insert into whichever text field
+ *  `onInsert` is wired to. Used below send_message's text field and
+ *  send_template's per-placeholder inputs so authors don't have to
+ *  memorize the variable vocabulary. */
+export function VariableChips({ onInsert }: { onInsert: (token: string) => void }) {
+  const t = useTranslations("flows.forms");
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span className="mr-0.5 text-[10px] text-muted-foreground">
+        {t("variablesHint")}
+      </span>
+      {FLOW_VARIABLE_KEYS.map((key) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onInsert(`{{${key}}}`)}
+          className="rounded-full border border-border bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+        >
+          {`{{${key}}}`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function TextRow({
   label,
   value,
   onChange,
   rows = 1,
+  variableChips = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   rows?: number;
+  /** Renders the {{nome}}/{{telefone}}/… insertion chips below the field. */
+  variableChips?: boolean;
 }) {
   return (
     <div>
@@ -58,6 +100,9 @@ export function TextRow({
           onChange={(e) => onChange(e.target.value)}
           className="bg-muted"
         />
+      )}
+      {variableChips && (
+        <VariableChips onInsert={(token) => onChange(value ? `${value} ${token}` : token)} />
       )}
     </div>
   );

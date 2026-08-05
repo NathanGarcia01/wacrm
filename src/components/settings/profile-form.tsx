@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
   Avatar,
@@ -40,6 +41,7 @@ export function ProfileForm() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [signature, setSignature] = useState('');
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
@@ -51,6 +53,7 @@ export function ProfileForm() {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setEmail(profile.email ?? '');
+    setSignature(profile.signature ?? '');
   }, [profile]);
 
   // Cleanup object URLs to avoid leaks.
@@ -140,12 +143,13 @@ export function ProfileForm() {
         nextAvatarUrl = null;
       }
 
-      // Persist name + avatar to profiles.
+      // Persist name + avatar + signature to profiles.
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
+          signature: signature.trim() || null,
         })
         .eq('user_id', user.id);
       if (updateError) {
@@ -192,6 +196,7 @@ export function ProfileForm() {
     !!profile &&
     (fullName.trim() !== (profile.full_name ?? '') ||
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
+      signature.trim() !== (profile.signature ?? '') ||
       pendingAvatar !== null ||
       removeAvatar);
 
@@ -297,6 +302,23 @@ export function ProfileForm() {
                 </span>
               </p>
             )}
+          </div>
+
+          {/* Signature */}
+          <div className="space-y-2">
+            <Label htmlFor="profile-signature" className="text-foreground">
+              {t('signatureLabel')}
+            </Label>
+            <Textarea
+              id="profile-signature"
+              value={signature}
+              onChange={(e) => setSignature(e.target.value)}
+              placeholder={t('signaturePlaceholder')}
+              maxLength={200}
+              rows={2}
+              disabled={saving}
+            />
+            <p className="text-xs text-muted-foreground">{t('signatureHint')}</p>
           </div>
 
           {/* Read-only block */}

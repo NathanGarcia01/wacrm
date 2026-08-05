@@ -174,7 +174,9 @@
       "voiceRecordingNotSupported": "La grabación de voz no es compatible con este navegador.",
       "microphoneAccessDenied": "Acceso al micrófono denegado o no disponible.",
       "changeChannel": "Cambiar número de envío",
-      "defaultChannel": "Principal"
+      "defaultChannel": "Principal",
+      "signatureOn": "Firma activada — clic para desactivar",
+      "signatureOff": "Firma desactivada — clic para activar"
     },
     "list": {
       "searchPlaceholder": "Buscar conversaciones...",
@@ -194,7 +196,8 @@
       "closeSelected": "Cerrar conversaciones",
       "assignSelected": "Asignar a agente",
       "unassignSelected": "Quitar asignación",
-      "noMembersAvailable": "Ningún miembro disponible"
+      "noMembersAvailable": "Ningún miembro disponible",
+      "allChannels": "Todos los canales"
     },
     "filters": {
       "filters": "Filtros",
@@ -1755,6 +1758,9 @@
       "removePhoto": "Quitar",
       "photoHint": "PNG, JPG, WebP o GIF. Hasta 2 MB.",
       "displayNameLabel": "Nombre para mostrar",
+      "signatureLabel": "Firma",
+      "signaturePlaceholder": "Ej: Juan Pérez - Atención Funilly",
+      "signatureHint": "Se agrega automáticamente al final de tus mensajes en el inbox cuando el interruptor de firma está activado.",
       "emailChangePendingPart1": "Revisa la bandeja de entrada de",
       "emailChangePendingPart2": "y",
       "emailChangePendingPart3": "— ambos deben confirmar antes de que el cambio surta efecto.",
@@ -2483,6 +2489,7 @@
       "noneOption": "— Ninguno —",
       "advanceTo": "Avanza a",
       "sendMessageTextLabel": "Texto enviado al cliente",
+      "variablesHint": "Variables:",
       "collectInputPromptLabel": "Pregunta enviada al cliente",
       "collectInputVarKeyLabel": "Clave de la variable (guardada en flow_runs.vars; alfanumérico + guion bajo)",
       "collectInputVarKeyPlaceholder": "ej. nombre, email, empresa",

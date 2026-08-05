@@ -36,6 +36,9 @@ export interface Profile {
    */
   account_role?: AccountRole;
   created_at: string;
+  /** Agent signature appended to outgoing inbox messages when the
+   *  per-session signature toggle is on (migration 058). */
+  signature?: string | null;
 }
 
 // ============================================================

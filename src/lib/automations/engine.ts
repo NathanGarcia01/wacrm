@@ -26,6 +26,7 @@ import type {
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import { sendNpsSurvey } from '@/lib/nps/send-survey'
+import { loadVariableContext, resolveVariables } from '@/lib/flows/variables'
 
 /**
  * Thrown by the `stop_automation` step to unwind out of any nested
@@ -405,9 +406,14 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'send_message': {
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
-      const text = interpolate(cfg.text, args)
-      if (!text.trim()) throw new Error('send_message has empty text')
       const conversationId = await resolveConversationId(args)
+      const varContext = await loadVariableContext(db, {
+        accountId: args.automation.account_id,
+        contactId: args.contactId,
+        conversationId,
+      })
+      const text = resolveVariables(interpolate(cfg.text, args), varContext)
+      if (!text.trim()) throw new Error('send_message has empty text')
       const { whatsapp_message_id } = await engineSendText({
         accountId: args.automation.account_id,
         userId: args.automation.user_id,
@@ -423,6 +429,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       if (!args.contactId) throw new Error('send_template needs a contact')
       if (!cfg.template_name) throw new Error('send_template needs template_name')
       const conversationId = await resolveConversationId(args)
+      const varContext = await loadVariableContext(db, {
+        accountId: args.automation.account_id,
+        contactId: args.contactId,
+        conversationId,
+      })
       // Meta templates use positional {{1}}, {{2}}, … placeholders, so
       // we MUST emit params in strict numeric order. Lexicographic sort
       // of "1", "2", …, "10" yields "1", "10", "2", … which silently
@@ -439,7 +450,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
               if (bNum) return 1
               return a.localeCompare(b)
             })
-            .map((k) => String(cfg.variables![k]))
+            .map((k) => resolveVariables(String(cfg.variables![k]), varContext))
         : []
       const { whatsapp_message_id } = await engineSendTemplate({
         accountId: args.automation.account_id,

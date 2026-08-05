@@ -174,7 +174,9 @@
       "voiceRecordingNotSupported": "Gravação de voz não é suportada neste navegador.",
       "microphoneAccessDenied": "Acesso ao microfone negado ou indisponível.",
       "changeChannel": "Trocar número de envio",
-      "defaultChannel": "Principal"
+      "defaultChannel": "Principal",
+      "signatureOn": "Assinatura ativada — clique para desativar",
+      "signatureOff": "Assinatura desativada — clique para ativar"
     },
     "list": {
       "searchPlaceholder": "Pesquisar conversas...",
@@ -194,7 +196,8 @@
       "closeSelected": "Fechar conversas",
       "assignSelected": "Atribuir para agente",
       "unassignSelected": "Remover atribuição",
-      "noMembersAvailable": "Nenhum membro disponível"
+      "noMembersAvailable": "Nenhum membro disponível",
+      "allChannels": "Todos os canais"
     },
     "filters": {
       "filters": "Filtros",
@@ -1755,6 +1758,9 @@
       "removePhoto": "Remover",
       "photoHint": "PNG, JPG, WebP ou GIF. Até 2 MB.",
       "displayNameLabel": "Nome de exibição",
+      "signatureLabel": "Assinatura",
+      "signaturePlaceholder": "Ex: João Silva - Atendimento Funilly",
+      "signatureHint": "Adicionada automaticamente ao final das suas mensagens no inbox quando o toggle de assinatura estiver ativo.",
       "emailChangePendingPart1": "Verifique a caixa de entrada de",
       "emailChangePendingPart2": "e",
       "emailChangePendingPart3": "— ambos precisam confirmar antes que a alteração entre em vigor.",
@@ -2483,6 +2489,7 @@
       "noneOption": "— Nenhum —",
       "advanceTo": "Avança para",
       "sendMessageTextLabel": "Texto enviado ao cliente",
+      "variablesHint": "Variáveis:",
       "collectInputPromptLabel": "Pergunta enviada ao cliente",
       "collectInputVarKeyLabel": "Chave da variável (armazenada em flow_runs.vars; alfanumérico + underscore)",
       "collectInputVarKeyPlaceholder": "ex: nome, email, empresa",
