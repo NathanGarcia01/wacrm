@@ -161,6 +161,11 @@ export interface Conversation {
   unread_count: number;
   created_at: string;
   updated_at: string;
+  /** Set on every closed→open transition (see the webhook routes) —
+   *  marks where the conversation's current attendance period began,
+   *  since this CRM reuses one conversation row per contact forever
+   *  instead of creating a new one per interaction. */
+  reopened_at?: string | null;
   contact?: Contact;
   /** WhatsApp channel that received/sent through this conversation.
    *  null = the account's default channel (see src/lib/whatsapp/channels.ts). */

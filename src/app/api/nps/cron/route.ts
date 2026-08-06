@@ -45,32 +45,46 @@ export async function GET(request: Request) {
     if (!ownerUserId) continue;
 
     const cutoff = new Date(Date.now() - row.inactivity_hours * 60 * 60 * 1000).toISOString();
-    // Mirrors the cooldown in sendNpsSurvey: only a sent/responded survey
-    // less than 30 days old blocks a resend, so this pre-filter has to
-    // use the same window — otherwise it'd silently exclude conversations
-    // sendNpsSurvey itself would happily re-survey.
-    const cooldownCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [{ data: staleConvs }, { data: alreadySurveyed }] = await Promise.all([
-      db
-        .from("conversations")
-        .select("id")
-        .eq("account_id", row.account_id)
-        .eq("status", "open")
-        .lt("last_message_at", cutoff)
-        .not("last_message_at", "is", null)
-        .order("last_message_at", { ascending: true })
-        .limit(50),
-      db
-        .from("nps_surveys")
-        .select("conversation_id")
-        .eq("account_id", row.account_id)
-        .in("status", ["sent", "responded"])
-        .gte("created_at", cooldownCutoff),
-    ]);
+    const { data: staleConvs } = await db
+      .from("conversations")
+      .select("id, created_at, reopened_at")
+      .eq("account_id", row.account_id)
+      .eq("status", "open")
+      .lt("last_message_at", cutoff)
+      .not("last_message_at", "is", null)
+      .order("last_message_at", { ascending: true })
+      .limit(50);
 
-    const surveyed = new Set((alreadySurveyed ?? []).map((s) => s.conversation_id as string));
-    const due = (staleConvs ?? []).filter((c) => !surveyed.has(c.id as string));
+    const staleConvIds = (staleConvs ?? []).map((c) => c.id as string);
+
+    // Mirrors sendNpsSurvey's own gate: a conversation is only "already
+    // surveyed" if its latest sent/responded row postdates the current
+    // attendance period (its last reopen, or creation if never
+    // reopened) — otherwise this pre-filter would silently exclude
+    // conversations sendNpsSurvey itself would happily re-survey.
+    const { data: existingSurveys } = staleConvIds.length
+      ? await db
+          .from("nps_surveys")
+          .select("conversation_id, created_at")
+          .in("conversation_id", staleConvIds)
+          .in("status", ["sent", "responded"])
+      : { data: [] };
+
+    const latestSurveyAt = new Map<string, string>();
+    for (const s of existingSurveys ?? []) {
+      const convId = s.conversation_id as string;
+      const createdAt = s.created_at as string;
+      const prev = latestSurveyAt.get(convId);
+      if (!prev || createdAt > prev) latestSurveyAt.set(convId, createdAt);
+    }
+
+    const due = (staleConvs ?? []).filter((c) => {
+      const surveyAt = latestSurveyAt.get(c.id as string);
+      if (!surveyAt) return true;
+      const attendanceStart = (c.reopened_at as string | null) ?? (c.created_at as string);
+      return surveyAt < attendanceStart;
+    });
 
     for (const conv of due) {
       const result = await sendNpsSurvey({

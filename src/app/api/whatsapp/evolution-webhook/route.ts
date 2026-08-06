@@ -239,7 +239,9 @@ async function processEvolutionMessage(
       last_message_at: new Date().toISOString(),
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
-      ...(conversation.status === 'closed' ? { status: 'open' } : {}),
+      ...(conversation.status === 'closed'
+        ? { status: 'open', reopened_at: new Date().toISOString() }
+        : {}),
     })
     .eq('id', conversation.id)
   if (convError) {

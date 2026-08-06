@@ -30,19 +30,25 @@ export type SendNpsSurveyResult =
  * 'manual_close' | 'inactivity', and a human-initiated send is
  * closer in spirit to the former than to an inactivity timeout).
  *
- * Resend cooldown is enforced here, not by a unique constraint: a
- * conversation can get a new survey once any prior sent/responded
- * nps_surveys row for it is more than 30 days old (a customer who
+ * Resend gating is enforced here, not by a unique constraint: this CRM
+ * keeps exactly one `conversations` row per contact forever (a closed
+ * conversation reopens on the next inbound message rather than getting
+ * a new row — see findOrCreateConversation), so conversation_id alone
+ * can't tell "still the same attendance" apart from "customer came back
+ * after we closed things out". `conversations.reopened_at` (migration
+ * 059) marks the latest closed→open transition, so a conversation can
+ * get a new survey once any prior sent/responded nps_surveys row for it
+ * predates the conversation's current attendance period (its last
+ * reopen, or its creation if it's never been reopened) — a customer who
  * reopens a closed conversation and gets helped again is a distinct
- * "attendance" worth its own rating) — expired rows never block a
- * resend regardless of age.
+ * "attendance" worth its own rating.
  */
 export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSurveyResult> {
   const db = supabaseAdmin();
 
   const { data: conversation } = await db
     .from("conversations")
-    .select("id, contact_id, assigned_agent_id")
+    .select("id, contact_id, assigned_agent_id, created_at, reopened_at")
     .eq("id", args.conversationId)
     .eq("account_id", args.accountId)
     .maybeSingle();
@@ -68,13 +74,13 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
     return { sent: false, reason: "disabled" };
   }
 
-  const cooldownCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const attendanceStart = conversation.reopened_at ?? conversation.created_at;
   const { data: existing } = await db
     .from("nps_surveys")
     .select("id")
     .eq("conversation_id", args.conversationId)
     .in("status", ["sent", "responded"])
-    .gte("created_at", cooldownCutoff)
+    .gte("created_at", attendanceStart)
     .maybeSingle();
   if (existing) {
     return { sent: false, reason: "already_sent" };
