@@ -145,12 +145,12 @@ const OPUS_ENCODER_PATH = "/opus/encoderWorker.min.js";
  *  signature (Settings → Perfil) to outgoing messages. */
 const SIGNATURE_TOGGLE_STORAGE_KEY = "funilly.signature_enabled";
 
-/** Appends "\n\n— <signature>" to `text`, or returns it unchanged when
- *  the toggle is off or the agent hasn't set a signature. */
-function appendSignature(text: string, signature: string | null | undefined, enabled: boolean): string {
+/** Prepends "*<signature>:*\n" (WhatsApp bold) to `text`, or returns it
+ *  unchanged when the toggle is off or the agent hasn't set a signature. */
+function prependSignature(text: string, signature: string | null | undefined, enabled: boolean): string {
   if (!enabled || !signature?.trim()) return text;
-  const trimmedSignature = `— ${signature.trim()}`;
-  return text ? `${text}\n\n${trimmedSignature}` : trimmedSignature;
+  const header = `*${signature.trim()}:*`;
+  return text ? `${header}\n${text}` : header;
 }
 
 export function MessageComposer({
@@ -321,7 +321,7 @@ export function MessageComposer({
 
     setSending(true);
     try {
-      onSend(appendSignature(trimmed, profile?.signature, signatureEnabled), replyTo?.id);
+      onSend(prependSignature(trimmed, profile?.signature, signatureEnabled), replyTo?.id);
       setText("");
       setQuickReplyQuery(null);
       if (textareaRef.current) {
@@ -567,7 +567,7 @@ export function MessageComposer({
     const caption =
       draft.kind === "audio"
         ? undefined
-        : appendSignature(draft.caption.trim(), profile?.signature, signatureEnabled) || undefined;
+        : prependSignature(draft.caption.trim(), profile?.signature, signatureEnabled) || undefined;
     onSendMedia({
       kind: draft.kind,
       mediaUrl: draft.mediaUrl,
