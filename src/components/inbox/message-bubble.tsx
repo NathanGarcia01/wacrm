@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { Message, MessageReaction } from "@/types";
@@ -116,10 +117,89 @@ function MediaUnavailable({ label }: { label: string }) {
   );
 }
 
+/** Full-screen preview opened by clicking an inline chat image. Portaled
+ *  to <body> so it isn't clipped by the message list's scroll container. */
+function ImageLightbox({
+  imgSrc,
+  downloadUrl,
+  alt,
+  filename,
+  onClose,
+}: {
+  /** Already-resolved src (blob: or direct URL) — same one the inline thumbnail uses. */
+  imgSrc: string;
+  /** Original media URL, passed to downloadMediaBlob (handles proxy URLs itself). */
+  downloadUrl: string;
+  alt: string;
+  filename: string;
+  onClose: () => void;
+}) {
+  const t = useTranslations("inbox.bubble");
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const handleDownload = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      try {
+        await downloadMediaBlob(downloadUrl, filename);
+      } catch {
+        // Best-effort — see MediaDownloadButton.
+      }
+    },
+    [downloadUrl, filename],
+  );
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        aria-label={t("closeLightboxAria")}
+        title={t("closeLightboxAria")}
+        className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        onClick={handleDownload}
+        aria-label={t("downloadAria")}
+        title={t("downloadAria")}
+        className="absolute left-4 top-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+      >
+        <Download className="h-5 w-5" />
+      </button>
+      <img
+        src={imgSrc}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain"
+      />
+    </div>,
+    document.body,
+  );
+}
+
 function MediaImage({ url, alt, filename }: { url: string; alt: string; filename: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const loadImage = useCallback(async () => {
     if (!url) return;
@@ -174,10 +254,20 @@ function MediaImage({ url, alt, filename }: { url: string; alt: string; filename
       <img
         src={src ?? ""}
         alt={alt}
-        className="max-h-64 max-w-60 rounded-lg object-cover"
+        onClick={() => setLightboxOpen(true)}
+        className="w-full max-w-[280px] h-auto cursor-pointer rounded-2xl"
         onError={() => setError(true)}
       />
       <MediaDownloadButton url={url} filename={filename} />
+      {lightboxOpen && src && (
+        <ImageLightbox
+          imgSrc={src}
+          downloadUrl={url}
+          alt={alt}
+          filename={filename}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }

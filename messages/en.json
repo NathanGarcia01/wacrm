@@ -399,6 +399,7 @@
       "imageFilenamePrefix": "image",
       "videoFilenamePrefix": "video",
       "downloadAria": "Download",
+      "closeLightboxAria": "Close",
       "templateBadge": "Template",
       "locationShared": "Location shared",
       "contactShared": "Contact shared",
