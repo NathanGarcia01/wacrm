@@ -14,12 +14,12 @@
  * `resolveOpenDealId`. See the Fase E-M plan for the full rationale.
  *
  * Node-type coverage: every node type EXCEPT `send_buttons`,
- * `send_list`, and `collect_input` — those three exist solely to wait
- * for a customer's reply, a concept with no equivalent anywhere in
- * automations' step vocabulary. A workflow-mode flow that includes one
- * (nothing stops the shared builder from allowing it) fails loudly
- * (`unsupported_in_workflow_mode`) rather than silently hanging with
- * no way to ever resume.
+ * `send_list`, `collect_input`, and `wait_for_reply` — those four
+ * exist solely to wait for a customer's reply, a concept with no
+ * equivalent anywhere in automations' step vocabulary. A workflow-mode
+ * flow that includes one (nothing stops the shared builder from
+ * allowing it) fails loudly (`unsupported_in_workflow_mode`) rather
+ * than silently hanging with no way to ever resume.
  *
  * Suspension model: unlike the conversational engine (which suspends
  * at customer-facing nodes), workflow-mode suspends ONLY at `wait`
@@ -943,7 +943,8 @@ async function advanceWorkflow(
 
       case "send_buttons":
       case "send_list":
-      case "collect_input": {
+      case "collect_input":
+      case "wait_for_reply": {
         // No customer-reply mechanism exists in workflow mode — these
         // node types only make sense in a conversational (inbound-
         // message-triggered) run. See module doc comment.

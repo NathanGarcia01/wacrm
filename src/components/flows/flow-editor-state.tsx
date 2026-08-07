@@ -219,6 +219,8 @@ export function defaultConfigFor(
       };
     case "wait":
       return { amount: 5, unit: "minutes", next_node_key: "" };
+    case "wait_for_reply":
+      return { amount: 2, unit: "hours", next_node_key: "", timeout_node_key: "" };
     case "condition":
       return {
         subject: "var",

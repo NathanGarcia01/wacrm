@@ -27,6 +27,7 @@ import {
   GitFork,
   Globe,
   Handshake,
+  Hourglass,
   Inbox,
   ListChecks,
   ListPlus,
@@ -64,6 +65,7 @@ export type NodeType =
   | "send_template"
   | "collect_input"
   | "wait"
+  | "wait_for_reply"
   | "condition"
   | "randomizer"
   | "set_tag"
@@ -137,6 +139,10 @@ export const NODE_META: Record<
   wait: {
     icon: Clock,
     color: "text-amber-400",
+  },
+  wait_for_reply: {
+    icon: Hourglass,
+    color: "text-orange-400",
   },
   condition: {
     icon: GitFork,
@@ -332,6 +338,14 @@ export function summarizeNode(
       const durationKey =
         unit === "hours" ? "waitHours" : unit === "days" ? "waitDays" : "waitMinutes";
       return t("waitSummary", { duration: t(durationKey, { count: amount }) });
+    }
+    case "wait_for_reply": {
+      const amount = typeof cfg.amount === "number" ? cfg.amount : null;
+      if (amount === null) return null;
+      const unit = cfg.unit === "hours" ? "hours" : cfg.unit === "days" ? "days" : "minutes";
+      const durationKey =
+        unit === "hours" ? "waitHours" : unit === "days" ? "waitDays" : "waitMinutes";
+      return t("waitForReplySummary", { duration: t(durationKey, { count: amount }) });
     }
     case "condition": {
       const subjectKey =

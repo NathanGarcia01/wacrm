@@ -196,6 +196,16 @@ export function NodeConfigForm({
         />
       );
 
+    case "wait_for_reply":
+      return (
+        <WaitForReplyForm
+          cfg={cfg as WaitForReplyCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case "condition":
       return (
         <ConditionForm
@@ -805,6 +815,103 @@ function WaitForm({
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}
         label={t("thenAdvanceLabel")}
+      />
+    </>
+  );
+}
+
+// ============================================================
+// wait_for_reply — conversational-mode only. Suspends the run after a
+// preceding send_message "question", waiting for ANY customer reply
+// (unlike collect_input/send_buttons/send_list, which only match a
+// specific shape) up to a deadline. Branches to `next_node_key` when
+// the customer replies in time, or `timeout_node_key` when the
+// deadline passes with no reply. See WaitForReplyNodeConfig in
+// src/lib/flows/types.ts.
+// ============================================================
+
+interface WaitForReplyCfg {
+  amount?: number;
+  unit?: "minutes" | "hours" | "days";
+  next_node_key?: string;
+  timeout_node_key?: string;
+}
+
+function WaitForReplyForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: WaitForReplyCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+
+  const unitItems = useMemo(
+    () => ({
+      minutes: t("waitUnitMinutes"),
+      hours: t("waitUnitHours"),
+      days: t("waitUnitDays"),
+    }),
+    [t],
+  );
+
+  return (
+    <>
+      <p className="text-[10px] text-muted-foreground">
+        {t("waitForReplyHint")}
+      </p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("waitForReplyAmountLabel")}
+          </label>
+          <Input
+            type="number"
+            min={1}
+            value={cfg.amount ?? 2}
+            onChange={(e) =>
+              onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })
+            }
+            className="bg-muted"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-muted-foreground">
+            {t("waitUnitLabel")}
+          </label>
+          <Select
+            items={unitItems}
+            value={cfg.unit ?? "hours"}
+            onValueChange={(v) => onUpdateConfig({ unit: v as WaitForReplyCfg["unit"] })}
+          >
+            <SelectTrigger className="bg-muted">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">{t("waitUnitMinutes")}</SelectItem>
+              <SelectItem value="hours">{t("waitUnitHours")}</SelectItem>
+              <SelectItem value="days">{t("waitUnitDays")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={t("waitForReplyRepliedLabel")}
+      />
+      <NextNodeRow
+        value={cfg.timeout_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ timeout_node_key: v })}
+        label={t("waitForReplyTimeoutLabel")}
       />
     </>
   );

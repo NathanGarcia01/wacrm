@@ -61,6 +61,7 @@ import {
   type SetTagNodeConfig,
   type StartNodeConfig,
   type KeywordTriggerConfig,
+  type WaitForReplyNodeConfig,
 } from "./types";
 
 // ============================================================
@@ -130,7 +131,8 @@ export function isSuspending(node_type: string): boolean {
   return (
     node_type === "send_buttons" ||
     node_type === "send_list" ||
-    node_type === "collect_input"
+    node_type === "collect_input" ||
+    node_type === "wait_for_reply"
   );
 }
 
@@ -198,12 +200,18 @@ async function loadActiveRunForContact(
   // an active workflow run must never be mistaken for that, or an
   // inbound WhatsApp message would get routed to advance the wrong
   // (non-conversational) run.
+  //
+  // status also includes 'waiting_reply' (migration 061) — a run
+  // parked at a wait_for_reply node is still THE active run for this
+  // contact; the inbound reply that just arrived is exactly what it's
+  // waiting for, and handleReplyForActiveRun below is what resolves
+  // the wait_for_reply branch.
   const { data, error } = await db
     .from("flow_runs")
     .select("*")
     .eq("account_id", accountId)
     .eq("contact_id", contactId)
-    .eq("status", "active")
+    .in("status", ["active", "waiting_reply"])
     .eq("run_mode", "conversational")
     .order("started_at", { ascending: false })
     .limit(1);
@@ -450,6 +458,62 @@ async function sendListAndSuspend(
     })
     .eq("id", run.id);
   return { outcome: "advanced", node_key: node.node_key };
+}
+
+/**
+ * Parks the run at a `wait_for_reply` node: flips status to
+ * 'waiting_reply' and stamps the deadline + timeout target, all in
+ * ONE optimistic UPDATE (not the current_node_key write followed by a
+ * separate status write `advanceCurrentNodeKey` does for
+ * send_buttons/send_list) — the precondition `status = 'active'`
+ * would otherwise fail on its own follow-up write the instant this
+ * one flips status away from 'active'.
+ *
+ * Returns false on a lost optimistic-concurrency race (mirrors
+ * advanceCurrentNodeKey's return contract) so the caller can log it
+ * the same way.
+ */
+async function waitForReplyAndSuspend(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+): Promise<boolean> {
+  const cfg = node.config as unknown as WaitForReplyNodeConfig;
+  const ms = waitForReplyMs(cfg);
+  let q = db
+    .from("flow_runs")
+    .update({
+      current_node_key: node.node_key,
+      status: "waiting_reply",
+      waiting_reply_until: new Date(Date.now() + ms).toISOString(),
+      waiting_reply_timeout_node_key: cfg.timeout_node_key,
+      last_advanced_at: new Date().toISOString(),
+    })
+    .eq("id", run.id)
+    .eq("status", "active");
+  q = run.current_node_key === null
+    ? q.is("current_node_key", null)
+    : q.eq("current_node_key", run.current_node_key);
+  const { data, error } = await q.select("id");
+  if (error) {
+    console.error("[flows] waitForReplyAndSuspend error:", error.message);
+    return false;
+  }
+  const ok = Array.isArray(data) && data.length > 0;
+  if (ok) {
+    await logEvent(db, run.id, "node_entered", node.node_key, {
+      node_type: "wait_for_reply",
+      waiting_for: `${cfg.amount} ${cfg.unit}`,
+      timeout_node_key: cfg.timeout_node_key,
+    });
+  }
+  return ok;
+}
+
+function waitForReplyMs(cfg: WaitForReplyNodeConfig): number {
+  const unitMs =
+    cfg.unit === "hours" ? 3_600_000 : cfg.unit === "days" ? 86_400_000 : 60_000;
+  return Math.max(1_000, cfg.amount * unitMs);
 }
 
 async function executeHandoff(
@@ -808,6 +872,15 @@ async function advanceFromNodeKey(
       }
       return { outcome: "advanced" };
     }
+    if (node.node_type === "wait_for_reply") {
+      const ok = await waitForReplyAndSuspend(db, run, node);
+      if (!ok) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "lost_race_during_advance",
+        });
+      }
+      return { outcome: "advanced" };
+    }
     if (node.node_type === "handoff") {
       await executeHandoff(db, run, node);
       return { outcome: "handed_off" };
@@ -1096,13 +1169,42 @@ async function handleReplyForActiveRun(
     return { consumed: true, flow_run_id: run.id, outcome: "no_match" };
   }
 
-  // Two ways a reply can advance:
+  // Three ways a reply can advance:
   //   1. Interactive button/list tap on a send_buttons/send_list node.
   //   2. Text reply on a collect_input node — capture into vars.
+  //   3. ANY reply (text or interactive) on a wait_for_reply node — it
+  //      doesn't care what the customer said, only that they said
+  //      something before the deadline.
   //
   // Everything else falls through to the fallback policy below.
   let matched: string | null = null;
-  if (
+  if (currentNode.node_type === "wait_for_reply") {
+    // The customer beat the clock — clear the deadline and flip back
+    // to 'active' before advancing, so a subsequent suspending node
+    // reached later in this same advance (another wait_for_reply,
+    // send_buttons, …) finds status='active' as its optimistic-update
+    // precondition expects.
+    const cfg = currentNode.config as unknown as { next_node_key: string };
+    const { data: cleared, error: clearErr } = await db
+      .from("flow_runs")
+      .update({
+        status: "active",
+        waiting_reply_until: null,
+        waiting_reply_timeout_node_key: null,
+      })
+      .eq("id", run.id)
+      .eq("status", "waiting_reply")
+      .select("id");
+    // Row-count check (not just error-is-null) — a duplicate delivery
+    // of the same inbound (Meta retry) arriving after a first delivery
+    // already flipped this run to 'active' would otherwise still fall
+    // through to `matched`, re-advancing the run a second time for one
+    // customer reply.
+    if (!clearErr && Array.isArray(cleared) && cleared.length > 0) {
+      run.status = "active";
+      matched = cfg.next_node_key;
+    }
+  } else if (
     message.kind === "interactive_reply" &&
     (currentNode.node_type === "send_buttons" ||
       currentNode.node_type === "send_list")
@@ -1224,6 +1326,66 @@ async function handleReplyForActiveRun(
   // action.type === 'end'
   await endRun(db, run.id, "completed", "fallback_exhausted_end");
   return { consumed: true, flow_run_id: run.id, outcome: "completed" };
+}
+
+/**
+ * Resumes a run parked at a `wait_for_reply` node whose deadline has
+ * passed with no customer reply. Called by `/api/flows/cron` (the
+ * same sweep endpoint that times out abandoned conversational runs)
+ * for every `flow_runs` row with `status = 'waiting_reply'` and
+ * `waiting_reply_until` in the past.
+ *
+ * Guarded the same way `resumePendingWorkflowExecution`
+ * (workflow-engine.ts) guards its queue rows: the UPDATE that clears
+ * the waiting state is conditioned on `status = 'waiting_reply'`, so
+ * if the customer's reply won the race and
+ * `handleReplyForActiveRun`'s wait_for_reply branch already flipped
+ * the run to 'active' a moment earlier, this becomes a no-op instead
+ * of double-advancing the run down both branches.
+ */
+export async function resumeWaitForReplyTimeout(runId: string): Promise<void> {
+  const db = supabaseAdmin();
+  const { data: run, error } = await db
+    .from("flow_runs")
+    .select("*")
+    .eq("id", runId)
+    .eq("status", "waiting_reply")
+    .maybeSingle();
+  if (error || !run) {
+    console.error("[flows] resumeWaitForReplyTimeout: missing/inactive run", runId, error);
+    return;
+  }
+  const typed = run as FlowRunRow;
+  const timeoutKey = typed.waiting_reply_timeout_node_key;
+
+  const { data: claimed, error: claimErr } = await db
+    .from("flow_runs")
+    .update({
+      status: "active",
+      waiting_reply_until: null,
+      waiting_reply_timeout_node_key: null,
+    })
+    .eq("id", runId)
+    .eq("status", "waiting_reply")
+    .select("id");
+  if (claimErr) {
+    console.error("[flows] resumeWaitForReplyTimeout claim error:", claimErr.message);
+    return;
+  }
+  if (!Array.isArray(claimed) || claimed.length === 0) return; // lost the race to a reply
+
+  if (!timeoutKey) {
+    await endRun(db, runId, "failed", "wait_for_reply_missing_timeout_node");
+    return;
+  }
+  await logEvent(db, runId, "timeout", typed.current_node_key, {
+    reason: "wait_for_reply_timeout",
+  });
+  typed.status = "active";
+  typed.waiting_reply_until = null;
+  typed.waiting_reply_timeout_node_key = null;
+  const nodes = await loadAllNodes(db, typed.flow_id);
+  await advanceFromNodeKey(db, typed, timeoutKey, nodes);
 }
 
 async function startNewRun(

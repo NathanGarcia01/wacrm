@@ -31,9 +31,15 @@ import type { BuilderNode } from "@/components/flows/shared";
  * don't care about locale (tests, non-UI callers) get the English
  * defaults below, matching this module's pre-i18n behaviour.
  */
-type EdgesT = (key: "true" | "false" | "next") => string;
+type EdgesT = (key: "true" | "false" | "next" | "replied" | "timeout") => string;
 const defaultEdgesT: EdgesT = (key) =>
-  ({ true: "true", false: "false", next: "Next" })[key];
+  ({
+    true: "true",
+    false: "false",
+    next: "Next",
+    replied: "Replied",
+    timeout: "No reply",
+  })[key];
 
 export interface CanvasEdge {
   /** Stable per-edge id — required by React-Flow. */
@@ -110,6 +116,30 @@ export function deriveCanvasEdges(
             target: falseNext,
             sourceHandle: "false",
             label: t("false"),
+          });
+        }
+        break;
+      }
+
+      case "wait_for_reply": {
+        const replied = (cfg as { next_node_key?: string }).next_node_key;
+        const timeout = (cfg as { timeout_node_key?: string }).timeout_node_key;
+        if (replied && knownKeys.has(replied)) {
+          edges.push({
+            id: `${node.node_key}--replied--${replied}`,
+            source: node.node_key,
+            target: replied,
+            sourceHandle: "replied",
+            label: t("replied"),
+          });
+        }
+        if (timeout && knownKeys.has(timeout)) {
+          edges.push({
+            id: `${node.node_key}--timeout--${timeout}`,
+            source: node.node_key,
+            target: timeout,
+            sourceHandle: "timeout",
+            label: t("timeout"),
           });
         }
         break;
@@ -237,6 +267,12 @@ export function outgoingSlots(
         { id: "false", label: t("false") },
       ];
 
+    case "wait_for_reply":
+      return [
+        { id: "replied", label: t("replied") },
+        { id: "timeout", label: t("timeout") },
+      ];
+
     case "send_buttons": {
       const buttons = Array.isArray((cfg as { buttons?: unknown }).buttons)
         ? ((cfg as { buttons: Array<Record<string, unknown>> }).buttons)
@@ -326,6 +362,11 @@ export function applyEdgeConnection(
     case "randomizer":
       if (sourceHandle === "true") return { true_next: targetKey };
       if (sourceHandle === "false") return { false_next: targetKey };
+      return null;
+
+    case "wait_for_reply":
+      if (sourceHandle === "replied") return { next_node_key: targetKey };
+      if (sourceHandle === "timeout") return { timeout_node_key: targetKey };
       return null;
 
     case "send_buttons": {
@@ -445,6 +486,18 @@ function patchedConfigWithoutKey(
         ...cfg,
         ...(trueMatch ? { true_next: "" } : {}),
         ...(falseMatch ? { false_next: "" } : {}),
+      };
+    }
+
+    case "wait_for_reply": {
+      const c = cfg as { next_node_key?: string; timeout_node_key?: string };
+      const repliedMatch = c.next_node_key === deletedKey;
+      const timeoutMatch = c.timeout_node_key === deletedKey;
+      if (!repliedMatch && !timeoutMatch) return null;
+      return {
+        ...cfg,
+        ...(repliedMatch ? { next_node_key: "" } : {}),
+        ...(timeoutMatch ? { timeout_node_key: "" } : {}),
       };
     }
 

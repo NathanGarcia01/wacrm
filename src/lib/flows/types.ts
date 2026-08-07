@@ -236,6 +236,37 @@ export interface WaitNodeConfig {
 }
 
 /**
+ * Suspends a CONVERSATIONAL run waiting for the customer's next
+ * reply (any text message or interactive tap — unlike collect_input/
+ * send_buttons/send_list, which only match a specific shape), with a
+ * deadline. Two outgoing paths:
+ *   - `next_node_key` — a reply arrived before `waiting_reply_until`.
+ *   - `timeout_node_key` — the deadline passed with no reply; the
+ *     `/api/flows/cron` sweep resumes the run here (see
+ *     `resumeWaitForReplyTimeout` in engine.ts).
+ *
+ * The engine tracks the deadline on the run itself
+ * (`flow_runs.status = 'waiting_reply'`,
+ * `flow_runs.waiting_reply_until`,
+ * `flow_runs.waiting_reply_timeout_node_key`) rather than via
+ * `flow_pending_executions` (migration 045) — that queue exists for
+ * workflow-mode's single-path `wait` node; this node needs to pick
+ * between TWO resume paths depending on whether a reply beat the
+ * clock, which the queue's single `resume_node_key` can't express.
+ * Only meaningful on run_mode='conversational'; the workflow engine
+ * (workflow-engine.ts) rejects it the same way it rejects
+ * send_buttons/send_list/collect_input. Migration 061.
+ */
+export interface WaitForReplyNodeConfig {
+  amount: number;
+  unit: "minutes" | "hours" | "days";
+  /** Advance here when the customer replies within the window. */
+  next_node_key: string;
+  /** Advance here if no reply arrives before the deadline. */
+  timeout_node_key: string;
+}
+
+/**
  * Random A/B split — workflow-mode equivalent of automations'
  * `randomizer` step. Structurally identical to `condition` (two
  * named branches), just evaluated by a coin flip instead of a
@@ -429,6 +460,7 @@ export type FlowNodeConfig =
   | { node_type: "send_template"; config: SendTemplateNodeConfig }
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "wait"; config: WaitNodeConfig }
+  | { node_type: "wait_for_reply"; config: WaitForReplyNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "randomizer"; config: RandomizerNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
@@ -539,6 +571,7 @@ export interface FlowRunRow {
   run_mode: "conversational" | "workflow";
   status:
     | "active"
+    | "waiting_reply"
     | "completed"
     | "handed_off"
     | "timed_out"
@@ -552,6 +585,11 @@ export interface FlowRunRow {
   last_advanced_at: string;
   ended_at: string | null;
   end_reason: string | null;
+  /** Deadline for a run parked at a wait_for_reply node. Migration 061. */
+  waiting_reply_until: string | null;
+  /** Node to resume at if `waiting_reply_until` passes unanswered.
+   *  Migration 061. */
+  waiting_reply_timeout_node_key: string | null;
 }
 
 // ============================================================

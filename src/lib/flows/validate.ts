@@ -744,6 +744,68 @@ function validateNode(
       break;
     }
 
+    case "wait_for_reply": {
+      const cfg = node.config as {
+        amount?: number;
+        unit?: "minutes" | "hours" | "days";
+        next_node_key?: string;
+        timeout_node_key?: string;
+      };
+      if (typeof cfg.amount !== "number" || !Number.isFinite(cfg.amount) || cfg.amount <= 0) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "amount",
+          message: "Wait-for-reply needs a positive amount.",
+        });
+      }
+      if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "unit",
+          message: "Wait-for-reply needs a unit (minutes / hours / days).",
+        });
+      }
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Wait-for-reply must point to a next node for when the customer replies.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Wait-for-reply's "replied" branch points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      if (!cfg.timeout_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "timeout_node_key",
+          message: "Wait-for-reply must point to a node for when the customer doesn't reply in time.",
+        });
+      } else if (!knownKeys.has(cfg.timeout_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "timeout_node_key",
+          message: `Wait-for-reply's "no reply" branch points to non-existent node "${cfg.timeout_node_key}".`,
+        });
+      }
+      break;
+    }
+
     case "condition": {
       const cfg = node.config as {
         subject?: "var" | "tag" | "contact_field" | "message_content" | "time_of_day";
@@ -1349,6 +1411,16 @@ function outgoingEdges(node: NodeInput): string[] {
       const out: string[] = [];
       if (cfg.true_next) out.push(cfg.true_next);
       if (cfg.false_next) out.push(cfg.false_next);
+      return out;
+    }
+    case "wait_for_reply": {
+      const cfg = node.config as {
+        next_node_key?: string;
+        timeout_node_key?: string;
+      };
+      const out: string[] = [];
+      if (cfg.next_node_key) out.push(cfg.next_node_key);
+      if (cfg.timeout_node_key) out.push(cfg.timeout_node_key);
       return out;
     }
     case "send_buttons": {

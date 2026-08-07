@@ -177,6 +177,31 @@ describe("deriveCanvasEdges — randomizer (same branch shape as condition)", ()
   });
 });
 
+describe("deriveCanvasEdges — wait_for_reply (replied/timeout branches)", () => {
+  it("produces a labeled edge for each branch", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "w",
+          node_type: "wait_for_reply",
+          config: { amount: 2, unit: "hours", next_node_key: "r", timeout_node_key: "t" },
+        },
+        { node_key: "r", node_type: "end", config: {} },
+        { node_key: "t", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges).toHaveLength(2);
+    expect(edges.find((e) => e.sourceHandle === "replied")).toMatchObject({
+      target: "r",
+      label: "Replied",
+    });
+    expect(edges.find((e) => e.sourceHandle === "timeout")).toMatchObject({
+      target: "t",
+      label: "No reply",
+    });
+  });
+});
+
 describe("deriveCanvasEdges — terminal node types have no outgoing edges", () => {
   it("stop_flow produces zero edges", () => {
     const edges = deriveCanvasEdges(
@@ -528,6 +553,15 @@ describe("outgoingSlots", () => {
     expect(slots.map((s) => s.label)).toEqual(["true", "false"]);
   });
 
+  it("returns replied/timeout slots for wait_for_reply", () => {
+    const slots = outgoingSlots({
+      node_key: "w",
+      node_type: "wait_for_reply",
+      config: {},
+    });
+    expect(slots.map((s) => s.id)).toEqual(["replied", "timeout"]);
+  });
+
   it("returns one slot per button, labelled with the title", () => {
     const slots = outgoingSlots({
       node_key: "m",
@@ -694,6 +728,21 @@ describe("applyEdgeConnection", () => {
       ),
     ).toBeNull();
   });
+
+  it("patches next_node_key or timeout_node_key on wait_for_reply depending on the handle", () => {
+    const node: BuilderNode = {
+      node_key: "w",
+      node_type: "wait_for_reply",
+      config: { amount: 2, unit: "hours", next_node_key: "", timeout_node_key: "" },
+    };
+    expect(applyEdgeConnection(node, "replied", "r")).toEqual({
+      next_node_key: "r",
+    });
+    expect(applyEdgeConnection(node, "timeout", "t")).toEqual({
+      timeout_node_key: "t",
+    });
+    expect(applyEdgeConnection(node, "next", "z")).toBeNull();
+  });
 });
 
 describe("unlinkNodeReferences", () => {
@@ -730,6 +779,20 @@ describe("unlinkNodeReferences", () => {
     };
     expect(cfg.true_next).toBe("");
     expect(cfg.false_next).toBe("");
+  });
+
+  it("clears only the wait_for_reply field(s) that point at the deleted node", () => {
+    const before: BuilderNode[] = [
+      {
+        node_key: "w",
+        node_type: "wait_for_reply",
+        config: { amount: 2, unit: "hours", next_node_key: "victim", timeout_node_key: "safe" },
+      },
+    ];
+    const after = unlinkNodeReferences(before, "victim");
+    const cfg = after[0].config as { next_node_key: string; timeout_node_key: string };
+    expect(cfg.next_node_key).toBe("");
+    expect(cfg.timeout_node_key).toBe("safe");
   });
 
   it("clears only the buttons that point at the deleted node", () => {

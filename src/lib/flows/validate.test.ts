@@ -584,6 +584,96 @@ describe("validateFlowForActivation — wait", () => {
   });
 });
 
+describe("validateFlowForActivation — wait_for_reply", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "w" } },
+    { node_key: "w", node_type: "wait_for_reply", config: cfg },
+    { node_key: "replied", node_type: "handoff", config: {} },
+    { node_key: "timedout", node_type: "handoff", config: {} },
+  ];
+
+  it("passes on a fully-populated wait_for_reply node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        amount: 2,
+        unit: "hours",
+        next_node_key: "replied",
+        timeout_node_key: "timedout",
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing/non-positive amount", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ unit: "hours", next_node_key: "replied", timeout_node_key: "timedout" }),
+    );
+    expect(issues.some((i) => i.node_key === "w" && i.field === "amount")).toBe(true);
+  });
+
+  it("flags missing/invalid unit", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        amount: 2,
+        unit: "fortnights",
+        next_node_key: "replied",
+        timeout_node_key: "timedout",
+      }),
+    );
+    expect(issues.some((i) => i.node_key === "w" && i.field === "unit")).toBe(true);
+  });
+
+  it("flags a missing timeout_node_key separately from next_node_key", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({ amount: 2, unit: "hours", next_node_key: "replied" }),
+    );
+    expect(
+      issues.some((i) => i.node_key === "w" && i.field === "timeout_node_key"),
+    ).toBe(true);
+    expect(
+      issues.some((i) => i.node_key === "w" && i.field === "next_node_key"),
+    ).toBe(false);
+  });
+
+  it("flags timeout_node_key pointing at a non-existent node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        amount: 2,
+        unit: "hours",
+        next_node_key: "replied",
+        timeout_node_key: "ghost",
+      }),
+    );
+    expect(
+      issues.some(
+        (i) =>
+          i.node_key === "w" &&
+          i.field === "timeout_node_key" &&
+          i.message.includes("ghost"),
+      ),
+    ).toBe(true);
+  });
+
+  it("contributes both next_node_key and timeout_node_key to reachability", () => {
+    const set = reachableFromEntry(
+      "s",
+      nodesWith({
+        amount: 2,
+        unit: "hours",
+        next_node_key: "replied",
+        timeout_node_key: "timedout",
+      }),
+    );
+    expect(set).toEqual(new Set(["s", "w", "replied", "timedout"]));
+  });
+});
+
 describe("validateFlowForActivation — randomizer", () => {
   const baseFlow = { ...validFlow, entry_node_id: "s" };
   const nodesWith = (cfg: Record<string, unknown>) => [

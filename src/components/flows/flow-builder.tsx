@@ -646,6 +646,7 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "send_template",
     "collect_input",
     "wait",
+    "wait_for_reply",
     "condition",
     "randomizer",
     "set_tag",

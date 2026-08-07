@@ -2356,6 +2356,7 @@
       "send_template": "Enviar plantilla",
       "collect_input": "Recopilar respuesta",
       "wait": "Esperar",
+      "wait_for_reply": "Esperar respuesta",
       "condition": "Si / si no",
       "randomizer": "División aleatoria (A/B)",
       "set_tag": "Etiquetar contacto",
@@ -2394,6 +2395,7 @@
       "waitHours": "{count, plural, one {# hora} other {# horas}}",
       "waitDays": "{count, plural, one {# día} other {# días}}",
       "waitSummary": "Espera {duration}",
+      "waitForReplySummary": "Espera respuesta por {duration}",
       "randomizerSummary": "Divide {pct}%",
       "startFlowSummary": "Inicia flujo",
       "stopFlowSummary": "Detiene el flujo",
@@ -2487,7 +2489,9 @@
     "edges": {
       "true": "verdadero",
       "false": "falso",
-      "next": "Siguiente"
+      "next": "Siguiente",
+      "replied": "respondió",
+      "timeout": "sin respuesta"
     },
     "forms": {
       "chooseNextNodePlaceholder": "Elige el siguiente nodo…",
@@ -2560,6 +2564,10 @@
       "waitUnitMinutes": "Minutos",
       "waitUnitHours": "Horas",
       "waitUnitDays": "Días",
+      "waitForReplyHint": "Envía la pregunta en un nodo \"Enviar mensaje\" justo antes de este — este nodo solo espera la respuesta del cliente.",
+      "waitForReplyAmountLabel": "Tiempo máximo de espera",
+      "waitForReplyRepliedLabel": "Si el cliente responde → avanza a",
+      "waitForReplyTimeoutLabel": "Si no responde a tiempo → avanza a",
       "randomizerSplitLabel": "División (%)",
       "randomizerGroupALabel": "Grupo A ({pct}%)",
       "randomizerGroupBLabel": "Grupo B ({pct}%)",

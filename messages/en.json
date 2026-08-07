@@ -2356,6 +2356,7 @@
       "send_template": "Send template",
       "collect_input": "Collect response",
       "wait": "Wait",
+      "wait_for_reply": "Wait for reply",
       "condition": "If / else",
       "randomizer": "Random split (A/B)",
       "set_tag": "Tag contact",
@@ -2394,6 +2395,7 @@
       "waitHours": "{count, plural, one {# hour} other {# hours}}",
       "waitDays": "{count, plural, one {# day} other {# days}}",
       "waitSummary": "Waits {duration}",
+      "waitForReplySummary": "Waits for a reply for {duration}",
       "randomizerSummary": "Splits {pct}%",
       "startFlowSummary": "Starts flow",
       "stopFlowSummary": "Stops the flow",
@@ -2487,7 +2489,9 @@
     "edges": {
       "true": "true",
       "false": "false",
-      "next": "Next"
+      "next": "Next",
+      "replied": "replied",
+      "timeout": "no reply"
     },
     "forms": {
       "chooseNextNodePlaceholder": "Choose the next node…",
@@ -2560,6 +2564,10 @@
       "waitUnitMinutes": "Minutes",
       "waitUnitHours": "Hours",
       "waitUnitDays": "Days",
+      "waitForReplyHint": "Send the question in a \"Send message\" node right before this one — this node only waits for the customer's reply.",
+      "waitForReplyAmountLabel": "Maximum time to wait",
+      "waitForReplyRepliedLabel": "If the customer replies → advance to",
+      "waitForReplyTimeoutLabel": "If they don't reply in time → advance to",
       "randomizerSplitLabel": "Split (%)",
       "randomizerGroupALabel": "Group A ({pct}%)",
       "randomizerGroupBLabel": "Group B ({pct}%)",

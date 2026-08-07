@@ -8,6 +8,7 @@ import {
   CircleCheck,
   CircleAlert,
   Clock,
+  Hourglass,
   UserPlus,
   PlayCircle,
   PauseCircle,
@@ -34,6 +35,7 @@ interface RunRow {
   id: string;
   status:
     | "active"
+    | "waiting_reply"
     | "completed"
     | "handed_off"
     | "timed_out"
@@ -65,6 +67,11 @@ const STATUS_META: Record<
     label: "Active",
     classes: "border-primary/40 bg-primary/10 text-primary",
     icon: PlayCircle,
+  },
+  waiting_reply: {
+    label: "Waiting for reply",
+    classes: "border-amber-400/40 bg-amber-400/10 text-amber-500",
+    icon: Hourglass,
   },
   completed: {
     label: "Completed",
@@ -249,7 +256,7 @@ function RunCard({
               <StatusIcon className="h-3 w-3" />
               {meta.label}
             </Badge>
-            {run.status === "active" && run.current_node_key && (
+            {(run.status === "active" || run.status === "waiting_reply") && run.current_node_key && (
               <code className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                 at {run.current_node_key}
               </code>

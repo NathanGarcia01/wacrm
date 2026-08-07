@@ -2,19 +2,35 @@ import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { resolveFallbackPolicy } from '@/lib/flows/fallback'
+import { resumeWaitForReplyTimeout } from '@/lib/flows/engine'
 
 /**
- * Sweep abandoned active flow runs.
+ * Sweep abandoned active flow runs, AND resume wait_for_reply nodes
+ * whose deadline has passed unanswered.
  *
- * Reads each active run's parent-flow `fallback_policy.on_timeout_hours`
- * to compute the staleness cutoff (default 24h), then marks any run
- * past its cutoff as `timed_out`. Writes a matching `flow_run_events`
- * row for the audit trail.
+ * Two independent sweeps share this endpoint (one secret, one cron
+ * schedule to provision):
  *
- * Without this sweep, a customer who abandons a flow mid-conversation
- * keeps a row in `idx_one_active_run_per_contact` (the partial unique
- * index on `flow_runs WHERE status='active'`) forever — blocking any
- * new triggers for them. The cron is therefore not optional.
+ *   1. Stale-abandonment sweep — reads each active run's parent-flow
+ *      `fallback_policy.on_timeout_hours` to compute the staleness
+ *      cutoff (default 24h), then marks any run past its cutoff as
+ *      `timed_out`. Writes a matching `flow_run_events` row for the
+ *      audit trail.
+ *
+ *      Without this sweep, a customer who abandons a flow mid-conversation
+ *      keeps a row in `idx_one_active_run_per_contact` (the partial unique
+ *      index on `flow_runs WHERE status IN ('active','waiting_reply')`)
+ *      forever — blocking any new triggers for them. The cron is
+ *      therefore not optional.
+ *
+ *   2. wait_for_reply timeout sweep — finds every run parked at a
+ *      `wait_for_reply` node (`status = 'waiting_reply'`) whose
+ *      `waiting_reply_until` deadline is in the past, and resumes it
+ *      along the node's `timeout_node_key` branch via
+ *      `resumeWaitForReplyTimeout` (see src/lib/flows/engine.ts). This
+ *      is what actually fires the "customer didn't answer" follow-up
+ *      — sweep #1 above only ever KILLS a run, it never continues one
+ *      down a different branch, so wait_for_reply needs its own pass.
  *
  * Auth: re-uses `AUTOMATION_CRON_SECRET` so operators only have one
  * secret to provision. The two endpoints (`/api/automations/cron`
@@ -116,5 +132,22 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ swept })
+  // ---- Sweep 2: wait_for_reply timeouts ----
+  const { data: dueWaits, error: waitError } = await admin
+    .from('flow_runs')
+    .select('id')
+    .eq('status', 'waiting_reply')
+    .lte('waiting_reply_until', now.toISOString())
+
+  if (waitError) {
+    console.error('[flows-cron] wait_for_reply scan failed:', waitError.message)
+  }
+
+  let resumed = 0
+  for (const r of (dueWaits ?? []) as { id: string }[]) {
+    await resumeWaitForReplyTimeout(r.id)
+    resumed += 1
+  }
+
+  return NextResponse.json({ swept, resumed })
 }
