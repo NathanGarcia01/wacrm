@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 
     const { data: staleConvs } = await db
       .from("conversations")
-      .select("id, created_at, reopened_at")
+      .select("id, contact_id")
       .eq("account_id", row.account_id)
       .eq("status", "open")
       .lt("last_message_at", cutoff)
@@ -56,35 +56,35 @@ export async function GET(request: Request) {
       .order("last_message_at", { ascending: true })
       .limit(50);
 
-    const staleConvIds = (staleConvs ?? []).map((c) => c.id as string);
+    const staleContactIds = [
+      ...new Set(
+        (staleConvs ?? [])
+          .map((c) => c.contact_id as string | null)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
 
-    // Mirrors sendNpsSurvey's own gate: a conversation is only "already
-    // surveyed" if its latest sent/responded row postdates the current
-    // attendance period (its last reopen, or creation if never
-    // reopened) — otherwise this pre-filter would silently exclude
-    // conversations sendNpsSurvey itself would happily re-survey.
-    const { data: existingSurveys } = staleConvIds.length
+    // Mirrors sendNpsSurvey's own gate (1 survey per CONTACT per
+    // rolling 24h) — a pure optimization to skip calling sendNpsSurvey
+    // for conversations it would reject anyway; sendNpsSurvey remains
+    // the authoritative check.
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: recentSurveys } = staleContactIds.length
       ? await db
           .from("nps_surveys")
-          .select("conversation_id, created_at")
-          .in("conversation_id", staleConvIds)
+          .select("contact_id")
+          .in("contact_id", staleContactIds)
           .in("status", ["sent", "responded"])
+          .gte("sent_at", twentyFourHoursAgo)
       : { data: [] };
 
-    const latestSurveyAt = new Map<string, string>();
-    for (const s of existingSurveys ?? []) {
-      const convId = s.conversation_id as string;
-      const createdAt = s.created_at as string;
-      const prev = latestSurveyAt.get(convId);
-      if (!prev || createdAt > prev) latestSurveyAt.set(convId, createdAt);
-    }
+    const recentlySurveyedContacts = new Set(
+      (recentSurveys ?? []).map((s) => s.contact_id as string),
+    );
 
-    const due = (staleConvs ?? []).filter((c) => {
-      const surveyAt = latestSurveyAt.get(c.id as string);
-      if (!surveyAt) return true;
-      const attendanceStart = (c.reopened_at as string | null) ?? (c.created_at as string);
-      return surveyAt < attendanceStart;
-    });
+    const due = (staleConvs ?? []).filter(
+      (c) => !c.contact_id || !recentlySurveyedContacts.has(c.contact_id as string),
+    );
 
     for (const conv of due) {
       const result = await sendNpsSurvey({

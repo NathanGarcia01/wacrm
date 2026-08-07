@@ -30,25 +30,26 @@ export type SendNpsSurveyResult =
  * 'manual_close' | 'inactivity', and a human-initiated send is
  * closer in spirit to the former than to an inactivity timeout).
  *
- * Resend gating is enforced here, not by a unique constraint: this CRM
- * keeps exactly one `conversations` row per contact forever (a closed
- * conversation reopens on the next inbound message rather than getting
- * a new row — see findOrCreateConversation), so conversation_id alone
- * can't tell "still the same attendance" apart from "customer came back
- * after we closed things out". `conversations.reopened_at` (migration
- * 059) marks the latest closed→open transition, so a conversation can
- * get a new survey once any prior sent/responded nps_surveys row for it
- * predates the conversation's current attendance period (its last
- * reopen, or its creation if it's never been reopened) — a customer who
- * reopens a closed conversation and gets helped again is a distinct
- * "attendance" worth its own rating.
+ * Resend gating is enforced here, not by a unique constraint: at most
+ * one survey per CONTACT per rolling 24h, regardless of how many
+ * conversations/attendances (closes + reopens) happened in that
+ * window. A contact-scoped check (rather than the old
+ * conversation-scoped one keyed off `conversations.reopened_at`) is
+ * required because this CRM keeps exactly one `conversations` row per
+ * contact forever (a closed conversation reopens on the next inbound
+ * message rather than getting a new row — see
+ * findOrCreateConversation): a contact whose conversation gets
+ * closed/reopened several times in one day (agent closes, customer
+ * writes back, closes again, …) would otherwise get a fresh survey on
+ * every reopen, since each reopen bumps `reopened_at` past any prior
+ * survey. See the "1 por cliente por dia" fix.
  */
 export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSurveyResult> {
   const db = supabaseAdmin();
 
   const { data: conversation } = await db
     .from("conversations")
-    .select("id, contact_id, assigned_agent_id, created_at, reopened_at")
+    .select("id, contact_id, assigned_agent_id")
     .eq("id", args.conversationId)
     .eq("account_id", args.accountId)
     .maybeSingle();
@@ -74,15 +75,19 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
     return { sent: false, reason: "disabled" };
   }
 
-  const attendanceStart = conversation.reopened_at ?? conversation.created_at;
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // .limit(1) + length check rather than .maybeSingle() — pre-fix data
+  // (and any historical backlog) can legitimately have more than one
+  // qualifying row for a contact; .maybeSingle() throws on >1 row.
   const { data: existing } = await db
     .from("nps_surveys")
     .select("id")
-    .eq("conversation_id", args.conversationId)
+    .eq("account_id", args.accountId)
+    .eq("contact_id", conversation.contact_id)
     .in("status", ["sent", "responded"])
-    .gte("created_at", attendanceStart)
-    .maybeSingle();
-  if (existing) {
+    .gte("sent_at", twentyFourHoursAgo)
+    .limit(1);
+  if (existing && existing.length > 0) {
     return { sent: false, reason: "already_sent" };
   }
 
