@@ -61,6 +61,16 @@ const REQUEST_TIME_BUDGET_MS = 45_000
 const RECIPIENT_FETCH_LIMIT = 50
 const RATE_LIMIT_ERROR_CODE = 130429
 const RATE_LIMIT_PAUSE_MS = 60 * 60 * 1000
+/**
+ * Cap on CONSECUTIVE rate-limited ticks for one broadcast. Recipients
+ * are retried oldest-first, so a single persistently-throttled (or
+ * blocked) recipient otherwise re-triggers the same 130429 error on
+ * every retry forever — pausing the whole broadcast an hour each time
+ * with no way to ever reach remainingPending = 0. After this many
+ * straight hits, the blocking recipient is force-failed so the rest
+ * of the broadcast can proceed instead of stalling for days.
+ */
+const RATE_LIMIT_MAX_CONSECUTIVE_HITS = 3
 
 interface BroadcastRow {
   id: string
@@ -83,6 +93,9 @@ interface BroadcastRow {
   /** Tag ids applied to a contact right after each successful send.
    *  Migration 040. */
   tags_to_add: string[] | null
+  /** Consecutive rate-limited ticks — see RATE_LIMIT_MAX_CONSECUTIVE_HITS.
+   *  Migration 060. */
+  rate_limit_hits: number | null
 }
 
 type RecipientContact = {
@@ -172,7 +185,7 @@ export async function GET(request: Request) {
   const { data: due, error } = await admin
     .from('broadcasts')
     .select(
-      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add',
+      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add, rate_limit_hits',
     )
     .in('status', ['scheduled', 'sending'])
     .or(`next_batch_at.is.null,next_batch_at.lte.${nowIso()}`)
@@ -255,6 +268,7 @@ export async function GET(request: Request) {
 
     let batchSentDelta = 0
     let rateLimited = false
+    let rateLimitedRecipientId: string | null = null
 
     for (const recipient of (recipients ?? []) as RecipientRow[]) {
       if (Date.now() - startedAt > REQUEST_TIME_BUDGET_MS) break
@@ -433,6 +447,7 @@ export async function GET(request: Request) {
         // everything after it) `pending` and back off the whole
         // broadcast for an hour before trying again.
         rateLimited = true
+        rateLimitedRecipientId = recipient.id
         break
       }
 
@@ -446,10 +461,33 @@ export async function GET(request: Request) {
     }
 
     if (rateLimited) {
-      await admin
-        .from('broadcasts')
-        .update({ next_batch_at: new Date(Date.now() + RATE_LIMIT_PAUSE_MS).toISOString() })
-        .eq('id', row.id)
+      const hits = (row.rate_limit_hits ?? 0) + 1
+      if (hits >= RATE_LIMIT_MAX_CONSECUTIVE_HITS && rateLimitedRecipientId) {
+        // Same recipient (oldest pending, retried first) has now
+        // triggered Meta's rate limit on RATE_LIMIT_MAX_CONSECUTIVE_HITS
+        // straight hourly attempts — this is no longer a transient
+        // account-wide throttle, it's this recipient blocking everyone
+        // behind it. Fail it and move on instead of pausing forever.
+        await admin
+          .from('broadcast_recipients')
+          .update({
+            status: 'failed',
+            error_message: `Meta rate limit (130429) persisted after ${hits} retries`,
+          })
+          .eq('id', rateLimitedRecipientId)
+        await admin
+          .from('broadcasts')
+          .update({ rate_limit_hits: 0, next_batch_at: nowIso() })
+          .eq('id', row.id)
+      } else {
+        await admin
+          .from('broadcasts')
+          .update({
+            rate_limit_hits: hits,
+            next_batch_at: new Date(Date.now() + RATE_LIMIT_PAUSE_MS).toISOString(),
+          })
+          .eq('id', row.id)
+      }
       broadcastsAdvanced++
       continue
     }
@@ -463,7 +501,7 @@ export async function GET(request: Request) {
     if (!remainingPending) {
       const { data: finished } = await admin
         .from('broadcasts')
-        .update({ status: 'sent', next_batch_at: null })
+        .update({ status: 'sent', next_batch_at: null, rate_limit_hits: 0 })
         .eq('id', row.id)
         .select('sent_count')
         .single()
@@ -484,27 +522,53 @@ export async function GET(request: Request) {
       }
     } else {
       const newBatchSent = row.current_batch_sent + batchSentDelta
+      let updatedSentCount: number | null = null
       if (newBatchSent >= row.batch_size) {
         let pauseUntil = new Date(Date.now() + row.batch_interval_minutes * 60 * 1000)
         if (row.respect_business_hours && !isWithinBusinessHours(pauseUntil)) {
           pauseUntil = nextBusinessHoursStart(pauseUntil)
         }
-        await admin
+        const { data: updated } = await admin
           .from('broadcasts')
           .update({
             current_batch: row.current_batch + 1,
             current_batch_sent: 0,
             next_batch_at: pauseUntil.toISOString(),
+            rate_limit_hits: 0,
           })
           .eq('id', row.id)
+          .select('sent_count')
+          .single()
+        updatedSentCount = updated?.sent_count ?? null
       } else {
-        await admin
+        const { data: updated } = await admin
           .from('broadcasts')
           .update({
             current_batch_sent: newBatchSent,
             next_batch_at: nowIso(),
+            rate_limit_hits: 0,
           })
           .eq('id', row.id)
+          .select('sent_count')
+          .single()
+        updatedSentCount = updated?.sent_count ?? null
+      }
+
+      // Incremental cost update — runs after every batch that made
+      // real progress, not just once at the very end, so meta_total_cost
+      // tracks spend as the broadcast goes out instead of sitting at R$0
+      // for however long the broadcast takes to fully complete.
+      if (batchSentDelta > 0 && updatedSentCount !== null) {
+        try {
+          await computeAndSaveBroadcastCost(admin, {
+            broadcastId: row.id,
+            accountId: row.account_id,
+            templateCategory: templateRow?.category ?? null,
+            sentCount: updatedSentCount,
+          })
+        } catch (err) {
+          console.error('[broadcasts/cron] incremental cost calculation failed:', err)
+        }
       }
     }
     broadcastsAdvanced++

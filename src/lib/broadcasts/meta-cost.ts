@@ -69,6 +69,11 @@ export async function computeAndSaveBroadcastCost(
       meta_cost_utility: pricing?.utility_cost ?? 0,
       meta_cost_authentication: pricing?.authentication_cost ?? 0,
       meta_total_cost: totalCost,
+      // Effective per-message rate actually applied (the one among
+      // marketing/utility/authentication matching this broadcast's
+      // template category) — was declared in the schema (migration
+      // 033) but never written by any code path, so it always read 0.
+      cost_per_message: rate,
     })
     .eq("id", args.broadcastId);
 

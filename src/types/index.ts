@@ -482,9 +482,14 @@ export interface Broadcast {
   current_batch: number;
   /** Recipients processed (sent or failed) within the current batch. */
   current_batch_sent: number;
-  /** What the user paid Meta per message, entered on the ROI card.
+  /** Effective per-message Meta rate for this broadcast's template
+   *  category (marketing/utility/authentication, BR pricing) — set by
+   *  computeAndSaveBroadcastCost alongside meta_total_cost.
    *  Migration 033. */
   cost_per_message: number;
+  /** Consecutive rate-limited cron ticks — see RATE_LIMIT_MAX_CONSECUTIVE_HITS
+   *  in api/broadcasts/cron/route.ts. Migration 060. */
+  rate_limit_hits?: number;
   /** FK to whatsapp_channels — which number sent this broadcast.
    *  Column exists in the live DB outside a checked-in migration; see
    *  036_whatsapp_channels.sql's header note. */
