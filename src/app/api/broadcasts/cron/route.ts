@@ -71,6 +71,17 @@ const RATE_LIMIT_PAUSE_MS = 60 * 60 * 1000
  * of the broadcast can proceed instead of stalling for days.
  */
 const RATE_LIMIT_MAX_CONSECUTIVE_HITS = 3
+/**
+ * A recipient whose `last_attempted_at` (set right before we actually
+ * call the Meta API — see below) is older than this and is still
+ * `pending` never got a terminal status written after the attempt
+ * (e.g. a Supabase write failing right after a successful Meta send).
+ * Force-failed so the broadcast can still reach remainingPending = 0.
+ * Deliberately NOT based on `created_at`: large/paced broadcasts
+ * routinely leave recipients pending for hours by design (batch
+ * pacing, business hours), and those haven't been attempted yet.
+ */
+const STALE_PENDING_MS = 60 * 60 * 1000
 
 interface BroadcastRow {
   id: string
@@ -329,6 +340,14 @@ export async function GET(request: Request) {
 
       await sleep(randomDelayMs(row.message_delay_min_seconds, row.message_delay_max_seconds))
 
+      // Marks the moment we actually attempt this recipient — the stale-pending
+      // sweep below uses it to tell "genuinely stuck after an attempt" apart
+      // from "still legitimately queued, hasn't had its turn yet".
+      await admin
+        .from('broadcast_recipients')
+        .update({ last_attempted_at: new Date().toISOString() })
+        .eq('id', recipient.id)
+
       const params = row.template_variables
         ? resolveVariables(row.template_variables, contact, customValueIndex.get(contact.id))
         : []
@@ -458,6 +477,24 @@ export async function GET(request: Request) {
         .eq('id', recipient.id)
       messagesFailed++
       batchSentDelta++
+    }
+
+    // Stale-pending sweep — see STALE_PENDING_MS. Runs every tick for this
+    // broadcast regardless of what happened above, so it also cleans up
+    // stragglers left over from a previous tick's crash or rate-limit break.
+    const { data: staleRecipients } = await admin
+      .from('broadcast_recipients')
+      .update({
+        status: 'failed',
+        error_message: 'Tentativa de envio expirou sem confirmação após 1h',
+      })
+      .eq('broadcast_id', row.id)
+      .eq('status', 'pending')
+      .not('last_attempted_at', 'is', null)
+      .lt('last_attempted_at', new Date(Date.now() - STALE_PENDING_MS).toISOString())
+      .select('id')
+    if (staleRecipients && staleRecipients.length > 0) {
+      messagesFailed += staleRecipients.length
     }
 
     if (rateLimited) {
