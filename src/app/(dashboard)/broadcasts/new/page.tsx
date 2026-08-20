@@ -49,6 +49,7 @@ export default function NewBroadcastPage() {
     pipelineId?: string;
     stageId?: string;
     stageTagIds?: string[];
+    dealStatus?: 'all' | 'open' | 'won' | 'lost';
     excludeTagIds?: string[];
     excludeRecentlyMessaged?: boolean;
     excludeRecentDays?: number;
@@ -78,6 +79,7 @@ export default function NewBroadcastPage() {
           pipelineId: audience.pipelineId,
           stageId: audience.stageId,
           stageTagIds: audience.stageTagIds,
+          dealStatus: audience.dealStatus,
           excludeTagIds: audience.excludeTagIds,
           excludeRecentlyMessaged: audience.excludeRecentlyMessaged,
           excludeRecentDays: audience.excludeRecentDays,
@@ -139,6 +141,7 @@ export default function NewBroadcastPage() {
         pipelineId: audience.pipelineId,
         stageId: audience.stageId,
         stageTagIds: audience.stageTagIds,
+        dealStatus: audience.dealStatus,
       },
       status: 'draft',
       total_recipients: 0,

@@ -54,6 +54,7 @@ interface AudienceConfig {
   csvContacts?: { phone: string; name?: string }[];
   stageId?: string;
   stageTagIds?: string[];
+  dealStatus?: 'all' | 'open' | 'won' | 'lost';
 }
 
 interface Step4Props {
@@ -232,11 +233,14 @@ export function Step4ScheduleSend({
         } else if (audience.type === 'csv' && audience.csvContacts) {
           setEstimatedReach(audience.csvContacts.length);
         } else if (audience.type === 'pipeline_stage' && audience.stageId) {
-          const { data } = await supabase
+          let dealsQuery = supabase
             .from('deals')
             .select('contact_id')
-            .eq('stage_id', audience.stageId)
-            .eq('status', 'open');
+            .eq('stage_id', audience.stageId);
+          if (audience.dealStatus && audience.dealStatus !== 'all') {
+            dealsQuery = dealsQuery.eq('status', audience.dealStatus);
+          }
+          const { data } = await dealsQuery;
           let uniqueIds = new Set(
             (data ?? [])
               .map((d) => d.contact_id as string | null)
