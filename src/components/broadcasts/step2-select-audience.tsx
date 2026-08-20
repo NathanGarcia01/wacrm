@@ -45,6 +45,9 @@ interface AudienceConfig {
    *  carry ANY of these tags — e.g. "Leads na etapa Qualificado COM tag
    *  Servidor Municipal". Optional refinement, not required for validity. */
   stageTagIds?: string[];
+  /** For type === 'pipeline_stage': narrows to deals with this status in
+   *  the selected stage. Undefined/'all' = no status filter. */
+  dealStatus?: 'all' | 'open' | 'won' | 'lost';
   excludeTagIds?: string[];
   /** Anti-duplicate guard — see #8: subtract contacts who already have a
    *  broadcast_recipients row with status='sent' in the last N days. */
@@ -288,11 +291,14 @@ export function Step2SelectAudience({
         }
         return;
       } else if (audience.type === 'pipeline_stage' && audience.stageId) {
-        const { data } = await supabase
+        let dealsQuery = supabase
           .from('deals')
           .select('contact_id')
-          .eq('stage_id', audience.stageId)
-          .eq('status', 'open');
+          .eq('stage_id', audience.stageId);
+        if (audience.dealStatus && audience.dealStatus !== 'all') {
+          dealsQuery = dealsQuery.eq('status', audience.dealStatus);
+        }
+        const { data } = await dealsQuery;
         baseIds = new Set(
           (data ?? [])
             .map((r) => r.contact_id as string | null)
@@ -378,6 +384,7 @@ export function Step2SelectAudience({
     audience.csvContacts,
     audience.stageId,
     audience.stageTagIds,
+    audience.dealStatus,
     audience.excludeRecentlyMessaged,
     audience.excludeRecentDays,
     audience.excludeTagIds,
@@ -510,6 +517,8 @@ export function Step2SelectAudience({
                     option.type === 'pipeline_stage' ? audience.stageId : undefined,
                   stageTagIds:
                     option.type === 'pipeline_stage' ? audience.stageTagIds : undefined,
+                  dealStatus:
+                    option.type === 'pipeline_stage' ? audience.dealStatus : undefined,
                 });
               }}
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
@@ -747,6 +756,28 @@ export function Step2SelectAudience({
               </select>
             </div>
           )}
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              {t('dealStatusFilterLabel')}
+            </label>
+            <select
+              value={audience.dealStatus ?? 'all'}
+              onChange={(e) =>
+                onUpdate({
+                  ...audience,
+                  dealStatus: e.target.value as AudienceConfig['dealStatus'],
+                })
+              }
+              disabled={!audience.stageId}
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:opacity-50 sm:w-1/2"
+            >
+              <option value="all">{t('dealStatusAll')}</option>
+              <option value="open">{t('dealStatusOpen')}</option>
+              <option value="won">{t('dealStatusWon')}</option>
+              <option value="lost">{t('dealStatusLost')}</option>
+            </select>
+          </div>
 
           {audience.stageId && (
             <div className="border-t border-border pt-3">

@@ -107,6 +107,14 @@ interface BroadcastRow {
   /** Consecutive rate-limited ticks — see RATE_LIMIT_MAX_CONSECUTIVE_HITS.
    *  Migration 060. */
   rate_limit_hits: number | null
+  /** pipeline_stage audience filter — the funnel stage recipients were
+   *  drawn from. Paired with deal_status_filter so the cron can
+   *  re-check per recipient at send time. Migration 064. */
+  stage_id: string | null
+  /** pipeline_stage audience filter — restricts recipients to deals
+   *  with this status in `stage_id`. Null = no status filter.
+   *  Migration 064. */
+  deal_status_filter: 'open' | 'won' | 'lost' | null
 }
 
 type RecipientContact = {
@@ -196,7 +204,7 @@ export async function GET(request: Request) {
   const { data: due, error } = await admin
     .from('broadcasts')
     .select(
-      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add, rate_limit_hits',
+      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add, rate_limit_hits, stage_id, deal_status_filter',
     )
     .in('status', ['scheduled', 'sending'])
     .or(`next_batch_at.is.null,next_batch_at.lte.${nowIso()}`)
@@ -330,6 +338,36 @@ export async function GET(request: Request) {
             .update({
               status: 'skipped',
               error_message: `Excluded — messaged within the last ${row.exclude_recent_days} day(s)`,
+            })
+            .eq('id', recipient.id)
+          messagesSkipped++
+          batchSentDelta++
+          continue
+        }
+      }
+
+      // Deal-status audience filter, re-checked HERE (send time) for the
+      // same reason as exclude_recent_days above — a broadcast can
+      // trickle out over many batches/days, so a deal that matched
+      // deal_status_filter when the recipient list was built may have
+      // changed status (or moved out of the stage) by the time this
+      // recipient's turn comes up.
+      if (row.deal_status_filter && row.stage_id) {
+        const { data: matchingDeal } = await admin
+          .from('deals')
+          .select('id')
+          .eq('contact_id', contact.id)
+          .eq('stage_id', row.stage_id)
+          .eq('status', row.deal_status_filter)
+          .limit(1)
+          .maybeSingle()
+
+        if (!matchingDeal) {
+          await admin
+            .from('broadcast_recipients')
+            .update({
+              status: 'skipped',
+              error_message: `Excluded — deal no longer matches status "${row.deal_status_filter}" in the target stage`,
             })
             .eq('id', recipient.id)
           messagesSkipped++

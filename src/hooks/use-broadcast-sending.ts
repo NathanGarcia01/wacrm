@@ -29,6 +29,9 @@ export interface AudienceConfig {
   /** For type === 'pipeline_stage': further narrows to contacts that also
    *  carry ANY of these tags. */
   stageTagIds?: string[];
+  /** For type === 'pipeline_stage': narrows to deals with this status in
+   *  the selected stage. Undefined/'all' = no status filter. */
+  dealStatus?: 'all' | 'open' | 'won' | 'lost';
   /** Contacts carrying any of these tags are subtracted from the result. */
   excludeTagIds?: string[];
   /** Anti-duplicate guard — subtract contacts who already have a
@@ -139,6 +142,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
         supabase,
         audience.stageId,
         audience.stageTagIds,
+        audience.dealStatus,
       );
     }
 
@@ -284,12 +288,16 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     supabase: ReturnType<typeof createClient>,
     stageId: string,
     stageTagIds?: string[],
+    dealStatus?: AudienceConfig['dealStatus'],
   ): Promise<Contact[]> {
-    const { data: matches, error: matchErr } = await supabase
+    let dealsQuery = supabase
       .from('deals')
       .select('contact_id')
-      .eq('stage_id', stageId)
-      .eq('status', 'open');
+      .eq('stage_id', stageId);
+    if (dealStatus && dealStatus !== 'all') {
+      dealsQuery = dealsQuery.eq('status', dealStatus);
+    }
+    const { data: matches, error: matchErr } = await dealsQuery;
     if (matchErr) throw new Error(`Pipeline-stage filter failed: ${matchErr.message}`);
 
     let contactIds = [
@@ -378,6 +386,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             pipelineId: payload.audience.pipelineId,
             stageId: payload.audience.stageId,
             stageTagIds: payload.audience.stageTagIds,
+            dealStatus: payload.audience.dealStatus,
             excludeTagIds: payload.audience.excludeTagIds,
             excludeRecentlyMessaged: payload.audience.excludeRecentlyMessaged,
             excludeRecentDays: payload.audience.excludeRecentDays,
@@ -389,6 +398,17 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
             ? (payload.audience.excludeRecentDays ?? 0)
             : 0,
           tags_to_add: payload.tagsToAdd ?? [],
+          // Promoted alongside deal_status_filter so the cron can
+          // re-check the deal's current status per recipient at send
+          // time — see migration 064.
+          stage_id:
+            payload.audience.type === 'pipeline_stage' ? payload.audience.stageId ?? null : null,
+          deal_status_filter:
+            payload.audience.type === 'pipeline_stage' &&
+            payload.audience.dealStatus &&
+            payload.audience.dealStatus !== 'all'
+              ? payload.audience.dealStatus
+              : null,
           status: startsNow ? 'sending' : 'scheduled',
           scheduled_at: payload.scheduledAt?.toISOString() ?? null,
           next_batch_at: nextBatchAt,

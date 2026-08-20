@@ -501,6 +501,15 @@ export interface Broadcast {
   /** Tag ids applied to a contact right after each successful send.
    *  Migration 040. */
   tags_to_add?: string[];
+  /** For the pipeline_stage audience type: which funnel stage the
+   *  audience was drawn from, kept as a real column (mirrored inside
+   *  audience_filter too) so the cron can re-check deal_status_filter
+   *  per recipient at send time. Migration 064. */
+  stage_id?: string | null;
+  /** For the pipeline_stage audience type: restricts recipients to
+   *  deals with this status in `stage_id`. Null = no status filter
+   *  (all deals in the stage, any status). Migration 064. */
+  deal_status_filter?: DealStatus | null;
 }
 
 export interface BroadcastRecipient {
