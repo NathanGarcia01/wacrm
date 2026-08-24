@@ -79,6 +79,7 @@ export async function loadBroadcastRoiDetail(db: DB, broadcastId: string): Promi
     .from('broadcast_recipients')
     .select('contact_id')
     .eq('broadcast_id', broadcastId)
+    .in('status', ['sent', 'delivered', 'read', 'replied'])
     .not('contact_id', 'is', null)
   const contactIds = [...new Set((recipients ?? []).map((r) => r.contact_id as string))]
 
@@ -90,33 +91,42 @@ export async function loadBroadcastRoiDetail(db: DB, broadcastId: string): Promi
         'id, title, contact_id, value, status, won_at, created_at, contact:contacts(name, phone), products:deal_products(commission_value)',
       )
       .in('contact_id', contactIds)
-      .gt('created_at', broadcast.created_at)
     deals = (dealsData ?? []) as unknown as DealRow[]
   }
 
   const dealCommission = (d: DealRow) =>
     (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
 
-  const wonDeals: AttributedWonDeal[] = deals
-    .filter((d) => d.status === 'won' && d.won_at)
-    .map((d) => ({ commission: dealCommission(d), wonAt: d.won_at!, broadcastCreatedAt: broadcast.created_at }))
+  // Deals created after the broadcast went out — feeds the "deals
+  // created" funnel step.
+  const dealsCreated = deals.filter((d) => d.created_at > broadcast.created_at)
+
+  // Won deals attributed to this broadcast: contact received it AND
+  // the deal closed on/after that date — independent of when the deal
+  // itself was created, so a pre-existing deal that closes after a
+  // follow-up broadcast still counts (see FIEB case).
+  const wonDealRows = deals.filter((d) => d.status === 'won' && d.won_at && d.won_at >= broadcast.created_at)
+  const wonDeals: AttributedWonDeal[] = wonDealRows.map((d) => ({
+    commission: dealCommission(d),
+    wonAt: d.won_at!,
+    broadcastCreatedAt: broadcast.created_at,
+  }))
 
   const cards = computeRoiCards({
     cost,
     leadsGenerated: broadcast.replied_count,
-    dealsCreated: deals.length,
+    dealsCreated: dealsCreated.length,
     wonDeals,
   })
 
   const funnel = {
     sent: broadcast.sent_count,
     replied: broadcast.replied_count,
-    dealsCreated: deals.length,
+    dealsCreated: dealsCreated.length,
     dealsWon: wonDeals.length,
   }
 
-  const dealRows: BroadcastRoiDealRow[] = deals
-    .filter((d) => d.status === 'won')
+  const dealRows: BroadcastRoiDealRow[] = wonDealRows
     .map((d) => {
       const contact = one(d.contact)
       return {

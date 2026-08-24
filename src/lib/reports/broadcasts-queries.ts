@@ -102,26 +102,23 @@ export async function loadBroadcastsReport(db: DB, period: PeriodRange): Promise
   if (recipientsError) throw recipientsError
   const recipients = (recipientsData ?? []) as RecipientRow[]
 
-  // Two contact sets, deliberately different scopes:
-  //  - contactsByBroadcast/allContactIds: every recipient regardless of
-  //    status, used for deal attribution — matches the ROI tab's
-  //    convention (broadcast-roi-queries.ts) so "which deals count
-  //    toward this broadcast" doesn't drift between the two reports.
-  //  - receivedContactIds: only recipients who actually got the
-  //    message, for the "leads subidos" card — a pending/failed send
-  //    never reached anyone.
+  // contactsByBroadcast: only recipients who actually received the
+  // message (matches the ROI tab's convention in
+  // broadcast-roi-queries.ts, so "which deals count toward this
+  // broadcast" doesn't drift between the two reports) — a
+  // pending/failed send never reached anyone, so it can't be credited
+  // with a deal. receivedContactIds is the same set flattened across
+  // all broadcasts, for the "leads subidos" card.
   const recipientsByBroadcast = new Map<string, RecipientRow[]>()
   const contactsByBroadcast = new Map<string, Set<string>>()
-  const allContactIds = new Set<string>()
   const receivedContactIds = new Set<string>()
   for (const r of recipients) {
     if (!recipientsByBroadcast.has(r.broadcast_id)) recipientsByBroadcast.set(r.broadcast_id, [])
     recipientsByBroadcast.get(r.broadcast_id)!.push(r)
-    if (r.contact_id) {
+    if (r.contact_id && RECEIVED_STATUSES.has(r.status)) {
       if (!contactsByBroadcast.has(r.broadcast_id)) contactsByBroadcast.set(r.broadcast_id, new Set())
       contactsByBroadcast.get(r.broadcast_id)!.add(r.contact_id)
-      allContactIds.add(r.contact_id)
-      if (RECEIVED_STATUSES.has(r.status)) receivedContactIds.add(r.contact_id)
+      receivedContactIds.add(r.contact_id)
     }
   }
 
@@ -131,8 +128,8 @@ export async function loadBroadcastsReport(db: DB, period: PeriodRange): Promise
   // already blows past it and the request comes back 400 Bad Request).
   const CONTACT_CHUNK = 200
   const deals: DealRow[] = []
-  if (allContactIds.size > 0) {
-    const contactIdList = [...allContactIds]
+  if (receivedContactIds.size > 0) {
+    const contactIdList = [...receivedContactIds]
     for (let i = 0; i < contactIdList.length; i += CONTACT_CHUNK) {
       const chunk = contactIdList.slice(i, i + CONTACT_CHUNK)
       const { data: dealsData, error: dealsError } = await db
@@ -151,8 +148,13 @@ export async function loadBroadcastsReport(db: DB, period: PeriodRange): Promise
     const freeTextCount = Math.max(0, b.replied_count - buttonClickers)
 
     const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
-    const attributedDeals = deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at)
-    const wonDeals = attributedDeals.filter((d) => d.status === 'won' && d.won_at)
+    // Won deals attributed to this broadcast: contact received it AND
+    // the deal closed on/after that date — independent of when the
+    // deal itself was created, so a pre-existing deal that closes
+    // after a follow-up broadcast still counts (see FIEB case).
+    const wonDeals = deals.filter(
+      (d) => contacts.has(d.contact_id) && d.status === 'won' && d.won_at && d.won_at >= b.created_at,
+    )
     const commissionGenerated = wonDeals.reduce((sum, d) => sum + dealCommission(d), 0)
 
     return {

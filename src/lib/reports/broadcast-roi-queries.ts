@@ -105,6 +105,7 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
     .from('broadcast_recipients')
     .select('broadcast_id, contact_id')
     .in('broadcast_id', broadcastIds)
+    .in('status', ['sent', 'delivered', 'read', 'replied'])
     .not('contact_id', 'is', null)
 
   const contactsByBroadcast = new Map<string, Set<string>>()
@@ -138,9 +139,12 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
 
   const rows: BroadcastRoiRow[] = broadcasts.map((b) => {
     const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
-    const attributedDeals = deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at)
-    const wonDeals: AttributedWonDeal[] = attributedDeals
-      .filter((d) => d.status === 'won' && d.won_at)
+    // Won deals attributed to this broadcast: contact received it AND
+    // the deal closed on/after that date — independent of when the
+    // deal itself was created, so a pre-existing deal that closes
+    // after a follow-up broadcast still counts (see FIEB case).
+    const wonDeals: AttributedWonDeal[] = deals
+      .filter((d) => contacts.has(d.contact_id) && d.status === 'won' && d.won_at && d.won_at >= b.created_at)
       .map((d) => ({ commission: dealCommission(d), wonAt: d.won_at!, broadcastCreatedAt: b.created_at }))
     const commissionGenerated = wonDeals.reduce((sum, d) => sum + d.commission, 0)
     const cost = b.meta_total_cost
@@ -163,10 +167,9 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
   const allWonDeals: AttributedWonDeal[] = []
   for (const b of broadcasts) {
     const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
-    const attributedDeals = deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at)
-    totalDealsCreated += attributedDeals.length
-    for (const d of attributedDeals) {
-      if (d.status === 'won' && d.won_at) {
+    totalDealsCreated += deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at).length
+    for (const d of deals) {
+      if (contacts.has(d.contact_id) && d.status === 'won' && d.won_at && d.won_at >= b.created_at) {
         allWonDeals.push({ commission: dealCommission(d), wonAt: d.won_at, broadcastCreatedAt: b.created_at })
       }
     }
