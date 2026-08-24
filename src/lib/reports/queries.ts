@@ -95,10 +95,16 @@ export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<Re
   const allMessages = (allMsgsRes.data ?? []) as RawMessageRow[]
   const responseMetrics = computeResponseMetrics(allMessages)
 
+  // Card/chart totals count every outbound message — agent AND bot
+  // (flow/automation-sent) — since both are real sent messages from
+  // the account's point of view. Per-agent attribution below stays
+  // agent-only: a bot message has no human agent to credit.
+  const outboundMessages = allMessages.filter((m) => m.sender_type === 'agent' || m.sender_type === 'bot')
+
   const cards: AccountReportCards = {
-    messagesSent: agentMessages.length,
+    messagesSent: outboundMessages.length,
     messagesReceived: allMessages.filter((m) => m.sender_type === 'customer').length,
-    conversationsHandled: new Set(agentMessages.map((m) => m.conversation_id)).size,
+    conversationsHandled: new Set(outboundMessages.map((m) => m.conversation_id)).size,
     dealsWon: wonDeals.length,
     valueWon: wonDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
     avgResponseMinutes: responseMetrics.avgResponseMinutes,
@@ -195,11 +201,11 @@ function computeResponseMetrics(rows: RawMessageRow[]): {
 function buildMessagesPerDay(rows: RawMessageRow[], period: PeriodRange): MessagesPerDayPoint[] {
   const byDay = new Map<string, { sent: number; received: number }>()
   for (const row of rows) {
-    if (row.sender_type !== 'agent' && row.sender_type !== 'customer') continue
+    if (row.sender_type !== 'agent' && row.sender_type !== 'bot' && row.sender_type !== 'customer') continue
     const key = localDayKey(row.created_at)
     const bucket = byDay.get(key) ?? { sent: 0, received: 0 }
-    if (row.sender_type === 'agent') bucket.sent++
-    else bucket.received++
+    if (row.sender_type === 'customer') bucket.received++
+    else bucket.sent++
     byDay.set(key, bucket)
   }
 
