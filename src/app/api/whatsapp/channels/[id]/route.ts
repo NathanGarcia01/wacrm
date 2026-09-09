@@ -43,6 +43,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       is_active,
       is_default: requestedDefault,
       waba_id,
+      phone_number_id,
       access_token,
       verify_token,
       pin,
@@ -58,6 +59,37 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (typeof name === 'string' && name.trim()) update.name = name.trim()
     if (typeof is_active === 'boolean') update.is_active = is_active
     if (waba_id !== undefined) update.waba_id = waba_id || null
+    if (typeof phone_number_id === 'string' && phone_number_id.trim()) {
+      update.phone_number_id = phone_number_id.trim()
+    }
+
+    // verify_token is a purely local webhook secret — Meta is never
+    // consulted for it, so it must save independently of whether the
+    // (masked-by-default) access_token was re-submitted this request.
+    if (typeof verify_token === 'string' && verify_token.trim()) {
+      try {
+        update.verify_token = encrypt(verify_token.trim())
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown encryption error'
+        console.error('Encryption failed:', message)
+        return NextResponse.json(
+          {
+            error:
+              'Failed to encrypt token. Check that ENCRYPTION_KEY is a valid 64-character hex string in your environment variables.',
+          },
+          { status: 500 },
+        )
+      }
+    }
+
+    // A just-submitted phone_number_id supersedes the stale DB value for
+    // this request's Meta calls — otherwise correcting a stale/rotated id
+    // (e.g. after re-adding the number in WhatsApp Manager) is silently
+    // ignored and verification keeps hitting the old, dead id.
+    const effectivePhoneNumberId =
+      typeof phone_number_id === 'string' && phone_number_id.trim()
+        ? phone_number_id.trim()
+        : existing.phone_number_id
 
     let phoneInfo: { display_phone_number: string } | null = null
 
@@ -67,7 +99,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (typeof access_token === 'string' && access_token.trim()) {
       try {
         phoneInfo = await verifyPhoneNumber({
-          phoneNumberId: existing.phone_number_id,
+          phoneNumberId: effectivePhoneNumberId,
           accessToken: access_token,
         })
       } catch (err) {
@@ -77,7 +109,6 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       try {
         update.access_token_encrypted = encrypt(access_token)
-        if (verify_token) update.verify_token = encrypt(verify_token)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown encryption error'
         console.error('Encryption failed:', message)
@@ -93,7 +124,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       if (pin) {
         try {
           await registerPhoneNumber({
-            phoneNumberId: existing.phone_number_id,
+            phoneNumberId: effectivePhoneNumberId,
             accessToken: access_token,
             pin,
           })
