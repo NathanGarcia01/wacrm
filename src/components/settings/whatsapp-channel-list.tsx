@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { AlertTriangle, CheckCircle2, Loader2, Plus, Trash2 } from 'lucide-react';
@@ -47,12 +47,14 @@ export function WhatsAppChannelList() {
   // buttons so a double-click can't fire the same PATCH/DELETE twice.
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  // "Adicionar número" flow: type picker → (Cloud API form | Evolution
-  // QR dialog). evolutionDialog also doubles as the "Reconectar" flow
-  // for an existing channel (reconnectChannelId set, name step skipped).
+  // "Adicionar número" flow: type picker → (Embedded Signup popup |
+  // Cloud API form | Evolution QR dialog). evolutionDialog also doubles
+  // as the "Reconectar" flow for an existing channel (reconnectChannelId
+  // set, name step skipped).
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false);
   const [reconnectChannelId, setReconnectChannelId] = useState<string | undefined>(undefined);
+  const embeddedSignupPopupRef = useRef<Window | null>(null);
 
   const { maxChannels } = usePlanFeatures();
   const atChannelLimit = channels.length >= maxChannels;
@@ -101,6 +103,47 @@ export function WhatsAppChannelList() {
     setReconnectChannelId(undefined);
     setEvolutionDialogOpen(true);
   }
+
+  function handleSelectEmbeddedSignup() {
+    setTypePickerOpen(false);
+    embeddedSignupPopupRef.current = window.open(
+      '/api/whatsapp/embedded-signup/connect',
+      'funilly-meta-embedded-signup',
+      'width=620,height=760',
+    );
+  }
+
+  // Listens for the /whatsapp-connect popup reporting how the flow ended.
+  // origin is checked so only our own popup (never an arbitrary embedded
+  // frame) can trigger a refresh/toast here.
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.source !== 'funilly-whatsapp-embedded-signup') return;
+      if (event.data.status === 'success') {
+        toast.success(t('embeddedSignupSuccess'));
+        fetchChannels();
+      } else if (event.data.status === 'error') {
+        toast.error(t('embeddedSignupFailed'));
+      }
+    }
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [fetchChannels, t]);
+
+  // Fallback for the (rare) case the popup closes without ever posting a
+  // message back — e.g. the user closes it manually mid-flow after a save
+  // already went through. Polls at a low frequency and only acts once.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const popup = embeddedSignupPopupRef.current;
+      if (popup && popup.closed) {
+        embeddedSignupPopupRef.current = null;
+        fetchChannels();
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [fetchChannels]);
 
   async function patchChannel(channel: WhatsAppChannel, body: Record<string, unknown>) {
     setBusyId(channel.id);
@@ -289,6 +332,7 @@ export function WhatsAppChannelList() {
       <WhatsAppChannelTypePicker
         open={typePickerOpen}
         onOpenChange={setTypePickerOpen}
+        onSelectEmbeddedSignup={handleSelectEmbeddedSignup}
         onSelectCloudApi={handleSelectCloudApi}
         onSelectEvolution={handleSelectEvolution}
       />

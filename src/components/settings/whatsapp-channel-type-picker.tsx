@@ -14,6 +14,7 @@ import {
 interface WhatsAppChannelTypePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSelectEmbeddedSignup: () => void;
   onSelectCloudApi: () => void;
   onSelectEvolution: () => void;
 }
@@ -27,6 +28,7 @@ interface WhatsAppChannelTypePickerProps {
 export function WhatsAppChannelTypePicker({
   open,
   onOpenChange,
+  onSelectEmbeddedSignup,
   onSelectCloudApi,
   onSelectEvolution,
 }: WhatsAppChannelTypePickerProps) {
@@ -43,11 +45,7 @@ export function WhatsAppChannelTypePicker({
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-3 py-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={onSelectCloudApi}
-            className="flex flex-col items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-left transition-colors hover:border-primary hover:bg-muted/50"
-          >
+          <div className="flex flex-col items-start gap-3 rounded-lg border border-border bg-muted/30 p-4 text-left">
             <div className="flex w-full items-center justify-between">
               <BadgeCheck className="size-6 text-primary" />
               <Badge className="bg-primary/10 text-primary border-primary/30">
@@ -58,7 +56,22 @@ export function WhatsAppChannelTypePicker({
               <p className="font-medium text-foreground">{t('cloudApiCardTitle')}</p>
               <p className="mt-1 text-sm text-muted-foreground">{t('cloudApiCardDescription')}</p>
             </div>
-          </button>
+            <button
+              type="button"
+              onClick={onSelectEmbeddedSignup}
+              className="mt-1 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {t('embeddedSignupButton')}
+            </button>
+            <p className="text-xs text-muted-foreground">{t('embeddedSignupHint')}</p>
+            <button
+              type="button"
+              onClick={onSelectCloudApi}
+              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {t('manualConfigLink')} →
+            </button>
+          </div>
 
           <button
             type="button"
