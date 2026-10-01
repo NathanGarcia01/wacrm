@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { resolveChannelByPhoneNumberId, resolveAccountOwnerUserId } from '@/lib/whatsapp/channels'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl, downloadMedia, getAdDetails } from '@/lib/whatsapp/meta-api'
 import { extensionForMimeType } from '@/lib/whatsapp/mime'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
@@ -75,6 +75,24 @@ interface WhatsAppMessage {
     name?: { formatted_name?: string }
     phones?: Array<{ phone?: string; wa_id?: string }>
   }>
+  /**
+   * Present on the first message of a conversation that started from a
+   * Meta Ads "click-to-WhatsApp" CTA — identifies the ad that drove the
+   * click. `source_id` is the ad's Graph API object id, used by
+   * `captureAdReferral` to resolve the ad/ad-set/campaign names.
+   */
+  referral?: {
+    source_url?: string
+    source_type?: string
+    source_id?: string
+    headline?: string
+    body?: string
+    media_type?: string
+    image_url?: string
+    video_url?: string
+    thumbnail_url?: string
+    ctwa_clid?: string
+  }
 }
 
 interface WhatsAppWebhookEntry {
@@ -626,6 +644,90 @@ async function handleReaction(
   }
 }
 
+/**
+ * Captures Meta Ads click-to-WhatsApp referral data (`message.referral`)
+ * onto the contact and conversation, tags the contact "Via Anúncio Meta",
+ * and resolves the ad/ad-set/campaign names via the Graph API in the
+ * background. When there's no referral on a contact's first-ever inbound
+ * message, tags it "Orgânico" instead — mirrors the Ativo/Receptivo
+ * origin tagging this runs alongside.
+ *
+ * Best-effort: failures are logged and swallowed so a tracking miss
+ * never breaks the main inbound-message flow.
+ */
+async function captureAdReferral(
+  message: WhatsAppMessage,
+  accountId: string,
+  contactId: string,
+  conversationId: string,
+  accessToken: string,
+  isFirstInboundMessage: boolean,
+) {
+  try {
+    const referral = message.referral
+    if (!referral) {
+      if (isFirstInboundMessage) {
+        await ensureContactTagByName(supabaseAdmin(), accountId, contactId, ['Orgânico'])
+      }
+      return
+    }
+
+    const { error: contactError } = await supabaseAdmin()
+      .from('contacts')
+      .update({
+        ad_headline: referral.headline ?? null,
+        ad_source_id: referral.source_id ?? null,
+        ad_body: referral.body ?? null,
+        ad_ctwa_clid: referral.ctwa_clid ?? null,
+      })
+      .eq('id', contactId)
+    if (contactError) {
+      console.error('[webhook] failed to save ad referral on contact:', contactError.message)
+    }
+
+    const { error: convError } = await supabaseAdmin()
+      .from('conversations')
+      .update({
+        ad_source_id: referral.source_id ?? null,
+        ad_headline: referral.headline ?? null,
+      })
+      .eq('id', conversationId)
+    if (convError) {
+      console.error('[webhook] failed to save ad referral on conversation:', convError.message)
+    }
+
+    await ensureContactTagByName(supabaseAdmin(), accountId, contactId, ['Via Anúncio Meta'])
+
+    if (!referral.source_id) return
+
+    // Fire-and-forget — resolves the ad/ad-set/campaign names from the
+    // Graph API. Never blocks the webhook's ack to Meta.
+    const sourceId = referral.source_id
+    void getAdDetails({ adId: sourceId, accessToken })
+      .then(async (names) => {
+        const { error } = await supabaseAdmin()
+          .from('contacts')
+          .update({
+            ad_name: names.name,
+            ad_set_name: names.adSetName,
+            ad_campaign_name: names.campaignName,
+          })
+          .eq('id', contactId)
+        if (error) {
+          console.error('[webhook] failed to save resolved ad names:', error.message)
+        }
+      })
+      .catch((err) =>
+        console.error(
+          '[webhook] getAdDetails failed:',
+          err instanceof Error ? err.message : err,
+        ),
+      )
+  } catch (err) {
+    console.error('captureAdReferral failed:', err)
+  }
+}
+
 async function processMessage(
   message: WhatsAppMessage,
   contact: { profile: { name: string }; wa_id: string },
@@ -852,6 +954,20 @@ async function processMessage(
       contactRecord.phone,
     )
   }
+
+  // Meta Ads click-to-WhatsApp referral — captures which ad drove this
+  // message, if any. The "Orgânico" tag (no referral) is only applied
+  // on the contact's first-ever inbound message, same gate as the
+  // Ativo/Receptivo origin tagging above; the "Via Anúncio Meta" tag and
+  // ad fields are saved whenever Meta sends a referral, regardless.
+  await captureAdReferral(
+    message,
+    accountId,
+    contactRecord.id,
+    conversation.id,
+    accessToken,
+    isFirstInboundMessage,
+  )
 
   // NPS survey response check — must run before flow/automation
   // dispatch below. A message answering a pending survey (rating or

@@ -105,6 +105,19 @@ export interface Contact {
   updated_at: string;
   /** Present only when explicitly embedded via `contact_tags(tag_id)`. */
   contact_tags?: { tag_id: string }[];
+  /** Meta click-to-WhatsApp ad referral (migration 067) — set from
+   *  `message.referral` on the first inbound message when the contact
+   *  arrived via an Ads Manager "Enviar mensagem" CTA. Null/undefined
+   *  for organic contacts. */
+  ad_headline?: string | null;
+  ad_source_id?: string | null;
+  ad_body?: string | null;
+  ad_ctwa_clid?: string | null;
+  /** Resolved asynchronously via the Graph API after ad_source_id is
+   *  captured — may lag a few seconds behind the other ad_* fields. */
+  ad_name?: string | null;
+  ad_set_name?: string | null;
+  ad_campaign_name?: string | null;
 }
 
 export interface Tag {
@@ -171,6 +184,10 @@ export interface Conversation {
    *  null = the account's default channel (see src/lib/whatsapp/channels.ts). */
   channel_id?: string | null;
   channel?: { name: string; display_phone_number: string | null } | null;
+  /** Meta click-to-WhatsApp ad referral, mirrored from the contact at
+   *  the time the conversation started (migration 067). */
+  ad_source_id?: string | null;
+  ad_headline?: string | null;
 }
 
 /** Active whatsapp_channels row, as returned by GET /api/whatsapp/channels —

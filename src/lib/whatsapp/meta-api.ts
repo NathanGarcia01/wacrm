@@ -87,6 +87,46 @@ export async function verifyPhoneNumber(
   return response.json()
 }
 
+export interface GetAdDetailsArgs {
+  adId: string
+  accessToken: string
+}
+
+export interface MetaAdDetails {
+  name: string | null
+  adSetName: string | null
+  campaignName: string | null
+}
+
+/**
+ * Resolves an ad's own name plus its parent ad set/campaign names from
+ * `message.referral.source_id` (the ad id Meta stamps on a click-to-
+ * WhatsApp referral). Used to back-fill `contacts.ad_name` /
+ * `ad_set_name` / `ad_campaign_name` after the webhook has already
+ * saved the referral's raw fields — see the webhook route's
+ * `captureAdReferral`.
+ */
+export async function getAdDetails(args: GetAdDetailsArgs): Promise<MetaAdDetails> {
+  const { adId, accessToken } = args
+  const url = `${META_API_BASE}/${adId}?fields=name,adset{name},campaign{name}`
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = (await response.json()) as {
+    name?: string
+    adset?: { name?: string }
+    campaign?: { name?: string }
+  }
+  return {
+    name: data.name ?? null,
+    adSetName: data.adset?.name ?? null,
+    campaignName: data.campaign?.name ?? null,
+  }
+}
+
 /**
  * Reads whether this number is on Meta's old conversation-based
  * pricing (CBP) or the current per-message pricing (PMP) model.

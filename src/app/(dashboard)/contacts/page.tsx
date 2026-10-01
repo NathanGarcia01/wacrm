@@ -64,6 +64,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 type DateRangeFilter = 'today' | 'week' | 'month' | 'custom';
 type OriginFilter = 'ativo' | 'receptivo' | 'none';
 type DealStatusFilter = 'open' | 'won' | 'lost' | 'none';
+type AdOriginFilter = 'ad' | 'organic';
 
 function isDateRangeFilter(v: string | null): v is DateRangeFilter {
   return v === 'today' || v === 'week' || v === 'month' || v === 'custom';
@@ -73,6 +74,9 @@ function isOriginFilter(v: string | null): v is OriginFilter {
 }
 function isDealStatusFilter(v: string | null): v is DealStatusFilter {
   return v === 'open' || v === 'won' || v === 'lost' || v === 'none';
+}
+function isAdOriginFilter(v: string | null): v is AdOriginFilter {
+  return v === 'ad' || v === 'organic';
 }
 
 /** Start/end ISO bounds for a date range filter — `to` stays null for
@@ -194,6 +198,14 @@ function ContactsPageInner() {
   // created a matching field via Settings → Campos Personalizados.
   const [cityFilter, setCityFilter] = useState(() => searchParams.get('city') ?? '');
   const [stateFilter, setStateFilter] = useState(() => searchParams.get('state') ?? '');
+
+  // Meta ad origin — resolved from contacts.ad_source_id (migration 067),
+  // set by the WhatsApp webhook's captureAdReferral on first inbound
+  // message. adName narrows to one specific ad/ad-set/campaign.
+  const [adOrigin, setAdOrigin] = useState<AdOriginFilter | null>(() =>
+    isAdOriginFilter(searchParams.get('adOrigin')) ? (searchParams.get('adOrigin') as AdOriginFilter) : null
+  );
+  const [adName, setAdName] = useState(() => searchParams.get('adName') ?? '');
   const [hasCityField, setHasCityField] = useState(false);
   const [hasStateField, setHasStateField] = useState(false);
 
@@ -259,7 +271,9 @@ function ContactsPageInner() {
     origin !== null ||
     dealStatus !== null ||
     cityFilter.trim().length > 0 ||
-    stateFilter.trim().length > 0;
+    stateFilter.trim().length > 0 ||
+    adOrigin !== null ||
+    adName.trim().length > 0;
 
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
@@ -306,6 +320,8 @@ function ContactsPageInner() {
         p_deal_status: dealStatus,
         p_city: cityFilter.trim() || null,
         p_state: stateFilter.trim() || null,
+        p_ad_origin: adOrigin,
+        p_ad_name: adName.trim() || null,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
@@ -389,6 +405,8 @@ function ContactsPageInner() {
     dealStatus,
     cityFilter,
     stateFilter,
+    adOrigin,
+    adName,
     t,
   ]);
 
@@ -432,6 +450,8 @@ function ContactsPageInner() {
     if (dealStatus) params.set('deal', dealStatus);
     if (cityFilter.trim()) params.set('city', cityFilter.trim());
     if (stateFilter.trim()) params.set('state', stateFilter.trim());
+    if (adOrigin) params.set('adOrigin', adOrigin);
+    if (adName.trim()) params.set('adName', adName.trim());
 
     const qs = params.toString();
     router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
@@ -450,6 +470,8 @@ function ContactsPageInner() {
     dealStatus,
     cityFilter,
     stateFilter,
+    adOrigin,
+    adName,
   ]);
 
   function openAddForm() {
@@ -595,7 +617,9 @@ function ContactsPageInner() {
     (origin !== null ? 1 : 0) +
     (dealStatus !== null ? 1 : 0) +
     (cityFilter.trim().length > 0 ? 1 : 0) +
-    (stateFilter.trim().length > 0 ? 1 : 0);
+    (stateFilter.trim().length > 0 ? 1 : 0) +
+    (adOrigin !== null ? 1 : 0) +
+    (adName.trim().length > 0 ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
   function toggleTagFilter(tagId: string) {
@@ -655,6 +679,16 @@ function ContactsPageInner() {
     setPage(0);
   }
 
+  function updateAdOrigin(next: AdOriginFilter | null) {
+    setAdOrigin(next);
+    setPage(0);
+  }
+
+  function updateAdName(value: string) {
+    setAdName(value);
+    setPage(0);
+  }
+
   function clearAllFilters() {
     setSearch('');
     setSelectedTagIds([]);
@@ -669,6 +703,8 @@ function ContactsPageInner() {
     setDealStatus(null);
     setCityFilter('');
     setStateFilter('');
+    setAdOrigin(null);
+    setAdName('');
     setPage(0);
   }
 
@@ -704,6 +740,9 @@ function ContactsPageInner() {
           : dealStatus === 'none'
             ? 'Sem deal'
             : null;
+
+  const adOriginLabel =
+    adOrigin === 'ad' ? t('filterAdOriginAd') : adOrigin === 'organic' ? t('filterAdOriginOrganic') : null;
 
   return (
     <div className="space-y-6">
@@ -981,6 +1020,28 @@ function ContactsPageInner() {
                   </select>
                 </div>
 
+                {/* Meta ad origin */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {t('filterAdOrigin')}
+                  </label>
+                  <select
+                    value={adOrigin ?? ''}
+                    onChange={(e) => updateAdOrigin((e.target.value || null) as AdOriginFilter | null)}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">{t('filterAdOriginAny')}</option>
+                    <option value="ad">{t('filterAdOriginAd')}</option>
+                    <option value="organic">{t('filterAdOriginOrganic')}</option>
+                  </select>
+                  <Input
+                    value={adName}
+                    onChange={(e) => updateAdName(e.target.value)}
+                    placeholder={t('filterAdNamePlaceholder')}
+                    className="h-9 bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+
                 {/* City / state — only shown when the account has the field */}
                 {hasCityField && (
                   <div className="space-y-1.5">
@@ -1095,6 +1156,22 @@ function ContactsPageInner() {
                 </button>
               </span>
             )}
+            {adOriginLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {adOriginLabel}
+                <button onClick={() => updateAdOrigin(null)} aria-label="Remover filtro de origem (anúncio)" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {adName.trim() && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {t('filterAdName')}: {adName.trim()}
+                <button onClick={() => updateAdName('')} aria-label="Remover filtro de anúncio específico" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
             <button
               onClick={clearAllFilters}
               className="text-xs text-muted-foreground hover:text-foreground px-1"
@@ -1181,6 +1258,7 @@ function ContactsPageInner() {
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('columnEmail')}</TableHead>
               <TableHead className="text-muted-foreground hidden lg:table-cell">{t('columnCompany')}</TableHead>
               <TableHead className="text-muted-foreground hidden md:table-cell">{t('columnTags')}</TableHead>
+              <TableHead className="text-muted-foreground hidden lg:table-cell">{t('columnOrigin')}</TableHead>
               <TableHead className="text-muted-foreground hidden lg:table-cell">{t('columnCreated')}</TableHead>
               <TableHead className="text-muted-foreground w-12" />
             </TableRow>
@@ -1269,6 +1347,18 @@ function ContactsPageInner() {
                         </span>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell text-sm">
+                    {contact.ad_source_id ? (
+                      <span
+                        className="inline-flex items-center truncate rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                        title={contact.ad_name || contact.ad_headline || t('originAd')}
+                      >
+                        {contact.ad_name || t('originAd')}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">{t('originOrganic')}</span>
+                    )}
                   </TableCell>
                   <TableCell className="font-mono text-muted-foreground text-xs hidden lg:table-cell">
                     {new Date(contact.created_at).toLocaleDateString('en-US', {

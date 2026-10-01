@@ -34,6 +34,7 @@ import {
   Star,
   Send,
   Workflow,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -538,6 +539,51 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                 existingTagIds={tags.map((t) => t.id)}
                 onChanged={fetchContactData}
               />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Contact Origin — Meta Ads referral vs organic (migration 067) */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <Megaphone className="h-3 w-3" />
+              {t("origin")}
+            </div>
+            <div className="mt-2 rounded-lg bg-muted px-3 py-2">
+              {contact.ad_source_id ? (
+                <div className="space-y-1">
+                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                    {t("originAd")}
+                  </span>
+                  <dl className="space-y-0.5 text-xs text-muted-foreground">
+                    {contact.ad_name ? (
+                      <div className="flex gap-1">
+                        <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
+                        <dd className="truncate">{contact.ad_name}</dd>
+                      </div>
+                    ) : null}
+                    {contact.ad_set_name ? (
+                      <div className="flex gap-1">
+                        <dt className="shrink-0 text-foreground/70">{t("originAdSetName")}:</dt>
+                        <dd className="truncate">{contact.ad_set_name}</dd>
+                      </div>
+                    ) : null}
+                    {contact.ad_campaign_name ? (
+                      <div className="flex gap-1">
+                        <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
+                        <dd className="truncate">{contact.ad_campaign_name}</dd>
+                      </div>
+                    ) : null}
+                    {!contact.ad_name && !contact.ad_set_name && !contact.ad_campaign_name ? (
+                      <p className="italic">{t("originAdResolving")}</p>
+                    ) : null}
+                  </dl>
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
+              )}
             </div>
           </div>
 
