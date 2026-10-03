@@ -15,7 +15,6 @@ const META_OAUTH_BASE = `https://graph.facebook.com/${META_API_VERSION}`
 export const META_EMBEDDED_SIGNUP_SCOPES = [
   'whatsapp_business_management',
   'whatsapp_business_messaging',
-  'business_management',
 ]
 
 const STATE_TTL_MS = 10 * 60 * 1000
