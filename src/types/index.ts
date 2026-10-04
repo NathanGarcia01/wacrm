@@ -52,6 +52,9 @@ export interface Account {
   owner_user_id: string;
   created_at: string;
   updated_at: string;
+  /** IANA zone, e.g. "America/Sao_Paulo" (migration 069). Resolves
+   *  `business_hours`' wall-clock times to actual instants. */
+  timezone: string;
 }
 
 /**
@@ -426,6 +429,61 @@ export interface DealLossReason {
   account_id: string;
   label: string;
   position: number;
+  created_at: string;
+}
+
+// ============================================================
+// Attendance catalog (migration 069) — departments, closing reasons,
+// business hours and holidays. Used by the future ticket entity
+// (Fase 1, Etapa 2); no FK to tickets yet.
+// ============================================================
+
+export interface Department {
+  id: string;
+  account_id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DepartmentMember {
+  department_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+/** Account-configurable ticket closing reason. `is_system` rows (seeded
+ *  on signup — see handle_new_user() in migration 069) can't be edited
+ *  or deleted, enforced by RLS, not just the UI. */
+export interface ClosingReason {
+  id: string;
+  account_id: string;
+  label: string;
+  position: number;
+  is_active: boolean;
+  is_system: boolean;
+  created_at: string;
+}
+
+/** One attendance window on one weekday. `weekday` follows JS
+ *  `Date#getDay()` (0 = Sunday .. 6 = Saturday). More than one row per
+ *  weekday is valid (e.g. a lunch-break split). */
+export interface BusinessHour {
+  id: string;
+  account_id: string;
+  weekday: number;
+  /** "HH:mm:ss", as returned by Postgres `time`. */
+  start_time: string;
+  end_time: string;
+  created_at: string;
+}
+
+export interface Holiday {
+  id: string;
+  account_id: string;
+  /** "YYYY-MM-DD". */
+  date: string;
+  label: string;
   created_at: string;
 }
 
