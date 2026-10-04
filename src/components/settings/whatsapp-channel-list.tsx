@@ -14,6 +14,46 @@ import { EvolutionChannelDialog } from './evolution-channel-dialog';
 import { usePlanFeatures } from '@/hooks/use-feature-gate';
 import { UpgradeBadge } from '@/components/billing/upgrade-badge';
 
+const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
+const META_EMBEDDED_SIGNUP_CONFIG_ID = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID;
+const FACEBOOK_SDK_SCRIPT_ID = 'facebook-jssdk';
+
+type FacebookLoginResponse = { authResponse?: { code?: string } };
+
+declare global {
+  interface Window {
+    fbAsyncInit?: () => void;
+    FB?: {
+      init: (params: { appId: string; autoLogAppEvents: boolean; xfbml: boolean; version: string }) => void;
+      login: (callback: (response: FacebookLoginResponse) => void, params: Record<string, unknown>) => void;
+    };
+  }
+}
+
+// Loads Meta's JS SDK once (idempotent — safe to call on every mount) and
+// initializes FB.init via the fbAsyncInit hook the SDK itself calls once
+// the script has loaded. Required for FB.login's config_id-based Embedded
+// Signup — the popup and WABA/number picker it opens are entirely Meta's
+// own UI, not something we assemble a dialog URL for ourselves.
+function loadFacebookSdk() {
+  if (typeof window === 'undefined' || document.getElementById(FACEBOOK_SDK_SCRIPT_ID)) return;
+  window.fbAsyncInit = () => {
+    window.FB?.init({
+      appId: META_APP_ID!,
+      autoLogAppEvents: true,
+      xfbml: true,
+      version: 'v22.0',
+    });
+  };
+  const script = document.createElement('script');
+  script.id = FACEBOOK_SDK_SCRIPT_ID;
+  script.async = true;
+  script.defer = true;
+  script.crossOrigin = 'anonymous';
+  script.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+  document.body.appendChild(script);
+}
+
 export interface WhatsAppChannel {
   id: string;
   name: string;
@@ -54,7 +94,17 @@ export function WhatsAppChannelList() {
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false);
   const [reconnectChannelId, setReconnectChannelId] = useState<string | undefined>(undefined);
-  const embeddedSignupPopupRef = useRef<Window | null>(null);
+
+  // Embedded Signup via Meta's JS SDK: FB.login hands back `code` in its
+  // own callback, while the WABA + phone number the user picked inside
+  // Meta's popup arrive separately via a WA_EMBEDDED_SIGNUP postMessage.
+  // Order between the two isn't guaranteed, so both are buffered in refs
+  // (not state — this must read synchronously, no stale-closure risk) and
+  // the submit fires once both are present. inFlightRef guards against
+  // firing twice if both arrive close together.
+  const embeddedSignupCodeRef = useRef<string | null>(null);
+  const embeddedSignupTargetRef = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
+  const embeddedSignupInFlightRef = useRef(false);
 
   const { maxChannels } = usePlanFeatures();
   const atChannelLimit = channels.length >= maxChannels;
@@ -104,46 +154,92 @@ export function WhatsAppChannelList() {
     setEvolutionDialogOpen(true);
   }
 
+  useEffect(() => {
+    loadFacebookSdk();
+  }, []);
+
+  // Fires the backend POST once both the `code` (from FB.login's own
+  // callback) and the chosen waba/phone number (from the WA_EMBEDDED_SIGNUP
+  // postMessage below) have arrived — whichever shows up second triggers it.
+  const finishEmbeddedSignup = useCallback(async () => {
+    const code = embeddedSignupCodeRef.current;
+    const target = embeddedSignupTargetRef.current;
+    if (!code || !target || embeddedSignupInFlightRef.current) return;
+    embeddedSignupInFlightRef.current = true;
+    try {
+      const res = await fetch('/api/whatsapp/embedded-signup/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, wabaId: target.wabaId, phoneNumberId: target.phoneNumberId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || t('embeddedSignupFailed'));
+        return;
+      }
+      toast.success(t('embeddedSignupSuccess'));
+      await fetchChannels();
+    } catch (err) {
+      console.error('[WhatsAppChannelList] embedded signup complete error:', err);
+      toast.error(t('embeddedSignupFailed'));
+    } finally {
+      embeddedSignupCodeRef.current = null;
+      embeddedSignupTargetRef.current = null;
+      embeddedSignupInFlightRef.current = false;
+    }
+  }, [fetchChannels, t]);
+
   function handleSelectEmbeddedSignup() {
     setTypePickerOpen(false);
-    embeddedSignupPopupRef.current = window.open(
-      '/api/whatsapp/embedded-signup/connect',
-      'funilly-meta-embedded-signup',
-      'width=620,height=760',
+    if (!window.FB) {
+      toast.error(t('embeddedSignupFailed'));
+      return;
+    }
+    embeddedSignupCodeRef.current = null;
+    embeddedSignupTargetRef.current = null;
+    window.FB.login(
+      (response: FacebookLoginResponse) => {
+        const code = response.authResponse?.code;
+        if (!code) return;
+        embeddedSignupCodeRef.current = code;
+        finishEmbeddedSignup();
+      },
+      {
+        config_id: META_EMBEDDED_SIGNUP_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+      },
     );
   }
 
-  // Listens for the /whatsapp-connect popup reporting how the flow ended.
-  // origin is checked so only our own popup (never an arbitrary embedded
-  // frame) can trigger a refresh/toast here.
+  // Meta's Embedded Signup popup posts progress here. Only origins ending
+  // in facebook.com are trusted — anything else is ignored outright.
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.source !== 'funilly-whatsapp-embedded-signup') return;
-      if (event.data.status === 'success') {
-        toast.success(t('embeddedSignupSuccess'));
-        fetchChannels();
-      } else if (event.data.status === 'error') {
+      if (!event.origin.endsWith('facebook.com')) return;
+      let data: { type?: string; event?: string; data?: Record<string, unknown> };
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+      if (data.type !== 'WA_EMBEDDED_SIGNUP') return;
+
+      if (data.event === 'FINISH') {
+        const wabaId = data.data?.waba_id as string | undefined;
+        const phoneNumberId = data.data?.phone_number_id as string | undefined;
+        if (!wabaId || !phoneNumberId) return;
+        embeddedSignupTargetRef.current = { wabaId, phoneNumberId };
+        finishEmbeddedSignup();
+      } else if (data.event === 'CANCEL' || data.event === 'ERROR') {
+        console.error('[WhatsAppChannelList] embedded signup', data.event, data.data);
         toast.error(t('embeddedSignupFailed'));
       }
     }
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [fetchChannels, t]);
-
-  // Fallback for the (rare) case the popup closes without ever posting a
-  // message back — e.g. the user closes it manually mid-flow after a save
-  // already went through. Polls at a low frequency and only acts once.
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const popup = embeddedSignupPopupRef.current;
-      if (popup && popup.closed) {
-        embeddedSignupPopupRef.current = null;
-        fetchChannels();
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [fetchChannels]);
+  }, [finishEmbeddedSignup, t]);
 
   async function patchChannel(channel: WhatsAppChannel, body: Record<string, unknown>) {
     setBusyId(channel.id);
