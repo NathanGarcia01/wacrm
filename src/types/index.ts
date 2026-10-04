@@ -487,6 +487,75 @@ export interface Holiday {
   created_at: string;
 }
 
+// ============================================================
+// Tickets (migration 070) — one row per attendance cycle on a
+// conversation. See src/lib/tickets/lifecycle.ts (Fase 1, Etapa 3)
+// for when a ticket opens/closes; this file only mirrors the schema.
+// ============================================================
+
+export type TicketStatus = 'pending' | 'in_progress' | 'closed';
+export type TicketInitiatedBy = 'customer' | 'company';
+/** How the ticket-opening reply came about. 'campaign'/'automation'
+ *  mean the customer replied to a broadcast/automation send — the
+ *  send itself never opens a ticket, only the reply does. */
+export type TicketSource = 'inbound' | 'manual_outbound' | 'campaign' | 'automation';
+export type TicketClosedBy = 'agent' | 'system';
+
+export interface Ticket {
+  id: string;
+  account_id: string;
+  conversation_id: string;
+  /** Sequential per account, assigned by the `next_ticket_protocol`
+   *  RPC — never generate this client-side. */
+  protocol_number: number;
+  status: TicketStatus;
+  initiated_by: TicketInitiatedBy;
+  source: TicketSource;
+  /** FK to `broadcasts.id` — set only when source = 'campaign'. There
+   *  is no separate `campaigns` table in this codebase. */
+  campaign_id?: string | null;
+  /** References profiles.user_id by convention, same as
+   *  conversations.assigned_agent_id — no DB-level FK. */
+  assigned_agent_id?: string | null;
+  department_id?: string | null;
+  opened_at: string;
+  first_response_at?: string | null;
+  closed_at?: string | null;
+  /** Required by a DB CHECK whenever status = 'closed' (agent
+   *  close or system auto-close both need one — including the
+   *  seeded "Encerrado por inatividade" system reason). */
+  closing_reason_id?: string | null;
+  closing_note?: string | null;
+  closed_by?: TicketClosedBy | null;
+  created_at: string;
+}
+
+export type TicketEventType =
+  | 'opened'
+  | 'assigned'
+  | 'transferred'
+  | 'returned'
+  | 'closed'
+  | 'reopened';
+
+/** Append-only audit row — one per ticket state change. RLS has no
+ *  UPDATE/DELETE policy for this table on purpose. */
+export interface TicketEvent {
+  id: string;
+  ticket_id: string;
+  account_id: string;
+  type: TicketEventType;
+  from_agent_id?: string | null;
+  to_agent_id?: string | null;
+  from_department_id?: string | null;
+  to_department_id?: string | null;
+  /** Null = system action (e.g. the future auto-close job), not a
+   *  signed-in user. */
+  actor_id?: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export type NpsTriggerType = 'manual_close' | 'inactivity';
 export type NpsSurveyStatus = 'sent' | 'responded' | 'expired';
 
