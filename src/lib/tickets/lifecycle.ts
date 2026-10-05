@@ -98,11 +98,19 @@ export interface OpenTicketResult {
 
 /**
  * Opens a ticket for `conversationId` unless one is already open
- * (status <> 'closed'). Idempotent under concurrency via the partial
- * unique index on tickets(conversation_id) WHERE status <> 'closed'
- * (migration 070): if two callers race, the loser's INSERT fails with
- * a unique_violation and this falls back to fetching the winner's row
- * instead of erroring.
+ * (status <> 'closed'). Checks for an existing open ticket FIRST — a
+ * conversation with a ticket already open gets dozens of messages per
+ * day in practice (every inbound reply, every manual agent reply) and
+ * none of those should ever touch account_ticket_counters; only the
+ * single message that actually opens a ticket should.
+ *
+ * Still idempotent under real concurrency via the partial unique index
+ * on tickets(conversation_id) WHERE status <> 'closed' (migration
+ * 070): if two callers both pass the check above at the same instant,
+ * the loser's INSERT fails with a unique_violation and this falls back
+ * to fetching the winner's row instead of erroring. That race is the
+ * ONLY case that still burns a protocol number — unavoidable with a
+ * sequence-backed counter, and rare enough to accept.
  *
  * Never call this for a campaign/broadcast send, an automation send,
  * or a flow send — see the module doc comment.
@@ -115,6 +123,11 @@ export async function openTicketIfNeeded(
   const occurredAt = input.occurredAt ?? new Date().toISOString()
   const campaignId = input.campaignId ?? null
 
+  const existingOpen = await findOpenTicket(conversationId)
+  if (existingOpen) {
+    return { ticket: existingOpen, created: false }
+  }
+
   const { data: conversation, error: convError } = await admin
     .from('conversations')
     .select('account_id')
@@ -125,9 +138,6 @@ export async function openTicketIfNeeded(
   }
   const accountId = conversation.account_id as string
 
-  // Burned on a losing race below — accepted gap, same tradeoff as any
-  // sequence-backed numbering scheme under concurrency. Not worth the
-  // complexity of "returning" an unused number.
   const protocolNumber = await nextTicketProtocol(admin, accountId)
 
   const { data: inserted, error: insertError } = await admin

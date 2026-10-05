@@ -306,6 +306,22 @@ describe('openTicketIfNeeded', () => {
     expect(h.state.tickets).toHaveLength(1)
   })
 
+  it('does not call next_ticket_protocol when a ticket is already open for the conversation', async () => {
+    await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    expect(h.state.protocolCounters[ACCOUNT]).toBe(1)
+
+    // Every one of these must short-circuit on the existing-open-ticket
+    // check and never touch account_ticket_counters — this is the bug
+    // that burned protocol numbers on every message to an already-open
+    // ticket (verified live: 1279 -> 1291 with zero new tickets).
+    for (let i = 0; i < 5; i++) {
+      await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    }
+
+    expect(h.state.protocolCounters[ACCOUNT]).toBe(1)
+    expect(h.state.tickets).toHaveLength(1)
+  })
+
   it('two concurrent calls for the same conversation never create two open tickets', async () => {
     const [a, b] = await Promise.all([
       openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' }),
