@@ -21,6 +21,8 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { dispatchWebhookOutEvent } from '@/lib/integrations/webhook-out'
+import { openTicketIfNeeded, resolveInboundTicketAttribution } from '@/lib/tickets/lifecycle'
+import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -857,6 +859,20 @@ async function processMessage(
     console.error('Error inserting message:', msgError)
     return
   }
+
+  // Fase 1 (atendimento), Etapa 4 — the message is already saved above;
+  // everything from here on is best-effort and must never affect the
+  // webhook's response. Gated on TICKETS_ENABLED (default off) and
+  // wrapped so a failure here is logged, never thrown.
+  await runTicketSideEffect('webhook inbound openTicketIfNeeded', async () => {
+    const attribution = await resolveInboundTicketAttribution(conversation.id)
+    await openTicketIfNeeded(conversation.id, {
+      source: attribution.source,
+      initiatedBy: 'customer',
+      campaignId: attribution.campaignId,
+      occurredAt: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+    })
+  })
 
   // Outbound webhook — repasses este evento para a URL externa (n8n,
   // Zapier, Make...) configurada em Configurações → Integrações →

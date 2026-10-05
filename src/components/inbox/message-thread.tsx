@@ -763,11 +763,26 @@ export function MessageThread({
     async (status: ConversationStatus) => {
       if (!conversation) return;
 
-      const supabase = createClient();
-      await supabase
-        .from("conversations")
-        .update({ status })
-        .eq("id", conversation.id);
+      // "closed" goes through a server route (Fase 1 Etapa 4) so it
+      // can mirror the ticket close server-side — tickets only write
+      // via the service-role client, which can't run in the browser.
+      // "open"/"pending" have no ticket action defined yet, so they
+      // keep the direct write.
+      if (status === "closed") {
+        const res = await fetch(`/api/conversations/${conversation.id}/close`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          console.error("Failed to close conversation:", await res.text().catch(() => ""));
+          return;
+        }
+      } else {
+        const supabase = createClient();
+        await supabase
+          .from("conversations")
+          .update({ status })
+          .eq("id", conversation.id);
+      }
 
       onStatusChange(conversation.id, status);
 
@@ -980,14 +995,17 @@ export function MessageThread({
     async (agentId: string | null) => {
       if (!conversation) return;
 
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("conversations")
-        .update({ assigned_agent_id: agentId })
-        .eq("id", conversation.id);
+      // Server route (Fase 1 Etapa 4) instead of a direct client write
+      // — lets it mirror the assignment onto the open ticket
+      // server-side. Same column, same RLS gate as before.
+      const res = await fetch(`/api/conversations/${conversation.id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId }),
+      });
 
-      if (error) {
-        console.error("Failed to update assignment:", error);
+      if (!res.ok) {
+        console.error("Failed to update assignment:", await res.text().catch(() => ""));
         toast.error(t("failedToUpdateAssignment"));
         return;
       }

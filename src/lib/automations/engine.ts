@@ -25,6 +25,8 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { assignTicket, closeTicketWithoutReason, findOpenTicket, returnToQueue } from '@/lib/tickets/lifecycle'
+import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 import { sendNpsSurvey } from '@/lib/nps/send-survey'
 import { loadVariableContext, resolveVariables } from '@/lib/flows/variables'
 
@@ -528,6 +530,13 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .update({ assigned_agent_id: agentId })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+      // Fase 1 (atendimento), Etapa 4 — mirror onto the open ticket.
+      // No human actor here (automation-driven), hence null.
+      await runTicketSideEffect('automations assign_conversation', async () => {
+        const conversationId = await resolveConversationId(args)
+        const ticket = await findOpenTicket(conversationId)
+        if (ticket) await assignTicket(ticket.id, agentId!, null)
+      })
       return `assigned to ${agentId}`
     }
 
@@ -538,6 +547,11 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .update({ assigned_agent_id: null })
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
+      await runTicketSideEffect('automations unassign_agent', async () => {
+        const conversationId = await resolveConversationId(args)
+        const ticket = await findOpenTicket(conversationId)
+        if (ticket) await returnToQueue(ticket.id, null)
+      })
       return 'agent unassigned'
     }
 
@@ -819,6 +833,14 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           }),
         )
         .catch((err) => console.error('[automations] nps auto-send on close failed:', err))
+      // Fase 1 (atendimento), Etapa 4 rule 5 — this closes with no
+      // reason, same as the manual UI close did before Etapa 4. Uses
+      // the seeded system placeholder until Etapa 6's mandatory-reason
+      // dialog exists. See closeTicketWithoutReason's doc comment.
+      await runTicketSideEffect('automations close_conversation', async () => {
+        const conversationId = await resolveConversationId(args)
+        await closeTicketWithoutReason(conversationId, null)
+      })
       return 'conversation closed'
     }
 

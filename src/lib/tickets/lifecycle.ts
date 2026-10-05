@@ -224,6 +224,25 @@ export async function resolveInboundTicketAttribution(
   return { source: 'inbound', campaignId: null }
 }
 
+/**
+ * Looks up the conversation's current open ticket (status <> 'closed'),
+ * or null if there isn't one. Etapa 4 wiring uses this before every
+ * action call below — those take a ticketId, not a conversationId, and
+ * most call sites (automations/flows steps, UI routes) only have the
+ * latter at hand.
+ */
+export async function findOpenTicket(conversationId: string): Promise<Ticket | null> {
+  const admin = supabaseAdmin()
+  const { data, error } = await admin
+    .from('tickets')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .neq('status', 'closed')
+    .maybeSingle()
+  if (error) throw error
+  return (data as Ticket | null) ?? null
+}
+
 // ------------------------------------------------------------
 // first_response_at
 // ------------------------------------------------------------
@@ -259,13 +278,8 @@ export async function recordAgentReply(conversationId: string, message: AgentRep
 
   const admin = supabaseAdmin()
 
-  const { data: ticket, error } = await admin
-    .from('tickets')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .neq('status', 'closed')
-    .single()
-  if (error || !ticket) return
+  const ticket = await findOpenTicket(conversationId)
+  if (!ticket) return
   if (ticket.first_response_at) return
   if (new Date(message.createdAt).getTime() <= new Date(ticket.opened_at).getTime()) return
 
@@ -362,12 +376,22 @@ async function nextTicketProtocol(
 // The four actions
 // ------------------------------------------------------------
 
-/** Assigns (or reassigns) a ticket to a specific agent. Moves status to
- *  'in_progress' — assigning is "someone is now on it". */
-export async function assignTicket(ticketId: string, agentId: string, actorId: string): Promise<Ticket> {
+/**
+ * Assigns (or reassigns) a ticket to a specific agent. Moves status to
+ * 'in_progress' — assigning is "someone is now on it".
+ *
+ * `actorId` null means a system action (round-robin/automation/flow
+ * assignment, no human in the loop) — skips the account-membership
+ * check, same pattern as closeTicket's system close.
+ */
+export async function assignTicket(
+  ticketId: string,
+  agentId: string,
+  actorId: string | null,
+): Promise<Ticket> {
   const admin = supabaseAdmin()
   const ticket = await loadTicketOrThrow(admin, ticketId)
-  await assertActorBelongsToAccount(admin, ticket.account_id, actorId)
+  if (actorId != null) await assertActorBelongsToAccount(admin, ticket.account_id, actorId)
   if (ticket.status === 'closed') throw new TicketClosedError(ticketId)
 
   const { data: updated, error } = await admin
@@ -437,13 +461,18 @@ export async function transferTicket(
   return updated as Ticket
 }
 
-/** Unassigns the ticket and sends it back to 'pending' — the queue, not
- *  any specific department (department_id is left untouched; the
- *  ticket stays in whichever department it was in, just unclaimed). */
-export async function returnToQueue(ticketId: string, actorId: string): Promise<Ticket> {
+/**
+ * Unassigns the ticket and sends it back to 'pending' — the queue, not
+ * any specific department (department_id is left untouched; the
+ * ticket stays in whichever department it was in, just unclaimed).
+ *
+ * `actorId` null means a system action (e.g. an automation/flow's
+ * unassign_agent step) — same nullable-actor convention as assignTicket.
+ */
+export async function returnToQueue(ticketId: string, actorId: string | null): Promise<Ticket> {
   const admin = supabaseAdmin()
   const ticket = await loadTicketOrThrow(admin, ticketId)
-  await assertActorBelongsToAccount(admin, ticket.account_id, actorId)
+  if (actorId != null) await assertActorBelongsToAccount(admin, ticket.account_id, actorId)
   if (ticket.status === 'closed') throw new TicketClosedError(ticketId)
 
   const { data: updated, error } = await admin
@@ -527,4 +556,63 @@ export async function closeTicket(
     metadata: { closing_reason_id: closingReasonId, closed_by: closedBy },
   })
   return updated as Ticket
+}
+
+/**
+ * Looks up the system closing reason for `accountId` identified by
+ * `systemKey` (migration 071 — e.g. 'no_reason_informed',
+ * 'inactivity'). Matches on system_key, not label — same reasoning as
+ * `plans.code` elsewhere in this schema: a stable code is a more
+ * robust lookup key than free-text that's meant to be read by humans.
+ */
+async function getSystemClosingReasonId(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  accountId: string,
+  systemKey: string,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from('closing_reasons')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('is_system', true)
+    .eq('system_key', systemKey)
+    .maybeSingle()
+  if (error) throw error
+  return data?.id ?? null
+}
+
+/**
+ * Transition-period close (Fase 1, Etapa 4 rule 5): every place that
+ * closes a conversation today (manual UI, automations' and flows'
+ * close_conversation step) does so with no reason at all — the DB
+ * CHECK on tickets requires one. Closes with the seeded
+ * 'no_reason_informed' system reason as a placeholder so those call
+ * sites don't need a UI/config change yet.
+ *
+ * Etapa 6 replaces this: the "fechar com motivo obrigatório" dialog
+ * calls closeTicket directly with the agent-picked real reason instead
+ * of calling this function. No data migration needed when that
+ * lands — old tickets just keep their honest "no reason was given at
+ * the time" placeholder.
+ *
+ * No-ops (returns null) when there's no open ticket for the
+ * conversation — same "nothing to mirror" case as every other Etapa 4
+ * call site.
+ */
+export async function closeTicketWithoutReason(
+  conversationId: string,
+  actorId: string | null,
+): Promise<Ticket | null> {
+  const admin = supabaseAdmin()
+  const ticket = await findOpenTicket(conversationId)
+  if (!ticket) return null
+
+  const reasonId = await getSystemClosingReasonId(admin, ticket.account_id, 'no_reason_informed')
+  if (!reasonId) {
+    throw new Error(
+      `No 'no_reason_informed' system closing reason for account ${ticket.account_id} — did migration 071 run?`,
+    )
+  }
+  return closeTicket(ticket.id, reasonId, actorId)
 }

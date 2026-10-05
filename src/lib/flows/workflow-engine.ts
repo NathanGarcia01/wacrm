@@ -45,6 +45,8 @@ import { supabaseAdmin } from "./admin-client";
 import { engineSendMedia, engineSendTemplate, engineSendText } from "./meta-send";
 import { sendNpsSurvey } from "@/lib/nps/send-survey";
 import { loadVariableContext, resolveVariables } from "./variables";
+import { assignTicket, closeTicketWithoutReason, findOpenTicket, returnToQueue } from "@/lib/tickets/lifecycle";
+import { runTicketSideEffect } from "@/lib/tickets/safe-run";
 import {
   endRun,
   evaluateConditionPredicate,
@@ -737,6 +739,14 @@ async function advanceWorkflow(
             .update({ assigned_agent_id: agentId })
             .eq("account_id", run.account_id)
             .eq("contact_id", run.contact_id);
+          // Fase 1 (atendimento), Etapa 4 — mirror onto the open
+          // ticket. No human actor (flow-driven), hence null.
+          const resolvedAgentId = agentId;
+          await runTicketSideEffect("workflow-engine assign_conversation", async () => {
+            const conversationId = await resolveConversationId(db, run);
+            const ticket = await findOpenTicket(conversationId);
+            if (ticket) await assignTicket(ticket.id, resolvedAgentId, null);
+          });
         } catch (err) {
           await logEvent(db, run.id, "error", node.node_key, {
             reason: "assign_conversation_failed",
@@ -758,6 +768,11 @@ async function advanceWorkflow(
             .update({ assigned_agent_id: null })
             .eq("account_id", run.account_id)
             .eq("contact_id", run.contact_id);
+          await runTicketSideEffect("workflow-engine unassign_agent", async () => {
+            const conversationId = await resolveConversationId(db, run);
+            const ticket = await findOpenTicket(conversationId);
+            if (ticket) await returnToQueue(ticket.id, null);
+          });
         } catch (err) {
           await logEvent(db, run.id, "error", node.node_key, {
             reason: "unassign_agent_failed",
@@ -877,6 +892,13 @@ async function advanceWorkflow(
             .catch((err) =>
               console.error("[workflow-engine] nps auto-send on close failed:", err),
             );
+          // Fase 1 (atendimento), Etapa 4 rule 5 — closes with no
+          // reason, same as before Etapa 4. Placeholder system reason
+          // until Etapa 6's mandatory-reason dialog exists.
+          await runTicketSideEffect("workflow-engine close_conversation", async () => {
+            const conversationId = await resolveConversationId(db, run);
+            await closeTicketWithoutReason(conversationId, null);
+          });
         } catch (err) {
           await logEvent(db, run.id, "error", node.node_key, {
             reason: "close_conversation_failed",
@@ -926,6 +948,17 @@ async function advanceWorkflow(
         if (cfg.assign_to) convUpdate.assigned_agent_id = cfg.assign_to;
         if (run.conversation_id) {
           await db.from("conversations").update(convUpdate).eq("id", run.conversation_id);
+          // Fase 1 (atendimento), Etapa 4 — only when the node names an
+          // agent; a bare hand-off doesn't map onto any of the four
+          // ticket actions (not an unassign — nothing changes there).
+          if (cfg.assign_to) {
+            const assignTo = cfg.assign_to;
+            const conversationId = run.conversation_id;
+            await runTicketSideEffect("workflow-engine handoff", async () => {
+              const ticket = await findOpenTicket(conversationId);
+              if (ticket) await assignTicket(ticket.id, assignTo, null);
+            });
+          }
         }
         await logEvent(db, run.id, "handoff", node.node_key, {
           note: cfg.note ?? null,

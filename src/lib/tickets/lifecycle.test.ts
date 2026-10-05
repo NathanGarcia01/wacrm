@@ -14,7 +14,8 @@ const h = vi.hoisted(() => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ticketEvents: [] as any[],
     profiles: {} as Record<string, { account_id: string }>,
-    closingReasons: {} as Record<string, { id: string; account_id: string }>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    closingReasons: [] as any[],
     protocolCounters: {} as Record<string, number>,
     nextTicketId: 1,
   },
@@ -47,9 +48,12 @@ vi.mock('./admin-client', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     payload: any
     filters: Filter[]
+    /** Set only by .maybeSingle() — zero matching rows is a normal,
+     *  no-error result there, unlike .single(). */
+    maybe?: boolean
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }): { data: any; error: any } {
-    const { table, type, payload, filters } = ops
+    const { table, type, payload, filters, maybe } = ops
 
     if (table === 'conversations') {
       const id = getEq(filters, 'id')
@@ -110,7 +114,8 @@ vi.mock('./admin-client', () => {
       const id = getEq(filters, 'id')
       if (id !== undefined) {
         const ticket = state.tickets.find((t) => t.id === id)
-        return ticket ? { data: { ...ticket }, error: null } : { data: null, error: { message: 'ticket not found' } }
+        if (ticket) return { data: { ...ticket }, error: null }
+        return maybe ? { data: null, error: null } : { data: null, error: { message: 'ticket not found' } }
       }
       const conversationId = getEq(filters, 'conversation_id')
       if (conversationId !== undefined) {
@@ -119,7 +124,8 @@ vi.mock('./admin-client', () => {
           (t) => t.conversation_id === conversationId && (neqStatus === undefined || t.status !== neqStatus),
         )
         const row = matches[matches.length - 1] ?? null
-        return row ? { data: { ...row }, error: null } : { data: null, error: { message: 'ticket not found' } }
+        if (row) return { data: { ...row }, error: null }
+        return maybe ? { data: null, error: null } : { data: null, error: { message: 'ticket not found' } }
       }
       return { data: null, error: { message: 'unsupported tickets query in test mock' } }
     }
@@ -145,7 +151,20 @@ vi.mock('./admin-client', () => {
 
     if (table === 'closing_reasons') {
       const id = getEq(filters, 'id')
-      return { data: state.closingReasons[id] ?? null, error: null }
+      if (id !== undefined) {
+        const row = state.closingReasons.find((r) => r.id === id)
+        return { data: row ?? null, error: null }
+      }
+      const accountId = getEq(filters, 'account_id')
+      const isSystem = getEq(filters, 'is_system')
+      const systemKey = getEq(filters, 'system_key')
+      const row = state.closingReasons.find(
+        (r) =>
+          r.account_id === accountId &&
+          (isSystem === undefined || r.is_system === isSystem) &&
+          (systemKey === undefined || r.system_key === systemKey),
+      )
+      return { data: row ?? null, error: null }
     }
 
     if (table === 'ticket_events') {
@@ -186,8 +205,7 @@ vi.mock('./admin-client', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       is: (k: string, v: any) => (ops.filters.push(['is', k, v]), b),
       single: () => Promise.resolve(resolve(ops)),
-      maybeSingle: () => Promise.resolve(resolve(ops)),
-       
+      maybeSingle: () => Promise.resolve(resolve({ ...ops, maybe: true })),
       then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
         Promise.resolve(resolve(ops)).then(onF, onR),
     }
@@ -217,6 +235,8 @@ import {
   TicketClosedError,
   assignTicket,
   closeTicket,
+  closeTicketWithoutReason,
+  findOpenTicket,
   openTicketIfNeeded,
   recordAgentReply,
   resolveInboundTicketAttribution,
@@ -234,6 +254,7 @@ const ACTOR_OTHER_ACCOUNT = 'actor-outsider'
 const DEPARTMENT = 'dept-1'
 const CLOSING_REASON = 'reason-1'
 const OTHER_ACCOUNT_REASON = 'reason-other-account'
+const NO_REASON_SYSTEM_REASON = 'reason-system-no-reason'
 
 function isoHoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
@@ -251,10 +272,11 @@ beforeEach(() => {
     [OTHER_AGENT]: { account_id: ACCOUNT },
     [ACTOR_OTHER_ACCOUNT]: { account_id: OTHER_ACCOUNT },
   }
-  h.state.closingReasons = {
-    [CLOSING_REASON]: { id: CLOSING_REASON, account_id: ACCOUNT },
-    [OTHER_ACCOUNT_REASON]: { id: OTHER_ACCOUNT_REASON, account_id: OTHER_ACCOUNT },
-  }
+  h.state.closingReasons = [
+    { id: CLOSING_REASON, account_id: ACCOUNT, is_system: false, system_key: null },
+    { id: OTHER_ACCOUNT_REASON, account_id: OTHER_ACCOUNT, is_system: false, system_key: null },
+    { id: NO_REASON_SYSTEM_REASON, account_id: ACCOUNT, is_system: true, system_key: 'no_reason_informed' },
+  ]
   h.state.protocolCounters = {}
   h.state.nextTicketId = 1
 })
@@ -561,5 +583,68 @@ describe('closeTicket', () => {
     await closeTicket(ticket.id, CLOSING_REASON, AGENT)
 
     await expect(closeTicket(ticket.id, CLOSING_REASON, AGENT)).rejects.toBeInstanceOf(TicketClosedError)
+  })
+})
+
+describe('assignTicket / returnToQueue with a null (system) actor', () => {
+  it('assignTicket skips the account check when actorId is null', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+
+    const updated = await assignTicket(ticket.id, AGENT, null)
+
+    expect(updated.assigned_agent_id).toBe(AGENT)
+    expect(h.state.ticketEvents).toContainEqual(
+      expect.objectContaining({ ticket_id: ticket.id, type: 'assigned', actor_id: null }),
+    )
+  })
+
+  it('returnToQueue skips the account check when actorId is null', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    await assignTicket(ticket.id, AGENT, AGENT)
+
+    const updated = await returnToQueue(ticket.id, null)
+
+    expect(updated.assigned_agent_id).toBeNull()
+    expect(updated.status).toBe('pending')
+  })
+})
+
+describe('findOpenTicket', () => {
+  it('returns the open ticket for a conversation', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    const found = await findOpenTicket(CONVERSATION)
+    expect(found?.id).toBe(ticket.id)
+  })
+
+  it('returns null when the conversation has no open ticket', async () => {
+    expect(await findOpenTicket(CONVERSATION)).toBeNull()
+  })
+
+  it('returns null once the only ticket is closed', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    await closeTicket(ticket.id, CLOSING_REASON, AGENT)
+    expect(await findOpenTicket(CONVERSATION)).toBeNull()
+  })
+})
+
+describe('closeTicketWithoutReason — Etapa 4 transition placeholder', () => {
+  it('closes the open ticket with the seeded "no_reason_informed" system reason', async () => {
+    await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+
+    const closed = await closeTicketWithoutReason(CONVERSATION, AGENT)
+
+    expect(closed?.status).toBe('closed')
+    expect(closed?.closing_reason_id).toBe(NO_REASON_SYSTEM_REASON)
+    expect(closed?.closed_by).toBe('agent')
+  })
+
+  it('closes with closed_by="system" when actorId is null (automation/flow close)', async () => {
+    await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    const closed = await closeTicketWithoutReason(CONVERSATION, null)
+    expect(closed?.closed_by).toBe('system')
+  })
+
+  it('no-ops (returns null) when there is no open ticket', async () => {
+    expect(await closeTicketWithoutReason(CONVERSATION, AGENT)).toBeNull()
   })
 })

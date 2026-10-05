@@ -24,6 +24,8 @@ import {
 } from '@/lib/rate-limit'
 import type { MessageTemplate } from '@/types'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
+import { openTicketIfNeeded, recordAgentReply } from '@/lib/tickets/lifecycle'
+import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 
 export async function POST(request: Request) {
   try {
@@ -419,6 +421,27 @@ export async function POST(request: Request) {
         { status: 500 }
       )
     }
+
+    // Fase 1 (atendimento), Etapa 4 — the message is already saved
+    // above. openTicketIfNeeded no-ops if a ticket is already open
+    // (e.g. the customer started this conversation); recordAgentReply
+    // self-excludes this exact message when it's the one that just
+    // opened the ticket (createdAt <= opened_at) — see its doc comment
+    // in src/lib/tickets/lifecycle.ts. Both best-effort, gated on
+    // TICKETS_ENABLED.
+    await runTicketSideEffect('send-route manual outbound', async () => {
+      await openTicketIfNeeded(conversation_id, {
+        source: 'manual_outbound',
+        initiatedBy: 'company',
+        actorId: user.id,
+        occurredAt: messageRecord.created_at,
+      })
+      await recordAgentReply(conversation_id, {
+        senderType: 'agent',
+        createdAt: messageRecord.created_at,
+        messageId: waMessageId,
+      })
+    })
 
     // Update conversation
     await supabase

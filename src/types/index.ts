@@ -462,6 +462,11 @@ export interface ClosingReason {
   position: number;
   is_active: boolean;
   is_system: boolean;
+  /** Stable key identifying which system reason this is (e.g.
+   *  'inactivity', 'no_reason_informed') — migration 071. Null for
+   *  account-authored (non-system) reasons. Lookup key for app code;
+   *  never match on `label` instead, it can be edited/translated. */
+  system_key?: string | null;
   created_at: string;
 }
 

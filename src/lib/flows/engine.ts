@@ -41,6 +41,8 @@ import {
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { loadVariableContext, resolveVariables } from "./variables";
+import { assignTicket, findOpenTicket } from "@/lib/tickets/lifecycle";
+import { runTicketSideEffect } from "@/lib/tickets/safe-run";
 import {
   type AssignConversationNodeConfig,
   type CollectInputNodeConfig,
@@ -532,6 +534,18 @@ async function executeHandoff(
       .from("conversations")
       .update(convUpdate)
       .eq("id", run.conversation_id);
+    // Fase 1 (atendimento), Etapa 4 — only mirrors when the node
+    // actually names an agent; a bare hand-off with no assign_to
+    // doesn't map cleanly onto any of the four ticket actions (it's
+    // not an unassign — department/agent stay whatever they were).
+    if (cfg.assign_to) {
+      const assignTo = cfg.assign_to;
+      const conversationId = run.conversation_id;
+      await runTicketSideEffect("flows engine.ts handoff", async () => {
+        const ticket = await findOpenTicket(conversationId);
+        if (ticket) await assignTicket(ticket.id, assignTo, null);
+      });
+    }
   }
   await logEvent(db, run.id, "handoff", node.node_key, {
     note: cfg.note ?? null,
@@ -945,6 +959,15 @@ async function advanceFromNodeKey(
           .update({ assigned_agent_id: agentId })
           .eq("account_id", run.account_id)
           .eq("contact_id", run.contact_id);
+        // Fase 1 (atendimento), Etapa 4 — mirror onto the open ticket.
+        // No human actor (flow-driven), hence null.
+        if (run.conversation_id) {
+          const resolvedAgentId = agentId;
+          await runTicketSideEffect("flows engine.ts assign_conversation", async () => {
+            const ticket = await findOpenTicket(run.conversation_id!);
+            if (ticket) await assignTicket(ticket.id, resolvedAgentId, null);
+          });
+        }
       } catch (err) {
         await logEvent(db, run.id, "error", node.node_key, {
           reason: "assign_conversation_failed",

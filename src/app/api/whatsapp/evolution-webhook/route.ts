@@ -11,6 +11,8 @@ import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { runFlowsForTrigger } from '@/lib/flows/workflow-engine'
+import { openTicketIfNeeded, resolveInboundTicketAttribution } from '@/lib/tickets/lifecycle'
+import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _adminClient: any = null
@@ -231,6 +233,19 @@ async function processEvolutionMessage(
     console.error('[evolution-webhook] failed to insert message:', msgError)
     return
   }
+
+  // Fase 1 (atendimento), Etapa 4 — same wiring as the Cloud API webhook
+  // (src/app/api/whatsapp/webhook/route.ts). The message is already
+  // saved above; this is best-effort and gated on TICKETS_ENABLED.
+  await runTicketSideEffect('evolution-webhook inbound openTicketIfNeeded', async () => {
+    const attribution = await resolveInboundTicketAttribution(conversation.id)
+    await openTicketIfNeeded(conversation.id, {
+      source: attribution.source,
+      initiatedBy: 'customer',
+      campaignId: attribution.campaignId,
+      occurredAt: createdAt,
+    })
+  })
 
   const { error: convError } = await admin
     .from('conversations')
