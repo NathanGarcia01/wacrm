@@ -225,6 +225,11 @@ export function SettingsOverview({
       loading: false,
       subtitle: t('modeAccent', { mode: modeLabel, accent: themeName }),
     },
+    {
+      section: 'attendance',
+      loading: false,
+      subtitle: t('attendanceSubtitle'),
+    },
   ];
 
   return (

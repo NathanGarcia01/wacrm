@@ -1,6 +1,7 @@
 import {
   Coins,
   FileText,
+  Headset,
   KeyRound,
   Languages,
   LayoutGrid,
@@ -37,6 +38,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'products',
   'quickReplies',
+  'attendance',
   'nps',
   'members',
   'api',
@@ -77,6 +79,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
     icon: MessageSquareText,
     group: 'workspace',
   },
+  attendance: { id: 'attendance', icon: Headset, group: 'workspace' },
   nps: { id: 'nps', icon: Star, group: 'workspace' },
   members: { id: 'members', icon: UsersRound, group: 'workspace' },
   api: { id: 'api', icon: KeyRound, group: 'workspace' },

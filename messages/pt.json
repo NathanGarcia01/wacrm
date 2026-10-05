@@ -68,6 +68,15 @@
       "admin": "Admin",
       "agent": "Agente",
       "viewer": "Visualizador"
+    },
+    "weekdays": {
+      "0": "Domingo",
+      "1": "Segunda-feira",
+      "2": "Terça-feira",
+      "3": "Quarta-feira",
+      "4": "Quinta-feira",
+      "5": "Sexta-feira",
+      "6": "Sábado"
     }
   },
   "sidebar": {
@@ -1615,7 +1624,8 @@
       "nps": "Satisfação (NPS)",
       "members": "Membros da equipe",
       "api": "Chaves de API",
-      "integrations": "Integrações"
+      "integrations": "Integrações",
+      "attendance": "Atendimento"
     },
     "railGroups": {
       "account": "Conta",
@@ -1699,7 +1709,8 @@
       "modeLight": "claro",
       "modeDark": "escuro",
       "manageSubscription": "Gerenciar assinatura",
-      "manageSubscriptionSubtitle": "Cartão, faturas e cancelamento — abre o portal do Stripe"
+      "manageSubscriptionSubtitle": "Cartão, faturas e cancelamento — abre o portal do Stripe",
+      "attendanceSubtitle": "Departamentos, motivos, horário e feriados"
     },
     "nps": {
       "title": "Satisfação (NPS)",
@@ -2151,6 +2162,84 @@
       "step4Item4Suffix": "que você definiu aqui",
       "step4Item5": "Inscreva-se no campo de webhook \"messages\"",
       "docsLink": "Documentação da API do WhatsApp da Meta"
+    },
+    "attendance": {
+      "title": "Atendimento",
+      "description": "Cadastros usados pelo ciclo de vida de tickets: departamentos, motivos de fechamento, horário de atendimento e feriados.",
+      "departments": {
+        "title": "Departamentos",
+        "description": "Filas de atendimento. Cada departamento pode ter um ou mais agentes como membros.",
+        "newDepartment": "Novo departamento",
+        "nameColumn": "Nome",
+        "namePlaceholder": "Ex: Suporte técnico",
+        "membersColumn": "Membros",
+        "statusColumn": "Status",
+        "active": "Ativo",
+        "inactive": "Inativo",
+        "empty": "Nenhum departamento cadastrado ainda.",
+        "newTitle": "Novo departamento",
+        "editTitle": "Editar departamento",
+        "editAria": "Editar {name}",
+        "deleteAria": "Excluir {name}",
+        "deleteConfirm": "Excluir o departamento \"{name}\"?",
+        "memberCount": "{count, plural, =0 {Nenhum membro} one {1 membro} other {# membros}}",
+        "membersTitle": "Membros — {name}",
+        "membersDescription": "Quem atende nessa fila. Marque ou desmarque para adicionar/remover.",
+        "memberToggleFailed": "Falha ao atualizar membro",
+        "createFailed": "Falha ao criar departamento",
+        "saveFailed": "Falha ao salvar departamento",
+        "deleteFailed": "Falha ao excluir departamento",
+        "created": "Departamento criado",
+        "saved": "Departamento atualizado",
+        "deleted": "Departamento excluído",
+        "adminOnlyHint": "Somente administradores da conta podem editar departamentos."
+      },
+      "closingReasons": {
+        "title": "Motivos de Fechamento",
+        "description": "Motivos usados para encerrar um atendimento. Motivos de sistema não podem ser editados ou excluídos.",
+        "newReason": "Novo motivo",
+        "labelColumn": "Motivo",
+        "labelPlaceholder": "Ex: Venda realizada",
+        "empty": "Nenhum motivo cadastrado ainda.",
+        "systemBadge": "Sistema",
+        "newTitle": "Novo motivo",
+        "editTitle": "Editar motivo",
+        "editAria": "Editar {label}",
+        "deleteAria": "Excluir {label}",
+        "deleteConfirm": "Excluir o motivo \"{label}\"?",
+        "createFailed": "Falha ao criar motivo",
+        "saveFailed": "Falha ao salvar motivo",
+        "deleteFailed": "Falha ao excluir motivo",
+        "created": "Motivo criado",
+        "saved": "Motivo atualizado",
+        "deleted": "Motivo excluído",
+        "adminOnlyHint": "Somente administradores da conta podem editar motivos de fechamento."
+      },
+      "businessHours": {
+        "title": "Horário de Atendimento",
+        "description": "Janelas de atendimento por dia da semana e o fuso horário da conta.",
+        "timezoneLabel": "Fuso horário",
+        "closed": "Sem atendimento",
+        "addWindow": "Adicionar janela",
+        "removeWindowAria": "Remover janela",
+        "saveButton": "Salvar horário",
+        "saveFailed": "Falha ao salvar horário de atendimento",
+        "saved": "Horário de atendimento atualizado",
+        "adminOnlyHint": "Somente administradores da conta podem editar o horário de atendimento."
+      },
+      "holidays": {
+        "title": "Feriados",
+        "description": "Datas em que o horário de atendimento não vale.",
+        "dateColumn": "Data",
+        "labelColumn": "Descrição",
+        "labelPlaceholder": "Ex: Feriado municipal",
+        "addButton": "Adicionar",
+        "empty": "Nenhum feriado cadastrado ainda.",
+        "deleteAria": "Excluir {label}",
+        "addFailed": "Falha ao adicionar feriado",
+        "deleteFailed": "Falha ao excluir feriado",
+        "adminOnlyHint": "Somente administradores da conta podem editar feriados."
+      }
     }
   },
   "reports": {

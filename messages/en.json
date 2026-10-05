@@ -68,6 +68,15 @@
       "admin": "Admin",
       "agent": "Agent",
       "viewer": "Viewer"
+    },
+    "weekdays": {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday"
     }
   },
   "sidebar": {
@@ -1615,7 +1624,8 @@
       "nps": "Satisfaction (NPS)",
       "members": "Team members",
       "api": "API keys",
-      "integrations": "Integrations"
+      "integrations": "Integrations",
+      "attendance": "Attendance"
     },
     "railGroups": {
       "account": "Account",
@@ -1699,7 +1709,8 @@
       "modeLight": "Light",
       "modeDark": "Dark",
       "manageSubscription": "Manage subscription",
-      "manageSubscriptionSubtitle": "Card, invoices, and cancellation — opens the Stripe portal"
+      "manageSubscriptionSubtitle": "Card, invoices, and cancellation — opens the Stripe portal",
+      "attendanceSubtitle": "Departments, reasons, hours and holidays"
     },
     "nps": {
       "title": "Satisfaction (NPS)",
@@ -2151,6 +2162,84 @@
       "step4Item4Suffix": "you set here",
       "step4Item5": "Subscribe to \"messages\" webhook field",
       "docsLink": "Meta WhatsApp API Documentation"
+    },
+    "attendance": {
+      "title": "Attendance",
+      "description": "Catalogs used by the ticket lifecycle: departments, closing reasons, business hours and holidays.",
+      "departments": {
+        "title": "Departments",
+        "description": "Attendance queues. Each department can have one or more agents as members.",
+        "newDepartment": "New department",
+        "nameColumn": "Name",
+        "namePlaceholder": "E.g. Technical support",
+        "membersColumn": "Members",
+        "statusColumn": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "empty": "No departments yet.",
+        "newTitle": "New department",
+        "editTitle": "Edit department",
+        "editAria": "Edit {name}",
+        "deleteAria": "Delete {name}",
+        "deleteConfirm": "Delete department \"{name}\"?",
+        "memberCount": "{count, plural, =0 {No members} one {1 member} other {# members}}",
+        "membersTitle": "Members — {name}",
+        "membersDescription": "Who works this queue. Check or uncheck to add/remove.",
+        "memberToggleFailed": "Failed to update member",
+        "createFailed": "Failed to create department",
+        "saveFailed": "Failed to save department",
+        "deleteFailed": "Failed to delete department",
+        "created": "Department created",
+        "saved": "Department updated",
+        "deleted": "Department deleted",
+        "adminOnlyHint": "Only account admins can edit departments."
+      },
+      "closingReasons": {
+        "title": "Closing Reasons",
+        "description": "Reasons used to close a ticket. System reasons cannot be edited or deleted.",
+        "newReason": "New reason",
+        "labelColumn": "Reason",
+        "labelPlaceholder": "E.g. Sale completed",
+        "empty": "No reasons yet.",
+        "systemBadge": "System",
+        "newTitle": "New reason",
+        "editTitle": "Edit reason",
+        "editAria": "Edit {label}",
+        "deleteAria": "Delete {label}",
+        "deleteConfirm": "Delete reason \"{label}\"?",
+        "createFailed": "Failed to create reason",
+        "saveFailed": "Failed to save reason",
+        "deleteFailed": "Failed to delete reason",
+        "created": "Reason created",
+        "saved": "Reason updated",
+        "deleted": "Reason deleted",
+        "adminOnlyHint": "Only account admins can edit closing reasons."
+      },
+      "businessHours": {
+        "title": "Business Hours",
+        "description": "Attendance windows per weekday and the account timezone.",
+        "timezoneLabel": "Timezone",
+        "closed": "Closed",
+        "addWindow": "Add window",
+        "removeWindowAria": "Remove window",
+        "saveButton": "Save hours",
+        "saveFailed": "Failed to save business hours",
+        "saved": "Business hours updated",
+        "adminOnlyHint": "Only account admins can edit business hours."
+      },
+      "holidays": {
+        "title": "Holidays",
+        "description": "Dates when business hours do not apply.",
+        "dateColumn": "Date",
+        "labelColumn": "Description",
+        "labelPlaceholder": "E.g. Local holiday",
+        "addButton": "Add",
+        "empty": "No holidays yet.",
+        "deleteAria": "Delete {label}",
+        "addFailed": "Failed to add holiday",
+        "deleteFailed": "Failed to delete holiday",
+        "adminOnlyHint": "Only account admins can edit holidays."
+      }
     }
   },
   "reports": {
