@@ -351,7 +351,8 @@
       "sendTemplateToStart": "Envie um template para iniciar a conversa",
       "editFailed": "Falha ao editar mensagem",
       "deleteFailed": "Falha ao apagar mensagem",
-      "deleteMetaWarning": "Apagada aqui, mas o WhatsApp não confirmou a exclusão: {reason}"
+      "deleteMetaWarning": "Apagada aqui, mas o WhatsApp não confirmou a exclusão: {reason}",
+      "loadingTicket": "Carregando ticket..."
     },
     "tagPicker": {
       "addFailed": "Falha ao adicionar tag",
@@ -433,13 +434,12 @@
     },
     "tickets": {
       "tabs": {
-        "all": "Todas",
-        "unread": "Não lidas",
         "pending": "Pendentes",
         "inProgress": "Ativos",
         "closed": "Fechados",
         "noTicket": "Sem atendimento",
-        "onlyMine": "Só os meus"
+        "onlyMine": "Só os meus",
+        "unreadOnly": "Não lidas"
       },
       "header": {
         "assign": "Atribuir",
@@ -450,7 +450,10 @@
         "returnToQueue": "Devolver à fila",
         "returnedToQueue": "Devolvido à fila",
         "returnFailed": "Falha ao devolver à fila",
-        "close": "Fechar"
+        "close": "Fechar",
+        "openAttendance": "Abrir atendimento",
+        "opened": "Atendimento aberto",
+        "openFailed": "Falha ao abrir atendimento"
       },
       "closeDialog": {
         "title": "Fechar ticket",

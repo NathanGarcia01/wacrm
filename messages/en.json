@@ -351,7 +351,8 @@
       "sendTemplateToStart": "Send a template to start the conversation",
       "editFailed": "Failed to edit message",
       "deleteFailed": "Failed to delete message",
-      "deleteMetaWarning": "Deleted here, but WhatsApp did not confirm the deletion: {reason}"
+      "deleteMetaWarning": "Deleted here, but WhatsApp did not confirm the deletion: {reason}",
+      "loadingTicket": "Loading ticket..."
     },
     "tagPicker": {
       "addFailed": "Failed to add tag",
@@ -433,13 +434,12 @@
     },
     "tickets": {
       "tabs": {
-        "all": "All",
-        "unread": "Unread",
         "pending": "Pending",
         "inProgress": "Active",
         "closed": "Closed",
         "noTicket": "No ticket",
-        "onlyMine": "Only mine"
+        "onlyMine": "Only mine",
+        "unreadOnly": "Unread"
       },
       "header": {
         "assign": "Assign",
@@ -450,7 +450,10 @@
         "returnToQueue": "Return to queue",
         "returnedToQueue": "Returned to queue",
         "returnFailed": "Failed to return ticket to queue",
-        "close": "Close"
+        "close": "Close",
+        "openAttendance": "Open attendance",
+        "opened": "Attendance opened",
+        "openFailed": "Failed to open attendance"
       },
       "closeDialog": {
         "title": "Close ticket",

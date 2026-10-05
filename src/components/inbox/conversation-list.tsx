@@ -97,28 +97,30 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("inbox.list");
-  const { ticketsUiEnabled, user } = useAuth();
+  const { ticketsUiEnabled, user, profileLoading } = useAuth();
   const [search, setSearch] = useState("");
-  // Default to "open" — closed conversations are done-and-archived, so
-  // they shouldn't compete for attention unless explicitly requested.
-  // When ticketsUiEnabled resolves true, the one-shot effect below
-  // switches this to "pending" (the ticket-tab equivalent of "needs
-  // attention") — ticketsUiEnabled isn't known synchronously on
-  // mount (it comes from the profile fetch in useAuth), so the
-  // initializer can't just branch on it directly.
+  // Default to "open" for the legacy (non-tickets) dropdown; "Ativos"
+  // (in_progress) for the ticket tabs. `profileLoading` is what
+  // actually tells us ticketsUiEnabled has resolved its real value —
+  // it starts `false` optimistically before the profile fetch
+  // settles, so branching on `ticketsUiEnabled` directly here would
+  // misfire on every mount. The one-shot effect below applies the
+  // right default exactly once, right when that resolution lands.
   const [filter, setFilter] = useState<InboxFilter | TicketTab>("open");
-  const appliedTicketsDefaultRef = useRef(false);
+  const appliedDefaultRef = useRef(false);
   useEffect(() => {
-    if (ticketsUiEnabled && !appliedTicketsDefaultRef.current) {
-      appliedTicketsDefaultRef.current = true;
+    if (!profileLoading && !appliedDefaultRef.current) {
+      appliedDefaultRef.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setFilter("pending");
+      setFilter(ticketsUiEnabled ? "in_progress" : "open");
     }
-  }, [ticketsUiEnabled]);
+  }, [profileLoading, ticketsUiEnabled]);
 
-  // "Só os meus" — filters by ticket.assigned_agent_id. Independent of
-  // the tab (applies on top of pending/in_progress/closed/no_ticket),
-  // same as the channel filter already is.
+  // "Não lidas" and "Só os meus" — plain toggles alongside the tabs,
+  // not tabs themselves (see ticket-status-tabs.tsx's doc comment).
+  // Both apply on top of whichever tab is active.
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const handleToggleUnreadOnly = useCallback(() => setUnreadOnly((v) => !v), []);
   const [onlyMine, setOnlyMine] = useState(false);
   const handleToggleOnlyMine = useCallback(() => setOnlyMine((v) => !v), []);
 
@@ -206,6 +208,13 @@ export function ConversationList({
   });
 
   useEffect(() => {
+    // Wait for the profile fetch to resolve ticketsUiEnabled before
+    // this ever runs — otherwise it fires once optimistically with
+    // the flag `false` (no join) and a second time once the real
+    // value lands, doubling the work on every mount. One fetch,
+    // already correct, per the approved fix.
+    if (profileLoading) return;
+
     const supabase = createClient();
     let cancelled = false;
 
@@ -275,9 +284,10 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-    // `ticketsUiEnabled` is included so the join above runs as soon as
-    // the flag resolves true after this effect's first (flag-less) pass.
-  }, [resyncToken, ticketsUiEnabled]);
+    // `profileLoading`/`ticketsUiEnabled` are included so the single
+    // fetch above waits for (and then reflects) the resolved flag —
+    // see the guard at the top of this effect.
+  }, [resyncToken, profileLoading, ticketsUiEnabled]);
 
   const filtered = useMemo(() => {
     let result = conversations;
@@ -299,6 +309,10 @@ export function ConversationList({
       result = result.filter((c) => c.ticket?.status === "closed");
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
+    }
+
+    if (ticketsUiEnabled && unreadOnly) {
+      result = result.filter((c) => c.unread_count > 0);
     }
 
     if (ticketsUiEnabled && onlyMine) {
@@ -368,7 +382,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, advancedFilters, channelFilter, ticketsUiEnabled, onlyMine, user?.id]);
+  }, [conversations, filter, search, advancedFilters, channelFilter, ticketsUiEnabled, unreadOnly, onlyMine, user?.id]);
 
   // "Fechados" — paginated separately from everything else above.
   // Closed tickets accumulate forever (the Etapa 5 backfill alone
@@ -391,7 +405,7 @@ export function ConversationList({
     if (!ticketsUiEnabled) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setClosedPage(0);
-  }, [ticketsUiEnabled, onlyMine]);
+  }, [ticketsUiEnabled, onlyMine, unreadOnly]);
 
   useEffect(() => {
     if (!ticketsUiEnabled || filter !== "closed") return;
@@ -462,14 +476,20 @@ export function ConversationList({
   // future improvement, not attempted here (see the pagination
   // comment above for why "fetch everything" isn't an option).
   const filteredClosedTickets = useMemo(() => {
-    if (!search.trim()) return closedTickets;
-    const q = search.toLowerCase();
-    return closedTickets.filter((t) => {
-      const name = t.conversation?.contact?.name?.toLowerCase() ?? "";
-      const phone = t.conversation?.contact?.phone?.toLowerCase() ?? "";
-      return name.includes(q) || phone.includes(q);
-    });
-  }, [closedTickets, search]);
+    let result = closedTickets;
+    if (unreadOnly) {
+      result = result.filter((t) => (t.conversation?.unread_count ?? 0) > 0);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter((t) => {
+        const name = t.conversation?.contact?.name?.toLowerCase() ?? "";
+        const phone = t.conversation?.contact?.phone?.toLowerCase() ?? "";
+        return name.includes(q) || phone.includes(q);
+      });
+    }
+    return result;
+  }, [closedTickets, search, unreadOnly]);
 
   const closedTotalPages = closedTotal != null ? Math.max(1, Math.ceil(closedTotal / CLOSED_PAGE_SIZE)) : 1;
 
@@ -478,19 +498,15 @@ export function ConversationList({
   // Excludes "closed", which can't be counted this way (see the
   // pagination comment above) — that one comes from `closedTotal`.
   const ticketCounts = useMemo<TicketTabCounts>(() => {
-    let all = 0;
-    let unread = 0;
     let pending = 0;
     let inProgress = 0;
     let noTicket = 0;
     for (const c of conversations) {
-      all++;
-      if (c.unread_count > 0) unread++;
       if (!c.ticket) noTicket++;
       else if (c.ticket.status === "pending") pending++;
       else if (c.ticket.status === "in_progress") inProgress++;
     }
-    return { all, unread, pending, in_progress: inProgress, no_ticket: noTicket, closed: closedTotal };
+    return { pending, in_progress: inProgress, no_ticket: noTicket, closed: closedTotal };
   }, [conversations, closedTotal]);
 
   const handleSearchChange = useCallback(
@@ -666,6 +682,8 @@ export function ConversationList({
               value={filter as TicketTab}
               onChange={setFilter}
               counts={ticketCounts}
+              unreadOnly={unreadOnly}
+              onToggleUnreadOnly={handleToggleUnreadOnly}
               onlyMine={onlyMine}
               onToggleOnlyMine={handleToggleOnlyMine}
             />

@@ -604,18 +604,6 @@ export default function InboxPage() {
     [activeConversation]
   );
 
-  const handleTicketChange = useCallback(
-    (conversationId: string, ticket: Ticket) => {
-      setConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, ticket } : c)),
-      );
-      if (activeConversation?.id === conversationId) {
-        setActiveConversation((prev) => (prev ? { ...prev, ticket } : prev));
-      }
-    },
-    [activeConversation],
-  );
-
   const handleChannelChange = useCallback(
     (
       conversationId: string,
@@ -702,7 +690,6 @@ export default function InboxPage() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
-            onTicketChange={handleTicketChange}
             onChannelChange={handleChannelChange}
             onUnreadChange={handleUnreadChange}
             onBack={handleCloseConversation}

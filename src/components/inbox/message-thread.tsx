@@ -5,6 +5,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { localeToIntl, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveTicket } from "@/hooks/use-active-ticket";
 import { usePresence } from "@/hooks/use-presence";
 import { PresenceDot } from "@/components/presence/presence-dot";
 import { presenceLabel } from "@/lib/presence";
@@ -17,7 +18,6 @@ import type {
   ConversationStatus,
   MessageTemplate,
   Profile,
-  Ticket,
   WhatsAppChannelOption,
 } from "@/types";
 import {
@@ -27,6 +27,7 @@ import {
   Check,
   Clock,
   ArrowLeft,
+  Loader2,
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
@@ -87,13 +88,6 @@ interface MessageThreadProps {
     conversationId: string,
     assignedAgentId: string | null,
   ) => void;
-  /** Fase 1 (atendimento) Etapa 6 — fired by TicketHeaderActions after
-   *  any of the four ticket actions succeeds server-side, so the page
-   *  can patch its `conversations`/`activeConversation` copies the
-   *  same way onAssignChange already does. Only relevant when
-   *  ticketsUiEnabled; unused (and the header renders the pre-tickets
-   *  controls instead) otherwise. */
-  onTicketChange?: (conversationId: string, ticket: Ticket) => void;
   /** Fired after the channel picker (header badge or composer) persists a
    *  new conversations.channel_id — lets the page mirror it into its own
    *  conversation-list copy (channel_id + the joined name/display_phone_number)
@@ -200,7 +194,6 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
-  onTicketChange,
   onChannelChange,
   onUnreadChange,
   onBack,
@@ -216,6 +209,14 @@ export function MessageThread({
   const tReplyQuote = useTranslations("inbox.replyQuote");
   const tInboxList = useTranslations("inbox.list");
   const { user, ticketsUiEnabled } = useAuth();
+  // Fase 1 (atendimento) Etapa 6 fix — fetched directly by
+  // conversation_id and kept live by its own realtime subscription,
+  // deliberately NOT derived from `conversation.ticket` (the
+  // ConversationList-level join): that copy is only as fresh as the
+  // list's last fetch, which has no reason to re-run just because
+  // this specific conversation got selected — see useActiveTicket's
+  // doc comment for the bug this replaced.
+  const activeTicket = useActiveTicket(conversation?.id ?? null, ticketsUiEnabled);
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1289,19 +1290,25 @@ export function MessageThread({
           {/* Fase 1 (atendimento) Etapa 6 — ticketsUiEnabled swaps the
               pre-tickets status + assign dropdowns for the ticket
               action bar (protocol, status pill, atribuir/transferir/
-              devolver/fechar). conversation.ticket is only absent for
-              a "Sem atendimento" conversation (never got a qualifying
-              reply — see migration 072's eligibility rule); there's
-              nothing to act on yet, so neither block renders. */}
+              devolver/fechar, or "Abrir atendimento" when there's no
+              open ticket). `activeTicket.ticket === undefined` means
+              still loading — a placeholder, not a blank header, so
+              switching conversations doesn't flash empty controls. */}
           {ticketsUiEnabled ? (
-            conversation.ticket && onTicketChange ? (
+            activeTicket.ticket === undefined ? (
+              <div className="flex h-7 items-center gap-1.5 px-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="hidden sm:inline">{t("loadingTicket")}</span>
+              </div>
+            ) : (
               <TicketHeaderActions
-                ticket={conversation.ticket}
+                ticket={activeTicket.ticket}
+                conversationId={conversation.id}
                 profiles={profiles}
                 currentUserId={user?.id}
-                onTicketChange={(updated) => onTicketChange(conversation.id, updated)}
+                onTicketChange={activeTicket.setTicket}
               />
-            ) : null
+            )
           ) : (
             <>
               {/* Status dropdown */}

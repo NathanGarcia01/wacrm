@@ -351,7 +351,8 @@
       "sendTemplateToStart": "Envía un template para iniciar la conversación",
       "editFailed": "Error al editar el mensaje",
       "deleteFailed": "Error al eliminar el mensaje",
-      "deleteMetaWarning": "Eliminado aquí, pero WhatsApp no confirmó la eliminación: {reason}"
+      "deleteMetaWarning": "Eliminado aquí, pero WhatsApp no confirmó la eliminación: {reason}",
+      "loadingTicket": "Cargando ticket..."
     },
     "tagPicker": {
       "addFailed": "Error al agregar el tag",
@@ -433,13 +434,12 @@
     },
     "tickets": {
       "tabs": {
-        "all": "Todas",
-        "unread": "No leídas",
         "pending": "Pendientes",
         "inProgress": "Activos",
         "closed": "Cerrados",
         "noTicket": "Sin atención",
-        "onlyMine": "Solo los míos"
+        "onlyMine": "Solo los míos",
+        "unreadOnly": "No leídas"
       },
       "header": {
         "assign": "Asignar",
@@ -450,7 +450,10 @@
         "returnToQueue": "Devolver a la cola",
         "returnedToQueue": "Devuelto a la cola",
         "returnFailed": "Error al devolver a la cola",
-        "close": "Cerrar"
+        "close": "Cerrar",
+        "openAttendance": "Abrir atención",
+        "opened": "Atención abierta",
+        "openFailed": "Error al abrir atención"
       },
       "closeDialog": {
         "title": "Cerrar ticket",
