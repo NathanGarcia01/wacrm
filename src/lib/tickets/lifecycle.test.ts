@@ -542,6 +542,28 @@ describe('transferTicket', () => {
     const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
     await expect(transferTicket(ticket.id, {}, AGENT)).rejects.toThrow()
   })
+
+  it('clears the agent and demotes to pending when transferring to a department with no agent', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    await assignTicket(ticket.id, AGENT, AGENT)
+
+    const updated = await transferTicket(ticket.id, { toAgentId: null, toDepartmentId: DEPARTMENT }, AGENT)
+
+    expect(updated.assigned_agent_id).toBeNull()
+    expect(updated.department_id).toBe(DEPARTMENT)
+    expect(updated.status).toBe('pending')
+  })
+
+  it('transferring department-only (agent untouched) keeps in_progress when already assigned', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    await assignTicket(ticket.id, AGENT, AGENT)
+
+    const updated = await transferTicket(ticket.id, { toDepartmentId: DEPARTMENT }, AGENT)
+
+    expect(updated.assigned_agent_id).toBe(AGENT)
+    expect(updated.department_id).toBe(DEPARTMENT)
+    expect(updated.status).toBe('in_progress')
+  })
 })
 
 describe('returnToQueue', () => {

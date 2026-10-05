@@ -206,7 +206,9 @@
       "assignSelected": "Assign to agent",
       "unassignSelected": "Remove assignment",
       "noMembersAvailable": "No members available",
-      "allChannels": "All channels"
+      "allChannels": "All channels",
+      "previousPage": "Previous",
+      "pageOf": "Page {page} of {total}"
     },
     "filters": {
       "filters": "Filters",
@@ -428,6 +430,58 @@
       "cancelEdit": "Cancel",
       "saveEdit": "Save",
       "savingEdit": "Saving…"
+    },
+    "tickets": {
+      "tabs": {
+        "all": "All",
+        "unread": "Unread",
+        "pending": "Pending",
+        "inProgress": "Active",
+        "closed": "Closed",
+        "noTicket": "No ticket",
+        "onlyMine": "Only mine"
+      },
+      "header": {
+        "assign": "Assign",
+        "assigned": "Assigned",
+        "assignToMe": "Assign to me",
+        "assignFailed": "Failed to assign ticket",
+        "transfer": "Transfer",
+        "returnToQueue": "Return to queue",
+        "returnedToQueue": "Returned to queue",
+        "returnFailed": "Failed to return ticket to queue",
+        "close": "Close"
+      },
+      "closeDialog": {
+        "title": "Close ticket",
+        "description": "Select the closing reason. This field is required.",
+        "reasonLabel": "Reason",
+        "reasonPlaceholder": "Select a reason",
+        "noReasons": "No reasons yet — add one in Settings → Attendance.",
+        "noteLabel": "Note (optional)",
+        "notePlaceholder": "Details about the closing...",
+        "cancel": "Cancel",
+        "confirm": "Close ticket",
+        "success": "Ticket closed",
+        "failed": "Failed to close ticket"
+      },
+      "transferDialog": {
+        "title": "Transfer ticket",
+        "description": "Transfer to another agent or to a department.",
+        "toAgent": "Agent",
+        "toDepartment": "Department",
+        "agentLabel": "Agent",
+        "agentPlaceholder": "Select an agent",
+        "me": "me",
+        "departmentLabel": "Department",
+        "departmentPlaceholder": "Select a department",
+        "noDepartments": "No departments yet — add one in Settings → Attendance.",
+        "departmentUnassignsHint": "Transferring to a department clears the current agent — the ticket goes back to the queue (pending) until someone claims it.",
+        "cancel": "Cancel",
+        "confirm": "Transfer",
+        "success": "Ticket transferred",
+        "failed": "Failed to transfer ticket"
+      }
     }
   },
   "contacts": {

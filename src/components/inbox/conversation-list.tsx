@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import type {
   Contact,
   Conversation,
   ConversationStatus,
   Profile,
+  Ticket,
   WhatsAppChannelOption,
 } from "@/types";
 import {
@@ -37,6 +39,14 @@ import {
   EMPTY_CONVERSATION_FILTERS,
   type ConversationFiltersState,
 } from "./conversation-filters";
+import { TicketStatusTabs, type TicketTab, type TicketTabCounts } from "./ticket-status-tabs";
+
+/** Page size for the paginated "Fechados" tab — see the dedicated
+ *  fetch effect below. Kept small: closed tickets accumulate
+ *  indefinitely (the Etapa 5 backfill alone seeded 1000+ in one
+ *  account), so unlike every other tab this one can never be "just
+ *  fetch everything and filter client-side". */
+const CLOSED_PAGE_SIZE = 25;
 
 /** Extra joins fetched only for client-side filtering — not part of the
  *  shared `Contact` type since nothing outside this filter logic needs them. */
@@ -87,10 +97,31 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("inbox.list");
+  const { ticketsUiEnabled, user } = useAuth();
   const [search, setSearch] = useState("");
   // Default to "open" — closed conversations are done-and-archived, so
   // they shouldn't compete for attention unless explicitly requested.
-  const [filter, setFilter] = useState<InboxFilter>("open");
+  // When ticketsUiEnabled resolves true, the one-shot effect below
+  // switches this to "pending" (the ticket-tab equivalent of "needs
+  // attention") — ticketsUiEnabled isn't known synchronously on
+  // mount (it comes from the profile fetch in useAuth), so the
+  // initializer can't just branch on it directly.
+  const [filter, setFilter] = useState<InboxFilter | TicketTab>("open");
+  const appliedTicketsDefaultRef = useRef(false);
+  useEffect(() => {
+    if (ticketsUiEnabled && !appliedTicketsDefaultRef.current) {
+      appliedTicketsDefaultRef.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFilter("pending");
+    }
+  }, [ticketsUiEnabled]);
+
+  // "Só os meus" — filters by ticket.assigned_agent_id. Independent of
+  // the tab (applies on top of pending/in_progress/closed/no_ticket),
+  // same as the channel filter already is.
+  const [onlyMine, setOnlyMine] = useState(false);
+  const handleToggleOnlyMine = useCallback(() => setOnlyMine((v) => !v), []);
+
   const [advancedFilters, setAdvancedFilters] = useState<ConversationFiltersState>(
     EMPTY_CONVERSATION_FILTERS,
   );
@@ -200,7 +231,41 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current(data ?? []);
+      let loaded = (data ?? []) as Conversation[];
+
+      // Fase 1 (atendimento) Etapa 6 — join each conversation's most
+      // recent ticket. A second query rather than an embedded
+      // `tickets(*)` select: conversation→tickets is 1-to-many (every
+      // past attendance cycle is its own row), and PostgREST has no
+      // "latest only" embed — so this fetches all of them and keeps
+      // just the newest per conversation_id (`order` puts it first).
+      // Skipped entirely for accounts without the flag; after this
+      // initial join, the page's realtime handler keeps `.ticket`
+      // fresh (same pattern as the `contact` join + hydrateConversation).
+      if (ticketsUiEnabled && loaded.length > 0) {
+        const { data: ticketRows, error: ticketsError } = await supabase
+          .from("tickets")
+          .select("*")
+          .in("conversation_id", loaded.map((c) => c.id))
+          .order("opened_at", { ascending: false });
+        if (cancelled) return;
+        if (ticketsError) {
+          console.error("Failed to fetch tickets for conversation list:", ticketsError);
+        } else {
+          const latestByConversation = new Map<string, Ticket>();
+          for (const row of (ticketRows as Ticket[] | null) ?? []) {
+            if (!latestByConversation.has(row.conversation_id)) {
+              latestByConversation.set(row.conversation_id, row);
+            }
+          }
+          loaded = loaded.map((c) => ({
+            ...c,
+            ticket: latestByConversation.get(c.id) ?? null,
+          }));
+        }
+      }
+
+      onConversationsLoadedRef.current(loaded);
       setLoading(false);
     })();
 
@@ -210,15 +275,34 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken]);
+    // `ticketsUiEnabled` is included so the join above runs as soon as
+    // the flag resolves true after this effect's first (flag-less) pass.
+  }, [resyncToken, ticketsUiEnabled]);
 
   const filtered = useMemo(() => {
     let result = conversations;
 
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
+    } else if (ticketsUiEnabled && filter === "pending") {
+      result = result.filter((c) => c.ticket?.status === "pending");
+    } else if (ticketsUiEnabled && filter === "in_progress") {
+      result = result.filter((c) => c.ticket?.status === "in_progress");
+    } else if (ticketsUiEnabled && filter === "no_ticket") {
+      result = result.filter((c) => !c.ticket);
+    } else if (ticketsUiEnabled && filter === "closed") {
+      // Unused in practice — the "Fechados" tab renders from the
+      // dedicated paginated query below instead of this memo (closed
+      // tickets accumulate indefinitely; "fetch everything, filter
+      // client-side" doesn't scale for that one tab). Kept correct
+      // anyway rather than silently wrong if something ever reads it.
+      result = result.filter((c) => c.ticket?.status === "closed");
     } else if (filter !== "all") {
       result = result.filter((c) => c.status === filter);
+    }
+
+    if (ticketsUiEnabled && onlyMine) {
+      result = result.filter((c) => c.ticket?.assigned_agent_id === user?.id);
     }
 
     if (search.trim()) {
@@ -284,7 +368,130 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, advancedFilters, channelFilter]);
+  }, [conversations, filter, search, advancedFilters, channelFilter, ticketsUiEnabled, onlyMine, user?.id]);
+
+  // "Fechados" — paginated separately from everything else above.
+  // Closed tickets accumulate forever (the Etapa 5 backfill alone
+  // seeded 1000+ in one account); loading them into the same
+  // fetch-everything-then-filter-client-side flow every other tab
+  // uses would mean pulling the account's entire closed history on
+  // every inbox load. Ordered by closed_at desc (approved plan).
+  //
+  // Known limitation: unlike every other tab, this one does NOT
+  // live-update when a ticket closes while you're looking at it —
+  // only `resyncToken` (WS reconnect / tab refocus) and explicit page
+  // changes refetch it. Pagination and "always instantly live" are
+  // in tension; the explicit ask here was pagination.
+  const [closedPage, setClosedPage] = useState(0);
+  const [closedTickets, setClosedTickets] = useState<(Ticket & { conversation: Conversation })[]>([]);
+  const [closedTotal, setClosedTotal] = useState<number | null>(null);
+  const [closedLoading, setClosedLoading] = useState(false);
+
+  useEffect(() => {
+    if (!ticketsUiEnabled) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClosedPage(0);
+  }, [ticketsUiEnabled, onlyMine]);
+
+  useEffect(() => {
+    if (!ticketsUiEnabled || filter !== "closed") return;
+    const supabase = createClient();
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClosedLoading(true);
+
+    (async () => {
+      const from = closedPage * CLOSED_PAGE_SIZE;
+      const to = from + CLOSED_PAGE_SIZE - 1;
+      let query = supabase
+        .from("tickets")
+        .select(
+          "*, conversation:conversations(*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number))",
+          { count: "exact" },
+        )
+        .eq("status", "closed")
+        .order("closed_at", { ascending: false })
+        .range(from, to);
+      if (onlyMine && user?.id) {
+        query = query.eq("assigned_agent_id", user.id);
+      }
+      const { data, count, error } = await query;
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to fetch closed tickets:", error);
+        setClosedLoading(false);
+        return;
+      }
+      setClosedTickets((data ?? []) as unknown as (Ticket & { conversation: Conversation })[]);
+      setClosedTotal(count ?? 0);
+      setClosedLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ticketsUiEnabled, filter, closedPage, onlyMine, user?.id, resyncToken]);
+
+  // Count-only companion so the "Fechados" tab badge has a number
+  // before the agent ever clicks into it — the effect above only
+  // fetches while `filter === "closed"`. `head: true` keeps this
+  // cheap (no rows returned, just the count).
+  useEffect(() => {
+    if (!ticketsUiEnabled || filter === "closed") return;
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      let query = supabase
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "closed");
+      if (onlyMine && user?.id) {
+        query = query.eq("assigned_agent_id", user.id);
+      }
+      const { count, error } = await query;
+      if (cancelled || error) return;
+      setClosedTotal(count ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ticketsUiEnabled, filter, onlyMine, user?.id, resyncToken]);
+
+  // Client-side search over just the current page — searching the
+  // account's entire closed history server-side is a reasonable
+  // future improvement, not attempted here (see the pagination
+  // comment above for why "fetch everything" isn't an option).
+  const filteredClosedTickets = useMemo(() => {
+    if (!search.trim()) return closedTickets;
+    const q = search.toLowerCase();
+    return closedTickets.filter((t) => {
+      const name = t.conversation?.contact?.name?.toLowerCase() ?? "";
+      const phone = t.conversation?.contact?.phone?.toLowerCase() ?? "";
+      return name.includes(q) || phone.includes(q);
+    });
+  }, [closedTickets, search]);
+
+  const closedTotalPages = closedTotal != null ? Math.max(1, Math.ceil(closedTotal / CLOSED_PAGE_SIZE)) : 1;
+
+  // Tab badge counts — derived from the same `conversations` array
+  // already in memory, no extra query (mirrors `filtered` itself).
+  // Excludes "closed", which can't be counted this way (see the
+  // pagination comment above) — that one comes from `closedTotal`.
+  const ticketCounts = useMemo<TicketTabCounts>(() => {
+    let all = 0;
+    let unread = 0;
+    let pending = 0;
+    let inProgress = 0;
+    let noTicket = 0;
+    for (const c of conversations) {
+      all++;
+      if (c.unread_count > 0) unread++;
+      if (!c.ticket) noTicket++;
+      else if (c.ticket.status === "pending") pending++;
+      else if (c.ticket.status === "in_progress") inProgress++;
+    }
+    return { all, unread, pending, in_progress: inProgress, no_ticket: noTicket, closed: closedTotal };
+  }, [conversations, closedTotal]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -454,32 +661,44 @@ export function ConversationList({
             />
           </div>
 
+          {ticketsUiEnabled && (
+            <TicketStatusTabs
+              value={filter as TicketTab}
+              onChange={setFilter}
+              counts={ticketCounts}
+              onlyMine={onlyMine}
+              onToggleOnlyMine={handleToggleOnlyMine}
+            />
+          )}
+
           <div className="flex items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
-                  {activeFilterLabel}
-                  <ChevronDown className="h-3 w-3" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                className="border-border bg-popover"
-              >
-                {FILTER_OPTIONS.map((opt) => (
-                  <DropdownMenuItem
-                    key={opt.value}
-                    onClick={() => setFilter(opt.value)}
-                    className={cn(
-                      "text-sm",
-                      filter === opt.value
-                        ? "text-primary"
-                        : "text-popover-foreground"
-                    )}
-                  >
-                    {t(opt.labelKey)}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!ticketsUiEnabled && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-muted">
+                    {activeFilterLabel}
+                    <ChevronDown className="h-3 w-3" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="border-border bg-popover"
+                >
+                  {FILTER_OPTIONS.map((opt) => (
+                    <DropdownMenuItem
+                      key={opt.value}
+                      onClick={() => setFilter(opt.value)}
+                      className={cn(
+                        "text-sm",
+                        filter === opt.value
+                          ? "text-primary"
+                          : "text-popover-foreground"
+                      )}
+                    >
+                      {t(opt.labelKey)}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             {multiChannel && (
               <DropdownMenu>
@@ -525,32 +744,84 @@ export function ConversationList({
           every conversation instead of shrinking to the remaining
           space — the list then overflows and gets clipped by the
           parent's overflow-hidden with no scrollbar (issue #229). */}
-      <ScrollArea className="min-h-0 flex-1">
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      {ticketsUiEnabled && filter === "closed" ? (
+        <>
+          <ScrollArea className="min-h-0 flex-1">
+            {closedLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : filteredClosedTickets.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col">
+                {filteredClosedTickets.map((row) => (
+                  <ConversationItem
+                    key={row.id}
+                    conversation={{ ...row.conversation, ticket: row }}
+                    isActive={row.conversation.id === activeConversationId}
+                    onSelect={handleSelect}
+                    selectionActive={selectionActive}
+                    selected={selectedIds.has(row.conversation.id)}
+                    onToggleSelect={handleToggleSelect}
+                    showChannel={multiChannel}
+                  />
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex items-center justify-between border-t border-border px-3 py-2 text-xs text-muted-foreground">
+            <button
+              type="button"
+              onClick={() => setClosedPage((p) => Math.max(0, p - 1))}
+              disabled={closedPage === 0 || closedLoading}
+              className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground disabled:opacity-40"
+            >
+              {t("previousPage")}
+            </button>
+            <span>
+              {t("pageOf", { page: closedPage + 1, total: closedTotalPages })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setClosedPage((p) => Math.min(closedTotalPages - 1, p + 1))}
+              disabled={closedPage + 1 >= closedTotalPages || closedLoading}
+              className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground disabled:opacity-40"
+            >
+              {t("nextPage")}
+            </button>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {filtered.map((conv) => (
-              <ConversationItem
-                key={conv.id}
-                conversation={conv}
-                isActive={conv.id === activeConversationId}
-                onSelect={handleSelect}
-                selectionActive={selectionActive}
-                selected={selectedIds.has(conv.id)}
-                onToggleSelect={handleToggleSelect}
-                showChannel={multiChannel}
-              />
-            ))}
-          </div>
-        )}
-      </ScrollArea>
+        </>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {filtered.map((conv) => (
+                <ConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  isActive={conv.id === activeConversationId}
+                  onSelect={handleSelect}
+                  selectionActive={selectionActive}
+                  selected={selectedIds.has(conv.id)}
+                  onToggleSelect={handleToggleSelect}
+                  showChannel={multiChannel}
+                />
+              ))}
+            </div>
+          )}
+        </ScrollArea>
+      )}
     </div>
   );
 }
@@ -664,6 +935,11 @@ function ConversationItem({
           >
             {displayName}
           </span>
+          {conversation.ticket && (
+            <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+              #{conversation.ticket.protocol_number}
+            </span>
+          )}
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">

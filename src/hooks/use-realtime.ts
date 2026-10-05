@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Message, Conversation } from "@/types";
+import type { Message, Conversation, Ticket } from "@/types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface RealtimeEvent<T> {
@@ -15,6 +15,12 @@ interface UseRealtimeOptions {
   channelName: string;
   onMessageEvent?: (event: RealtimeEvent<Message>) => void;
   onConversationEvent?: (event: RealtimeEvent<Conversation>) => void;
+  /** Fase 1 Etapa 6 — only wired up by inbox/page.tsx when
+   *  accounts.tickets_ui_enabled is true. Requires `tickets` in the
+   *  `supabase_realtime` publication (migration 074); events are
+   *  still RLS-scoped like every other postgres_changes subscription
+   *  here, so this never delivers another account's rows. */
+  onTicketEvent?: (event: RealtimeEvent<Ticket>) => void;
   enabled?: boolean;
 }
 
@@ -22,6 +28,7 @@ export function useRealtime({
   channelName,
   onMessageEvent,
   onConversationEvent,
+  onTicketEvent,
   enabled = true,
 }: UseRealtimeOptions) {
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -34,9 +41,11 @@ export function useRealtime({
   // callbacks, which always run after the render that updates it.
   const onMessageRef = useRef(onMessageEvent);
   const onConversationRef = useRef(onConversationEvent);
+  const onTicketRef = useRef(onTicketEvent);
   useEffect(() => {
     onMessageRef.current = onMessageEvent;
     onConversationRef.current = onConversationEvent;
+    onTicketRef.current = onTicketEvent;
   });
 
   useEffect(() => {
@@ -65,6 +74,17 @@ export function useRealtime({
             eventType: payload.eventType as RealtimeEvent<Conversation>["eventType"],
             new: payload.new as Conversation,
             old: payload.old as Partial<Conversation>,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tickets" },
+        (payload) => {
+          onTicketRef.current?.({
+            eventType: payload.eventType as RealtimeEvent<Ticket>["eventType"],
+            new: payload.new as Ticket,
+            old: payload.old as Partial<Ticket>,
           });
         }
       )

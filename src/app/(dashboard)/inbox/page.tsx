@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
+import type { Conversation, Message, Contact, ConversationStatus, Ticket } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
@@ -339,6 +339,30 @@ export default function InboxPage() {
     [activeConversation, hydrateConversation]
   );
 
+  // Fase 1 (atendimento) Etapa 6 — patch conversation.ticket on any
+  // INSERT/UPDATE from the `tickets` table. Only meaningful for
+  // accounts with tickets_ui_enabled, but harmless either way: RLS
+  // already scopes every event to the caller's own account (see
+  // migration 074's comment), so this never patches a ticket the
+  // current conversations list shouldn't see. INSERT and UPDATE are
+  // handled identically — both carry the full row, and "merge the
+  // latest ticket for this conversation_id" is correct whichever one
+  // it was (a ticket never reopens; a new one is always an INSERT,
+  // see closeTicket's doc comment in lifecycle.ts).
+  const handleTicketEvent = useCallback(
+    (event: { eventType: string; new: Ticket; old: Partial<Ticket> }) => {
+      if (event.eventType === "DELETE") return;
+      const ticket = event.new;
+      setConversations((prev) =>
+        prev.map((c) => (c.id === ticket.conversation_id ? { ...c, ticket } : c)),
+      );
+      setActiveConversation((prev) =>
+        prev && prev.id === ticket.conversation_id ? { ...prev, ticket } : prev,
+      );
+    },
+    [],
+  );
+
   // Subscribe to realtime. The `isConnected` flag below feeds the
   // reconnect resync: realtime is best-effort and events sent while the
   // WS was disconnected (laptop sleep, network blip, background-tab
@@ -347,6 +371,7 @@ export default function InboxPage() {
     channelName: "inbox-realtime",
     onMessageEvent: handleMessageEvent,
     onConversationEvent: handleConversationEvent,
+    onTicketEvent: handleTicketEvent,
     enabled: true,
   });
 
@@ -579,6 +604,18 @@ export default function InboxPage() {
     [activeConversation]
   );
 
+  const handleTicketChange = useCallback(
+    (conversationId: string, ticket: Ticket) => {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, ticket } : c)),
+      );
+      if (activeConversation?.id === conversationId) {
+        setActiveConversation((prev) => (prev ? { ...prev, ticket } : prev));
+      }
+    },
+    [activeConversation],
+  );
+
   const handleChannelChange = useCallback(
     (
       conversationId: string,
@@ -665,6 +702,7 @@ export default function InboxPage() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
+            onTicketChange={handleTicketChange}
             onChannelChange={handleChannelChange}
             onUnreadChange={handleUnreadChange}
             onBack={handleCloseConversation}

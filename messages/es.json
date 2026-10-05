@@ -206,7 +206,9 @@
       "assignSelected": "Asignar a agente",
       "unassignSelected": "Quitar asignación",
       "noMembersAvailable": "Ningún miembro disponible",
-      "allChannels": "Todos los canales"
+      "allChannels": "Todos los canales",
+      "previousPage": "Anterior",
+      "pageOf": "Página {page} de {total}"
     },
     "filters": {
       "filters": "Filtros",
@@ -428,6 +430,58 @@
       "cancelEdit": "Cancelar",
       "saveEdit": "Guardar",
       "savingEdit": "Guardando…"
+    },
+    "tickets": {
+      "tabs": {
+        "all": "Todas",
+        "unread": "No leídas",
+        "pending": "Pendientes",
+        "inProgress": "Activos",
+        "closed": "Cerrados",
+        "noTicket": "Sin atención",
+        "onlyMine": "Solo los míos"
+      },
+      "header": {
+        "assign": "Asignar",
+        "assigned": "Asignado",
+        "assignToMe": "Asignarme",
+        "assignFailed": "Error al asignar ticket",
+        "transfer": "Transferir",
+        "returnToQueue": "Devolver a la cola",
+        "returnedToQueue": "Devuelto a la cola",
+        "returnFailed": "Error al devolver a la cola",
+        "close": "Cerrar"
+      },
+      "closeDialog": {
+        "title": "Cerrar ticket",
+        "description": "Seleccione el motivo del cierre. Este campo es obligatorio.",
+        "reasonLabel": "Motivo",
+        "reasonPlaceholder": "Seleccione un motivo",
+        "noReasons": "Ningún motivo registrado — agréguelo en Configuración → Atención.",
+        "noteLabel": "Observación (opcional)",
+        "notePlaceholder": "Detalles sobre el cierre...",
+        "cancel": "Cancelar",
+        "confirm": "Cerrar ticket",
+        "success": "Ticket cerrado",
+        "failed": "Error al cerrar ticket"
+      },
+      "transferDialog": {
+        "title": "Transferir ticket",
+        "description": "Transfiera a otro agente o a un departamento.",
+        "toAgent": "Agente",
+        "toDepartment": "Departamento",
+        "agentLabel": "Agente",
+        "agentPlaceholder": "Seleccione un agente",
+        "me": "yo",
+        "departmentLabel": "Departamento",
+        "departmentPlaceholder": "Seleccione un departamento",
+        "noDepartments": "Ningún departamento registrado — agréguelo en Configuración → Atención.",
+        "departmentUnassignsHint": "Transferir a un departamento borra el agente actual — el ticket vuelve a la cola (pendiente) hasta que alguien lo tome.",
+        "cancel": "Cancelar",
+        "confirm": "Transferir",
+        "success": "Ticket transferido",
+        "failed": "Error al transferir ticket"
+      }
     }
   },
   "contacts": {

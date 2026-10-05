@@ -431,7 +431,14 @@ export interface TransferTicketTarget {
 /** Moves a ticket to a different agent and/or department. At least one
  *  of toAgentId/toDepartmentId must be provided — passing neither isn't
  *  a transfer (use returnToQueue to unassign without a department
- *  change). Also moves status to 'in_progress'. */
+ *  change).
+ *
+ *  status follows the RESULTING assignment, not which fields were
+ *  passed: transferring to a real agent (toAgentId a string) sets
+ *  'in_progress'; transferring to a department with no agent
+ *  (toAgentId explicitly `null`) sets 'pending', same as returnToQueue.
+ *  Omitting toAgentId entirely (department-only move, agent untouched)
+ *  derives status from whoever the ticket was already assigned to. */
 export async function transferTicket(
   ticketId: string,
   target: TransferTicketTarget,
@@ -446,7 +453,8 @@ export async function transferTicket(
   await assertActorBelongsToAccount(admin, ticket.account_id, actorId)
   if (ticket.status === 'closed') throw new TicketClosedError(ticketId)
 
-  const update: Record<string, unknown> = { status: 'in_progress' }
+  const resultingAgentId = target.toAgentId !== undefined ? target.toAgentId : ticket.assigned_agent_id
+  const update: Record<string, unknown> = { status: resultingAgentId ? 'in_progress' : 'pending' }
   if (target.toAgentId !== undefined) update.assigned_agent_id = target.toAgentId
   if (target.toDepartmentId !== undefined) update.department_id = target.toDepartmentId
 

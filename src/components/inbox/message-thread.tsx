@@ -17,6 +17,7 @@ import type {
   ConversationStatus,
   MessageTemplate,
   Profile,
+  Ticket,
   WhatsAppChannelOption,
 } from "@/types";
 import {
@@ -53,6 +54,7 @@ import {
 import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
+import { TicketHeaderActions } from "./ticket-header-actions";
 import { toast } from "sonner";
 import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 
@@ -85,6 +87,13 @@ interface MessageThreadProps {
     conversationId: string,
     assignedAgentId: string | null,
   ) => void;
+  /** Fase 1 (atendimento) Etapa 6 — fired by TicketHeaderActions after
+   *  any of the four ticket actions succeeds server-side, so the page
+   *  can patch its `conversations`/`activeConversation` copies the
+   *  same way onAssignChange already does. Only relevant when
+   *  ticketsUiEnabled; unused (and the header renders the pre-tickets
+   *  controls instead) otherwise. */
+  onTicketChange?: (conversationId: string, ticket: Ticket) => void;
   /** Fired after the channel picker (header badge or composer) persists a
    *  new conversations.channel_id — lets the page mirror it into its own
    *  conversation-list copy (channel_id + the joined name/display_phone_number)
@@ -191,6 +200,7 @@ export function MessageThread({
   onUpdateMessage,
   onStatusChange,
   onAssignChange,
+  onTicketChange,
   onChannelChange,
   onUnreadChange,
   onBack,
@@ -205,7 +215,7 @@ export function MessageThread({
   const intlLocale = localeToIntl(locale);
   const tReplyQuote = useTranslations("inbox.replyQuote");
   const tInboxList = useTranslations("inbox.list");
-  const { user } = useAuth();
+  const { user, ticketsUiEnabled } = useAuth();
   const { getPresence, getRow, now } = usePresence();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1276,96 +1286,116 @@ export function MessageThread({
             )}
           </button>
 
-          {/* Status dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger className={cn(
-                  "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
-                  currentStatus?.color ?? "text-muted-foreground"
-                )}>
-                {currentStatus ? tInboxList(currentStatus.labelKey) : t("status")}
-                <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="border-border bg-popover"
-            >
-              {STATUS_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => handleStatusChange(opt.value)}
-                  className={cn("text-sm", opt.color)}
+          {/* Fase 1 (atendimento) Etapa 6 — ticketsUiEnabled swaps the
+              pre-tickets status + assign dropdowns for the ticket
+              action bar (protocol, status pill, atribuir/transferir/
+              devolver/fechar). conversation.ticket is only absent for
+              a "Sem atendimento" conversation (never got a qualifying
+              reply — see migration 072's eligibility rule); there's
+              nothing to act on yet, so neither block renders. */}
+          {ticketsUiEnabled ? (
+            conversation.ticket && onTicketChange ? (
+              <TicketHeaderActions
+                ticket={conversation.ticket}
+                profiles={profiles}
+                currentUserId={user?.id}
+                onTicketChange={(updated) => onTicketChange(conversation.id, updated)}
+              />
+            ) : null
+          ) : (
+            <>
+              {/* Status dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger className={cn(
+                      "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
+                      currentStatus?.color ?? "text-muted-foreground"
+                    )}>
+                    {currentStatus ? tInboxList(currentStatus.labelKey) : t("status")}
+                    <ChevronDown className="h-3 w-3" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="border-border bg-popover"
                 >
-                  {tInboxList(opt.labelKey)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Assign dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
-                assignedAgentId ? "text-primary" : "text-muted-foreground"
-              )}
-            >
-              <UserPlus className="h-3 w-3" />
-              <span className="hidden sm:inline">{assignLabel}</span>
-              <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="border-border bg-popover"
-            >
-              {profiles.length === 0 ? (
-                <DropdownMenuItem disabled className="text-sm text-muted-foreground">
-                  No teammates available
-                </DropdownMenuItem>
-              ) : (
-                profiles.map((p) => {
-                  const isSelected = p.user_id === assignedAgentId;
-                  const presence = getPresence(p.user_id);
-                  return (
+                  {STATUS_OPTIONS.map((opt) => (
                     <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => handleAssignChange(p.user_id)}
-                      className={cn(
-                        "text-sm",
-                        isSelected ? "text-primary" : "text-popover-foreground"
-                      )}
+                      key={opt.value}
+                      onClick={() => handleStatusChange(opt.value)}
+                      className={cn("text-sm", opt.color)}
                     >
-                      <PresenceDot
-                        status={presence}
-                        label={presenceLabel(
-                          presence,
-                          getRow(p.user_id)?.last_seen_at ?? null,
-                          now,
-                          tPresence
-                        )}
-                        className="mr-2"
-                      />
-                      <span className="flex-1">
-                        {p.full_name}
-                        {p.user_id === user?.id ? " (me)" : ""}
-                      </span>
-                      {isSelected && <Check className="ml-2 h-3 w-3" />}
+                      {tInboxList(opt.labelKey)}
                     </DropdownMenuItem>
-                  );
-                })
-              )}
-              {assignedAgentId && (
-                <>
-                  <DropdownMenuSeparator className="bg-border" />
-                  <DropdownMenuItem
-                    onClick={() => handleAssignChange(null)}
-                    className="text-sm text-muted-foreground"
-                  >
-                    Unassign
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Assign dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  className={cn(
+                    "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md hover:bg-muted",
+                    assignedAgentId ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  <UserPlus className="h-3 w-3" />
+                  <span className="hidden sm:inline">{assignLabel}</span>
+                  <ChevronDown className="h-3 w-3" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="border-border bg-popover"
+                >
+                  {profiles.length === 0 ? (
+                    <DropdownMenuItem disabled className="text-sm text-muted-foreground">
+                      No teammates available
+                    </DropdownMenuItem>
+                  ) : (
+                    profiles.map((p) => {
+                      const isSelected = p.user_id === assignedAgentId;
+                      const presence = getPresence(p.user_id);
+                      return (
+                        <DropdownMenuItem
+                          key={p.id}
+                          onClick={() => handleAssignChange(p.user_id)}
+                          className={cn(
+                            "text-sm",
+                            isSelected ? "text-primary" : "text-popover-foreground"
+                          )}
+                        >
+                          <PresenceDot
+                            status={presence}
+                            label={presenceLabel(
+                              presence,
+                              getRow(p.user_id)?.last_seen_at ?? null,
+                              now,
+                              tPresence
+                            )}
+                            className="mr-2"
+                          />
+                          <span className="flex-1">
+                            {p.full_name}
+                            {p.user_id === user?.id ? " (me)" : ""}
+                          </span>
+                          {isSelected && <Check className="ml-2 h-3 w-3" />}
+                        </DropdownMenuItem>
+                      );
+                    })
+                  )}
+                  {assignedAgentId && (
+                    <>
+                      <DropdownMenuSeparator className="bg-border" />
+                      <DropdownMenuItem
+                        onClick={() => handleAssignChange(null)}
+                        className="text-sm text-muted-foreground"
+                      >
+                        Unassign
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       </div>
 

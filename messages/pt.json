@@ -206,7 +206,9 @@
       "assignSelected": "Atribuir para agente",
       "unassignSelected": "Remover atribuição",
       "noMembersAvailable": "Nenhum membro disponível",
-      "allChannels": "Todos os canais"
+      "allChannels": "Todos os canais",
+      "previousPage": "Anterior",
+      "pageOf": "Página {page} de {total}"
     },
     "filters": {
       "filters": "Filtros",
@@ -428,6 +430,58 @@
       "cancelEdit": "Cancelar",
       "saveEdit": "Salvar",
       "savingEdit": "Salvando…"
+    },
+    "tickets": {
+      "tabs": {
+        "all": "Todas",
+        "unread": "Não lidas",
+        "pending": "Pendentes",
+        "inProgress": "Ativos",
+        "closed": "Fechados",
+        "noTicket": "Sem atendimento",
+        "onlyMine": "Só os meus"
+      },
+      "header": {
+        "assign": "Atribuir",
+        "assigned": "Atribuído",
+        "assignToMe": "Atribuir a mim",
+        "assignFailed": "Falha ao atribuir ticket",
+        "transfer": "Transferir",
+        "returnToQueue": "Devolver à fila",
+        "returnedToQueue": "Devolvido à fila",
+        "returnFailed": "Falha ao devolver à fila",
+        "close": "Fechar"
+      },
+      "closeDialog": {
+        "title": "Fechar ticket",
+        "description": "Selecione o motivo do fechamento. Esse campo é obrigatório.",
+        "reasonLabel": "Motivo",
+        "reasonPlaceholder": "Selecione um motivo",
+        "noReasons": "Nenhum motivo cadastrado — cadastre em Configurações → Atendimento.",
+        "noteLabel": "Observação (opcional)",
+        "notePlaceholder": "Detalhes sobre o fechamento...",
+        "cancel": "Cancelar",
+        "confirm": "Fechar ticket",
+        "success": "Ticket fechado",
+        "failed": "Falha ao fechar ticket"
+      },
+      "transferDialog": {
+        "title": "Transferir ticket",
+        "description": "Transfira para outro agente ou para um departamento.",
+        "toAgent": "Agente",
+        "toDepartment": "Departamento",
+        "agentLabel": "Agente",
+        "agentPlaceholder": "Selecione um agente",
+        "me": "eu",
+        "departmentLabel": "Departamento",
+        "departmentPlaceholder": "Selecione um departamento",
+        "noDepartments": "Nenhum departamento cadastrado — cadastre em Configurações → Atendimento.",
+        "departmentUnassignsHint": "Transferir para um departamento remove o agente atual — o ticket volta para a fila (pendente) até alguém assumir.",
+        "cancel": "Cancelar",
+        "confirm": "Transferir",
+        "success": "Ticket transferido",
+        "failed": "Falha ao transferir ticket"
+      }
     }
   },
   "contacts": {

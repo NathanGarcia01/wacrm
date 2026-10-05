@@ -191,6 +191,14 @@ export interface Conversation {
    *  the time the conversation started (migration 067). */
   ad_source_id?: string | null;
   ad_headline?: string | null;
+  /** The conversation's most recent ticket (client-joined — see
+   *  ConversationList's second `tickets` query, migration 070 is 1
+   *  ticket-row per attendance cycle, 1-to-many with conversations).
+   *  `undefined` while still loading; `null` means genuinely no
+   *  ticket yet (conversation never had a qualifying reply — see
+   *  migration 072's backfill eligibility rule). Only meaningful
+   *  when accounts.tickets_ui_enabled is true (migration 074). */
+  ticket?: Ticket | null;
 }
 
 /** Active whatsapp_channels row, as returned by GET /api/whatsapp/channels —
@@ -533,6 +541,12 @@ export interface Ticket {
   closing_note?: string | null;
   closed_by?: TicketClosedBy | null;
   created_at: string;
+  /** True for tickets created by the historical backfill (migration
+   *  072) rather than the live lifecycle (src/lib/tickets/lifecycle.ts).
+   *  Dashboards exclude these from TMA/first-response/closing-reason
+   *  metrics — they have no real first_response_at and their closing
+   *  reason is a placeholder, not what actually happened. */
+  is_backfill: boolean;
 }
 
 export type TicketEventType =

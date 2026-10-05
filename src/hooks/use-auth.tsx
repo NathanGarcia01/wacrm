@@ -65,6 +65,10 @@ interface AccountSummary {
   /** Hard admin kill-switch (migration 050). False blocks access
    *  regardless of is_internal or subscription status. */
   is_active: boolean;
+  /** Fase 1 (atendimento) Etapa 6 rollout flag (migration 074). False
+   *  (default) means the inbox stays on the pre-tickets UI entirely —
+   *  rolled out account-by-account by hand while this is validated. */
+  tickets_ui_enabled: boolean;
   /** Null when the account has no subscription row at all (shouldn't
    *  happen after migration 050, but forks/edge cases may lack one). */
   subscriptionStatus: string | null;
@@ -140,6 +144,10 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /** Mirrors account.tickets_ui_enabled — gates the Etapa 6 inbox UI
+   *  (ticket status tabs, header assign/transfer/close actions) vs.
+   *  the pre-tickets inbox. False while loading. */
+  ticketsUiEnabled: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -181,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // `plans(code)` nested a level deeper still, off
           // subscriptions.plan_id — needs `plans_select` (migration
           // 050, USING (true)) which is already public-readable.
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, signature, account:accounts!inner(id, name, default_currency, is_internal, is_active, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, signature, account:accounts!inner(id, name, default_currency, is_internal, is_active, tickets_ui_enabled, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -209,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               default_currency: string | null;
               is_internal?: boolean | null;
               is_active?: boolean | null;
+              tickets_ui_enabled?: boolean | null;
               subscriptions?:
                 | SubscriptionEmbed
                 | SubscriptionEmbed[]
@@ -244,6 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // a missing column never grants a free billing bypass.
               is_internal: accountRaw.is_internal ?? false,
               is_active: accountRaw.is_active ?? true,
+              tickets_ui_enabled: accountRaw.tickets_ui_enabled ?? false,
               subscriptionStatus: subscriptionRaw?.status ?? null,
               trialEnd: subscriptionRaw?.trial_end ?? null,
               planCode: planRaw?.code ?? null,
@@ -421,6 +431,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshProfile,
         account,
         defaultCurrency: account?.default_currency ?? DEFAULT_CURRENCY,
+        ticketsUiEnabled: account?.tickets_ui_enabled ?? false,
         ...derived,
       }}
     >
@@ -460,6 +471,7 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      ticketsUiEnabled: false,
     };
   }
   return ctx;
