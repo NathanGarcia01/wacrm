@@ -123,7 +123,12 @@ export function DealsSettings() {
       .eq("id", reason.id);
     setBusyReasonId(null);
     if (error) {
-      toast.error(t('reasonDeleteFailed'));
+      // 23503 = foreign_key_violation — deals.lost_reason_id (migration
+      // 084) has no ON DELETE, so a reason still used by a lost deal
+      // can't be removed at all. Friendlier than the generic failure
+      // toast, since this one is expected/recoverable (deactivate
+      // instead of delete), not a transient error.
+      toast.error(error.code === '23503' ? t('reasonDeleteInUse') : t('reasonDeleteFailed'));
       return;
     }
     setReasons((prev) => prev.filter((r) => r.id !== reason.id));

@@ -52,6 +52,10 @@ interface DealRow {
   currency: string | null
   status: string | null
   lost_reason: string | null
+  /** FK to deal_loss_reasons since migration 084 — null for "Outro"/
+   *  free-text picks and for deals lost before the catalog link existed. */
+  lost_reason_id: string | null
+  loss_reason_catalog: { label: string } | { label: string }[] | null
   lost_at: string | null
   won_at: string | null
   created_at: string
@@ -91,7 +95,7 @@ export async function loadLossesReport(
   const { pipelineId, period, assignedTo, stageId, tagIds, stageNameById } = args
 
   const selectCols =
-    'id, title, value, currency, status, lost_reason, lost_at, won_at, created_at, stage_id, conversation_id, contact:contacts(name, phone, contact_tags(tag_id)), assignee:profiles!deals_assigned_to_fkey(full_name, email)'
+    'id, title, value, currency, status, lost_reason, lost_reason_id, loss_reason_catalog:deal_loss_reasons(label), lost_at, won_at, created_at, stage_id, conversation_id, contact:contacts(name, phone, contact_tags(tag_id)), assignee:profiles!deals_assigned_to_fkey(full_name, email)'
 
   let leadsQuery = db.from('deals').select('id', { count: 'exact', head: true }).eq('pipeline_id', pipelineId)
   if (period) leadsQuery = leadsQuery.gte('created_at', period.startISO).lt('created_at', period.endISO)
@@ -151,6 +155,13 @@ export async function loadLossesReport(
   const deals: LossDealRow[] = lostRows.map((d) => {
     const contact = one(d.contact)
     const assignee = one(d.assignee)
+    // Prefer the catalog label (migration 084) when the deal is linked
+    // to one — exact, no case/whitespace quirks. Falls back to the
+    // free-text column for "Outro" picks and pre-084 deals, same as
+    // get_pipeline_dashboard()'s loss_by_reason (migration 085), so
+    // this page's breakdown and the Reports tab's chart agree.
+    const catalogLabel = one(d.loss_reason_catalog)?.label ?? null
+    const lostReason = catalogLabel ?? (d.lost_reason?.trim() || null)
     const lostAt = d.lost_at ?? d.created_at
     const daysToLoss = Math.max(
       0,
@@ -166,7 +177,7 @@ export async function loadLossesReport(
       contactName: contact?.name || contact?.phone || null,
       value: d.value ?? 0,
       currency: d.currency ?? undefined,
-      lostReason: d.lost_reason?.trim() || null,
+      lostReason,
       assigneeName: assignee?.full_name || assignee?.email || null,
       lostAt,
       stageName: stageNameById.get(d.stage_id) ?? null,

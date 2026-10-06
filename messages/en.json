@@ -1622,12 +1622,13 @@
       "saved": "Default currency updated",
       "saving": "Saving...",
       "lossReasonsTitle": "Loss reasons",
-      "lossReasonsDescription": "Quick-fill suggestions shown when marking a deal as lost. The reason text stays free-form — this only customizes the shortcuts.",
+      "lossReasonsDescription": "Quick suggestions shown when marking a deal as lost. Picking a catalog reason links the deal to it in reports — typing free text (or using \"Other\") still works, it just won't be counted under that catalog reason.",
       "lossReasonPlaceholder": "E.g. Price too high",
       "lossReasonsEmpty": "No reasons added yet — using the system defaults.",
       "lossReasonDeleteAria": "Delete reason \"{label}\"",
       "reasonAddFailed": "Failed to add reason",
-      "reasonDeleteFailed": "Failed to delete reason"
+      "reasonDeleteFailed": "Failed to delete reason",
+      "reasonDeleteInUse": "Can't delete — this reason is in use by lost deals."
     },
     "fieldsAndTags": {
       "title": "Fields & tags",

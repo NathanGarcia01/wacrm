@@ -1622,12 +1622,13 @@
       "saved": "Moneda predeterminada actualizada",
       "saving": "Guardando...",
       "lossReasonsTitle": "Motivos de pérdida",
-      "lossReasonsDescription": "Sugerencias rápidas mostradas al marcar un negocio como perdido. El texto del motivo sigue siendo libre — esto solo personaliza los atajos.",
+      "lossReasonsDescription": "Sugerencias rápidas mostradas al marcar un negocio como perdido. Al elegir un motivo del catálogo, el negocio queda vinculado a él en los informes — escribir texto libre (o usar \"Otro\") sigue funcionando, solo que no entra en el conteo por motivo del catálogo.",
       "lossReasonPlaceholder": "Ej: Precio demasiado alto",
       "lossReasonsEmpty": "Aún no hay motivos agregados — usando las sugerencias predeterminadas.",
       "lossReasonDeleteAria": "Eliminar motivo \"{label}\"",
       "reasonAddFailed": "Error al agregar motivo",
-      "reasonDeleteFailed": "Error al eliminar motivo"
+      "reasonDeleteFailed": "Error al eliminar motivo",
+      "reasonDeleteInUse": "No se puede eliminar — este motivo está en uso por negocios perdidos."
     },
     "fieldsAndTags": {
       "title": "Campos y etiquetas",

@@ -1622,12 +1622,13 @@
       "saved": "Moeda padrão atualizada",
       "saving": "Salvando...",
       "lossReasonsTitle": "Motivos de perda",
-      "lossReasonsDescription": "Sugestões rápidas mostradas ao marcar um negócio como perdido. O texto do motivo continua livre — isto só personaliza os atalhos.",
+      "lossReasonsDescription": "Sugestões rápidas mostradas ao marcar um negócio como perdido. Ao escolher um motivo do catálogo, o negócio fica ligado a ele nos relatórios — digitar um texto livre (ou usar \"Outro\") continua funcionando, só não entra na contagem por motivo do catálogo.",
       "lossReasonPlaceholder": "Ex: Preço muito alto",
       "lossReasonsEmpty": "Nenhum motivo cadastrado ainda — usando as sugestões padrão do sistema.",
       "lossReasonDeleteAria": "Excluir motivo \"{label}\"",
       "reasonAddFailed": "Falha ao adicionar motivo",
-      "reasonDeleteFailed": "Falha ao excluir motivo"
+      "reasonDeleteFailed": "Falha ao excluir motivo",
+      "reasonDeleteInUse": "Não é possível excluir — este motivo está em uso por negócios perdidos."
     },
     "fieldsAndTags": {
       "title": "Campos e tags",

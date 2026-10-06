@@ -136,6 +136,10 @@ export function DealForm({
 
   const [lostReasonOpen, setLostReasonOpen] = useState(false);
   const [lostReason, setLostReason] = useState("");
+  // Set only by picking a catalog chip — free typing (including the
+  // "Outro" chip) always clears it, so lost_reason_id never ends up
+  // pointing at a label that doesn't match the saved text anymore.
+  const [lostReasonId, setLostReasonId] = useState<string | null>(null);
   const [savingLostReason, setSavingLostReason] = useState(false);
 
   const productsTotal = products.reduce((sum, p) => sum + p.value * p.quantity, 0);
@@ -195,6 +199,7 @@ export function DealForm({
         supabase
           .from("deal_loss_reasons")
           .select("*")
+          .eq("is_active", true)
           .order("position")
           .order("created_at"),
       ]);
@@ -382,11 +387,14 @@ export function DealForm({
   // Custom, account-configured chips (Settings → Deals) take over the
   // whole quick-fill row when any exist; otherwise fall back to the
   // hardcoded defaults. Either way an "other" chip clears the field for
-  // free typing.
-  const lossReasonChips: { key: string; label: string; isOther?: boolean }[] =
+  // free typing. Only catalog chips carry a `reasonId` — picking one
+  // sets deals.lost_reason_id (migration 084); the hardcoded fallback
+  // chips and "Outro" have no catalog row behind them, so they only
+  // ever set the free-text column.
+  const lossReasonChips: { key: string; label: string; reasonId?: string; isOther?: boolean }[] =
     customLossReasons.length > 0
       ? [
-          ...customLossReasons.map((r) => ({ key: r.id, label: r.label })),
+          ...customLossReasons.map((r) => ({ key: r.id, label: r.label, reasonId: r.id })),
           { key: "__other__", label: t("lostReasonChips.other"), isOther: true },
         ]
       : LOST_REASON_CHIPS.map((key) => ({
@@ -395,8 +403,9 @@ export function DealForm({
           isOther: key === "other",
         }));
 
-  function handleReasonChip(chip: { label: string; isOther?: boolean }) {
+  function handleReasonChip(chip: { label: string; reasonId?: string; isOther?: boolean }) {
     setLostReason(chip.isOther ? "" : chip.label);
+    setLostReasonId(chip.reasonId ?? null);
   }
 
   async function confirmMarkLost() {
@@ -404,7 +413,7 @@ export function DealForm({
     setSavingLostReason(true);
     const { error } = await supabase
       .from("deals")
-      .update({ status: "lost", lost_reason: lostReason.trim() })
+      .update({ status: "lost", lost_reason: lostReason.trim(), lost_reason_id: lostReasonId })
       .eq("id", deal.id);
     setSavingLostReason(false);
     if (error) {
@@ -974,6 +983,7 @@ export function DealForm({
                     type="button"
                     onClick={() => {
                       setLostReason("");
+                      setLostReasonId(null);
                       setLostReasonOpen(true);
                     }}
                     disabled={!!statusAction || deal.status === "lost"}
@@ -1080,7 +1090,10 @@ export function DealForm({
             </div>
             <Textarea
               value={lostReason}
-              onChange={(e) => setLostReason(e.target.value)}
+              onChange={(e) => {
+                setLostReason(e.target.value);
+                setLostReasonId(null);
+              }}
               placeholder={t("lostReasonPlaceholder")}
               className="min-h-[90px] border-border bg-muted text-foreground"
               autoFocus

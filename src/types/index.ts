@@ -389,6 +389,12 @@ export interface Deal {
   expected_close_date?: string;
   status?: DealStatus;
   lost_reason?: string;
+  /** FK to deal_loss_reasons (migration 084) — null for "Outro"/free-text
+   *  picks and for deals lost before the catalog link existed. When set,
+   *  `lost_reason` still mirrors the catalog label at pick time so every
+   *  pre-084 reader (CSV/Sheets export, this card's own display) keeps
+   *  working unchanged. */
+  lost_reason_id?: string | null;
   lost_at?: string;
   won_at?: string;
   created_at: string;
@@ -443,12 +449,18 @@ export interface QuickReply {
 }
 
 /** Account-configurable quick-fill chip shown in the deal-lost dialog
- *  (deal-form.tsx). `deals.lost_reason` itself stays free text. */
+ *  (deal-form.tsx) — since migration 084 also the FK target of
+ *  `deals.lost_reason_id`, so reporting can group by catalog id instead
+ *  of fuzzy-matching free text. */
 export interface DealLossReason {
   id: string;
   account_id: string;
   label: string;
   position: number;
+  /** Migration 084. An inactive reason stops showing up as a chip but
+   *  keeps backing historical deals (FK has no ON DELETE — RESTRICT —
+   *  so a reason in use can't be deleted at all, same as closing_reasons). */
+  is_active: boolean;
   created_at: string;
 }
 
