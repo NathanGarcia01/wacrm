@@ -70,7 +70,6 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   appearance: { id: 'appearance', icon: Palette, group: 'account' },
   preferences: { id: 'preferences', icon: Languages, group: 'account' },
   fields: { id: 'fields', icon: Tags, group: 'cadastros' },
-  products: { id: 'products', icon: Package, group: 'cadastros' },
   whatsapp: { id: 'whatsapp', icon: PlugZap, group: 'atendimento' },
   templates: { id: 'templates', icon: FileText, group: 'atendimento' },
   quickReplies: {
@@ -81,6 +80,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   attendance: { id: 'attendance', icon: Headset, group: 'atendimento' },
   nps: { id: 'nps', icon: Star, group: 'atendimento' },
   deals: { id: 'deals', icon: Coins, group: 'vendas' },
+  products: { id: 'products', icon: Package, group: 'vendas' },
   members: { id: 'members', icon: UsersRound, group: 'avancado' },
   api: { id: 'api', icon: KeyRound, group: 'avancado' },
   integrations: { id: 'integrations', icon: Plug, group: 'avancado' },

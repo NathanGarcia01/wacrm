@@ -1723,7 +1723,7 @@
       "members": "Membros da equipe",
       "api": "Chaves de API",
       "integrations": "Integrações",
-      "attendance": "Atendimento"
+      "attendance": "Departamentos, horário e SLA"
     },
     "railGroups": {
       "account": "Conta",
