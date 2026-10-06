@@ -2704,6 +2704,27 @@
       "empty": "No tickets at risk right now.",
       "unknownContact": "Unknown contact",
       "breached": "Breached"
+    },
+    "userSummaryTab": {
+      "loadFailed": "Could not load the per-agent summary."
+    },
+    "userSummaryTable": {
+      "title": "Per-agent summary",
+      "colAgent": "Agent",
+      "colReceived": "Received",
+      "colClosed": "Closed",
+      "colInProgress": "In progress",
+      "colTma": "AHT (mean / median)",
+      "colFirstResponse": "1st response (mean / median)",
+      "colSlaFirstResponse": "% SLA 1st response",
+      "colSlaResolution": "% SLA resolution",
+      "colMessages": "Messages sent",
+      "colTransfers": "Transfers (made / received)",
+      "colNps": "Avg NPS",
+      "colDeals": "Deals won (count / value)",
+      "empty": "No agent activity in the selected period.",
+      "noAgent": "No agent",
+      "unknownAgent": "Removed agent"
     }
   },
   "flows": {

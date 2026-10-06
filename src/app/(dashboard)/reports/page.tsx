@@ -25,6 +25,7 @@ import { NpsTab } from "@/components/reports/nps-tab"
 import { CommissionsTab } from "@/components/reports/commissions-tab"
 import { AttendanceTab } from "@/components/reports/attendance-tab"
 import { SlaTab } from "@/components/reports/sla-tab"
+import { UserSummaryTab } from "@/components/reports/user-summary-tab"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type ReportTab =
@@ -37,6 +38,7 @@ type ReportTab =
   | "commissions"
   | "attendance"
   | "sla"
+  | "userSummary"
 
 function isPeriodKey(v: string | null): v is PeriodKey {
   return v === "today" || v === "week" || v === "month" || v === "custom"
@@ -52,8 +54,15 @@ function isReportTab(v: string | null): v is ReportTab {
     v === "satisfaction" ||
     v === "commissions" ||
     v === "attendance" ||
-    v === "sla"
+    v === "sla" ||
+    v === "userSummary"
   )
+}
+
+/** Shared by all three tickets-rollout-gated tabs — kept as one
+ *  helper so a future 4th tab only adds its literal here. */
+function isTicketsTab(v: ReportTab): boolean {
+  return v === "attendance" || v === "sla" || v === "userSummary"
 }
 
 // `useSearchParams` opts the page out of static prerendering unless
@@ -78,9 +87,7 @@ function ReportsPageInner() {
   // have it falls back to the Overview landing instead of rendering a
   // tab with no matching trigger in the list above it.
   const tab: ReportTab =
-    isReportTab(tabParam) && ((tabParam !== "attendance" && tabParam !== "sla") || ticketsUiEnabled)
-      ? tabParam
-      : "overview"
+    isReportTab(tabParam) && (!isTicketsTab(tabParam) || ticketsUiEnabled) ? tabParam : "overview"
 
   const periodParam = searchParams.get("period")
   // The Transmissões report reads better zoomed out (a single day of
@@ -169,16 +176,17 @@ function ReportsPageInner() {
             <TabsTrigger value="satisfaction">Satisfação</TabsTrigger>
             {ticketsUiEnabled && <TabsTrigger value="attendance">Atendimento</TabsTrigger>}
             {ticketsUiEnabled && <TabsTrigger value="sla">SLA</TabsTrigger>}
+            {ticketsUiEnabled && <TabsTrigger value="userSummary">Resumo por usuário</TabsTrigger>}
           </TabsList>
         </Tabs>
       </div>
 
-      {/* Atendimento and SLA each own their own period/user/department/
-          channel filter bar (different period semantics — hoje/7 dias/
-          30 dias in the account's timezone, not this generic
-          today/week/month) — showing this one too would just be a
-          second, conflicting period control. */}
-      {tab !== "attendance" && tab !== "sla" && <PeriodFilter period={period} onChange={updatePeriod} />}
+      {/* Atendimento, SLA, and Resumo por usuário each own their own
+          period/department/channel filter bar (different period
+          semantics — hoje/7 dias/30 dias in the account's timezone,
+          not this generic today/week/month) — showing this one too
+          would just be a second, conflicting period control. */}
+      {!isTicketsTab(tab) && <PeriodFilter period={period} onChange={updatePeriod} />}
 
       {tab === "overview" && (
         <div className="space-y-5">
@@ -250,6 +258,7 @@ function ReportsPageInner() {
       {tab === "satisfaction" && <NpsTab period={period} />}
       {tab === "attendance" && ticketsUiEnabled && <AttendanceTab />}
       {tab === "sla" && ticketsUiEnabled && <SlaTab />}
+      {tab === "userSummary" && ticketsUiEnabled && <UserSummaryTab />}
     </div>
   )
 }

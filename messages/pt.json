@@ -2704,6 +2704,27 @@
       "empty": "Nenhum atendimento em risco agora.",
       "unknownContact": "Contato desconhecido",
       "breached": "Estourado"
+    },
+    "userSummaryTab": {
+      "loadFailed": "Não foi possível carregar o resumo por usuário."
+    },
+    "userSummaryTable": {
+      "title": "Resumo por usuário",
+      "colAgent": "Atendente",
+      "colReceived": "Recebidos",
+      "colClosed": "Fechados",
+      "colInProgress": "Em andamento",
+      "colTma": "TMA (média / mediana)",
+      "colFirstResponse": "1ª resposta (média / mediana)",
+      "colSlaFirstResponse": "% SLA 1ª resposta",
+      "colSlaResolution": "% SLA resolução",
+      "colMessages": "Mensagens enviadas",
+      "colTransfers": "Transferências (feitas / recebidas)",
+      "colNps": "NPS médio",
+      "colDeals": "Deals ganhos (qtd / valor)",
+      "empty": "Nenhum atendente com atividade no período selecionado.",
+      "noAgent": "Sem atendente",
+      "unknownAgent": "Atendente removido"
     }
   },
   "flows": {

@@ -530,3 +530,54 @@ export interface SlaDashboardBundle {
   agentRanking: SlaAgentRankingRow[]
   atRisk: AtRiskTicketRow[]
 }
+
+// ------------------------------------------------------------
+// Resumo por usuário (get_user_summary_dashboard())
+// ------------------------------------------------------------
+
+/** Mean/median pair, in seconds. Both null when the agent has no
+ *  judged tickets for that metric in the period — never a fake 0s. */
+export interface MeanMedianSeconds {
+  meanSeconds: number | null
+  medianSeconds: number | null
+}
+
+export interface UserSummaryRow {
+  /** Null → "Sem atendente", rendered client-side. */
+  userId: string | null
+  receivedCount: number
+  closedCount: number
+  /** Live — tickets currently in_progress assigned to this agent,
+   *  not scoped to the selected period. */
+  inProgressCount: number
+  tma: MeanMedianSeconds
+  firstResponse: MeanMedianSeconds
+  /** Same SlaMetricCounts shape as the SLA tab — total 0 means "not
+   *  judged yet" (including when the account has no goal set), not
+   *  "0% compliance". */
+  sla: {
+    firstResponse: SlaMetricCounts
+    resolution: SlaMetricCounts
+  }
+  /** Best-effort — attributed via whichever ticket was open at the
+   *  message's timestamp, since `messages` has no reliable sender-
+   *  user column. Messages from before the ticket rollout (or any
+   *  gap with no open ticket) aren't attributed to anyone and are
+   *  excluded, not guessed. */
+  messagesSent: number
+  /** Transfers this agent executed (ticket_events.actor_id), not
+   *  tickets that left their queue. */
+  transfersMade: number
+  /** Transfers that landed on this agent (ticket_events.to_agent_id). */
+  transfersReceived: number
+  /** Null when this agent has no rated NPS surveys in the period. */
+  npsAvgRating: number | null
+  dealsWonCount: number
+  dealsWonValue: number
+}
+
+export interface UserSummaryBundle {
+  firstResponseGoalMinutes: number | null
+  resolutionGoalMinutes: number | null
+  rows: UserSummaryRow[]
+}

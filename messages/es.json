@@ -2704,6 +2704,27 @@
       "empty": "Ninguna atención en riesgo ahora.",
       "unknownContact": "Contacto desconocido",
       "breached": "Superado"
+    },
+    "userSummaryTab": {
+      "loadFailed": "No se pudo cargar el resumen por agente."
+    },
+    "userSummaryTable": {
+      "title": "Resumen por agente",
+      "colAgent": "Agente",
+      "colReceived": "Recibidas",
+      "colClosed": "Cerradas",
+      "colInProgress": "En curso",
+      "colTma": "TMA (media / mediana)",
+      "colFirstResponse": "1ª respuesta (media / mediana)",
+      "colSlaFirstResponse": "% SLA 1ª respuesta",
+      "colSlaResolution": "% SLA resolución",
+      "colMessages": "Mensajes enviados",
+      "colTransfers": "Transferencias (hechas / recibidas)",
+      "colNps": "NPS promedio",
+      "colDeals": "Negocios ganados (cant. / valor)",
+      "empty": "Ninguna actividad de agentes en el período seleccionado.",
+      "noAgent": "Sin agente",
+      "unknownAgent": "Agente eliminado"
     }
   },
   "flows": {

@@ -36,12 +36,13 @@ export function AttendanceFilters({
   businessHours,
   onBusinessHoursChange,
   showBusinessHoursToggle = true,
+  showUserFilter = true,
   options,
 }: {
   period: TicketDashboardPeriodRange
   onPeriodChange: (next: { period: TicketDashboardPeriodKey; from?: string; to?: string }) => void
-  userId: string | null
-  onUserChange: (v: string | null) => void
+  userId?: string | null
+  onUserChange?: (v: string | null) => void
   departmentId: string | null
   onDepartmentChange: (v: string | null) => void
   channelId: string | null
@@ -52,6 +53,10 @@ export function AttendanceFilters({
   businessHours?: boolean
   onBusinessHoursChange?: (v: boolean) => void
   showBusinessHoursToggle?: boolean
+  /** False for a tab that's already broken down by agent (e.g.
+   *  Resumo por usuário) — filtering down to one agent there would
+   *  just leave a single-row table. */
+  showUserFilter?: boolean
   options: TicketDashboardFilterOptions
 }) {
   const t = useTranslations("reports.attendanceFilters")
@@ -139,26 +144,28 @@ export function AttendanceFilters({
         </>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">{t("userLabel")}</label>
-        <Select
-          items={userItems}
-          value={userId ?? ALL}
-          onValueChange={(v) => onUserChange(v === ALL ? null : v)}
-        >
-          <SelectTrigger className="w-44 bg-card">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{t("allUsers")}</SelectItem>
-            {options.agents.map((a) => (
-              <SelectItem key={a.userId} value={a.userId}>
-                {a.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {showUserFilter && onUserChange && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground">{t("userLabel")}</label>
+          <Select
+            items={userItems}
+            value={userId ?? ALL}
+            onValueChange={(v) => onUserChange(v === ALL ? null : v)}
+          >
+            <SelectTrigger className="w-44 bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>{t("allUsers")}</SelectItem>
+              {options.agents.map((a) => (
+                <SelectItem key={a.userId} value={a.userId}>
+                  {a.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">{t("departmentLabel")}</label>
