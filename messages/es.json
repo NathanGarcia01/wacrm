@@ -1727,7 +1727,11 @@
     },
     "railGroups": {
       "account": "Cuenta",
-      "workspace": "Workspace"
+      "workspace": "Workspace",
+      "cadastros": "Registros",
+      "atendimento": "Atención",
+      "vendas": "Ventas",
+      "avancado": "Avanzado"
     },
     "integrations": {
       "title": "Integraciones",
@@ -2359,6 +2363,32 @@
         "saved": "Metas de SLA actualizadas",
         "adminOnlyHint": "Solo los administradores de la cuenta pueden editar las metas de SLA."
       }
+    },
+    "quickReplies": {
+      "title": "Respuestas Rápidas",
+      "description": "Mensajes predefinidos que cualquier agente puede insertar en el cuadro de mensaje escribiendo \"/\"."
+    },
+    "sectionDescriptions": {
+      "overview": "Resumen de la cuenta",
+      "profile": "Avatar y nombre mostrados en el encabezado y la barra lateral",
+      "security": "Cambiar contraseña y cerrar sesiones abiertas",
+      "appearance": "Modo claro/oscuro y color de acento",
+      "preferences": "Idioma de la interfaz",
+      "whatsapp": "Credenciales de la API de WhatsApp Business y webhook",
+      "templates": "Crear plantillas de mensaje y enviarlas para aprobación de Meta",
+      "fields": "Etiquetas con color y campos personalizados de contacto",
+      "deals": "Moneda usada en negocios, pipeline e informes",
+      "products": "Catálogo de productos precargados (nombre, valor, comisión)",
+      "quickReplies": "Mensajes predefinidos insertados escribiendo \"/\" en la bandeja",
+      "attendance": "Departamentos, motivos de cierre, horario de atención, metas de SLA y feriados",
+      "nps": "Encuesta automática de satisfacción por WhatsApp después de la atención",
+      "members": "Lista de miembros del equipo y sus roles",
+      "api": "Credenciales de la API REST de la cuenta",
+      "integrations": "Conectar servicios externos para automatizar el flujo de trabajo"
+    },
+    "search": {
+      "placeholder": "Buscar en configuración...",
+      "noResults": "Ningún resultado para \"{query}\""
     }
   },
   "reports": {

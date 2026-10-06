@@ -1727,7 +1727,11 @@
     },
     "railGroups": {
       "account": "Conta",
-      "workspace": "Workspace"
+      "workspace": "Workspace",
+      "cadastros": "Cadastros",
+      "atendimento": "Atendimento",
+      "vendas": "Vendas",
+      "avancado": "Avançado"
     },
     "integrations": {
       "title": "Integrações",
@@ -2359,6 +2363,32 @@
         "saved": "Metas de SLA atualizadas",
         "adminOnlyHint": "Somente administradores da conta podem editar as metas de SLA."
       }
+    },
+    "quickReplies": {
+      "title": "Respostas Rápidas",
+      "description": "Mensagens prontas que qualquer agente pode inserir na caixa de mensagem digitando \"/\"."
+    },
+    "sectionDescriptions": {
+      "overview": "Visão geral da conta",
+      "profile": "Avatar e nome exibidos no cabeçalho e na barra lateral",
+      "security": "Trocar senha e encerrar sessões abertas",
+      "appearance": "Modo claro/escuro e cor de destaque",
+      "preferences": "Idioma da interface",
+      "whatsapp": "Credenciais da API do WhatsApp Business e webhook",
+      "templates": "Criar modelos de mensagem e enviar para aprovação da Meta",
+      "fields": "Tags coloridas e campos customizados de contato",
+      "deals": "Moeda usada em negócios, pipeline e relatórios",
+      "products": "Catálogo de produtos pré-cadastrados (nome, valor, comissão)",
+      "quickReplies": "Mensagens prontas inseridas digitando \"/\" no inbox",
+      "attendance": "Departamentos, motivos de fechamento, horário de atendimento, metas de SLA e feriados",
+      "nps": "Pesquisa automática de satisfação por WhatsApp após o atendimento",
+      "members": "Lista de membros da equipe e seus papéis",
+      "api": "Credenciais da API REST da conta",
+      "integrations": "Conectar serviços externos pra automatizar o fluxo de trabalho"
+    },
+    "search": {
+      "placeholder": "Buscar em configurações...",
+      "noResults": "Nenhum resultado para \"{query}\""
     }
   },
   "reports": {

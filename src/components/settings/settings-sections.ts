@@ -60,7 +60,7 @@ export const DEFAULT_SECTION: SettingsSection = 'overview';
 export interface SectionMeta {
   id: SettingsSection;
   icon: LucideIcon;
-  group: 'top' | 'account' | 'workspace';
+  group: 'top' | 'account' | 'cadastros' | 'atendimento' | 'vendas' | 'avancado';
 }
 
 export const SECTION_META: Record<SettingsSection, SectionMeta> = {
@@ -69,32 +69,40 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   security: { id: 'security', icon: Shield, group: 'account' },
   appearance: { id: 'appearance', icon: Palette, group: 'account' },
   preferences: { id: 'preferences', icon: Languages, group: 'account' },
-  whatsapp: { id: 'whatsapp', icon: PlugZap, group: 'workspace' },
-  templates: { id: 'templates', icon: FileText, group: 'workspace' },
-  fields: { id: 'fields', icon: Tags, group: 'workspace' },
-  deals: { id: 'deals', icon: Coins, group: 'workspace' },
-  products: { id: 'products', icon: Package, group: 'workspace' },
+  fields: { id: 'fields', icon: Tags, group: 'cadastros' },
+  products: { id: 'products', icon: Package, group: 'cadastros' },
+  whatsapp: { id: 'whatsapp', icon: PlugZap, group: 'atendimento' },
+  templates: { id: 'templates', icon: FileText, group: 'atendimento' },
   quickReplies: {
     id: 'quickReplies',
     icon: MessageSquareText,
-    group: 'workspace',
+    group: 'atendimento',
   },
-  attendance: { id: 'attendance', icon: Headset, group: 'workspace' },
-  nps: { id: 'nps', icon: Star, group: 'workspace' },
-  members: { id: 'members', icon: UsersRound, group: 'workspace' },
-  api: { id: 'api', icon: KeyRound, group: 'workspace' },
-  integrations: { id: 'integrations', icon: Plug, group: 'workspace' },
+  attendance: { id: 'attendance', icon: Headset, group: 'atendimento' },
+  nps: { id: 'nps', icon: Star, group: 'atendimento' },
+  deals: { id: 'deals', icon: Coins, group: 'vendas' },
+  members: { id: 'members', icon: UsersRound, group: 'avancado' },
+  api: { id: 'api', icon: KeyRound, group: 'avancado' },
+  integrations: { id: 'integrations', icon: Plug, group: 'avancado' },
 };
 
 /** `groupKey` resolves via `useTranslations('settings.railGroups')`;
- *  `null` means "top" — no group heading. */
+ *  `null` means "top" — no group heading.
+ *
+ *  Order here is the reorg from Fase 4, Etapa 1: Minha Conta stays
+ *  first (personal settings, not one of the 4 named business groups
+ *  from the plan) — Cadastros/Atendimento/Vendas/Avançado are the new
+ *  split of what used to be a single flat "workspace" bucket. */
 export const RAIL_GROUPS: {
-  groupKey: 'account' | 'workspace' | null;
+  groupKey: 'account' | 'cadastros' | 'atendimento' | 'vendas' | 'avancado' | null;
   group: SectionMeta['group'];
 }[] = [
   { groupKey: null, group: 'top' },
   { groupKey: 'account', group: 'account' },
-  { groupKey: 'workspace', group: 'workspace' },
+  { groupKey: 'cadastros', group: 'cadastros' },
+  { groupKey: 'atendimento', group: 'atendimento' },
+  { groupKey: 'vendas', group: 'vendas' },
+  { groupKey: 'avancado', group: 'avancado' },
 ];
 
 function isSection(value: string | null): value is SettingsSection {
@@ -104,11 +112,16 @@ function isSection(value: string | null): value is SettingsSection {
 /**
  * Resolve a raw `?tab=` value to a section. Legacy tabs from the old
  * flat layout collapse onto their new home (Tags + Custom fields → the
- * merged "Fields & tags" section). Anything unknown falls back to the
- * Overview landing.
+ * merged "Fields & tags" section). `billing` is `/api/billing/portal`'s
+ * Stripe return URL (`?tab=billing`) — there's no dedicated billing
+ * panel, the actual "Manage subscription" link lives on the Overview
+ * landing, so that's where it lands instead of silently falling
+ * through to the same default by accident. Anything else unknown
+ * falls back to the Overview landing.
  */
 export function resolveSection(raw: string | null): SettingsSection {
   if (raw === 'tags' || raw === 'custom-fields') return 'fields';
+  if (raw === 'billing') return 'overview';
   if (isSection(raw)) return raw;
   return DEFAULT_SECTION;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Loader2, MessageSquareText, Pencil, Plus, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -58,6 +59,7 @@ function normalizeShortcut(raw: string): string {
 export function QuickRepliesSettings() {
   const supabase = createClient();
   const { accountId } = useAuth();
+  const t = useTranslations('settings.quickReplies');
 
   const [replies, setReplies] = useState<QuickReply[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,10 +144,7 @@ export function QuickRepliesSettings() {
 
   return (
     <section data-tour="settings-quick-replies" className="max-w-3xl animate-in fade-in-50 duration-200">
-      <SettingsPanelHead
-        title="Respostas Rápidas"
-        description="Mensagens prontas que qualquer agente pode inserir na caixa de mensagem digitando '/'."
-      />
+      <SettingsPanelHead title={t('title')} description={t('description')} />
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">

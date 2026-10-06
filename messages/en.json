@@ -1727,7 +1727,11 @@
     },
     "railGroups": {
       "account": "Account",
-      "workspace": "Workspace"
+      "workspace": "Workspace",
+      "cadastros": "Records",
+      "atendimento": "Attendance",
+      "vendas": "Sales",
+      "avancado": "Advanced"
     },
     "integrations": {
       "title": "Integrations",
@@ -2359,6 +2363,32 @@
         "saved": "SLA goals updated",
         "adminOnlyHint": "Only account admins can edit SLA goals."
       }
+    },
+    "quickReplies": {
+      "title": "Quick Replies",
+      "description": "Canned messages any agent can insert into the message box by typing \"/\"."
+    },
+    "sectionDescriptions": {
+      "overview": "Account overview",
+      "profile": "Avatar and name shown in the header and sidebar",
+      "security": "Change password and sign out of devices",
+      "appearance": "Light/dark mode and accent color",
+      "preferences": "Interface language",
+      "whatsapp": "WhatsApp Business API credentials and webhook",
+      "templates": "Create message templates and submit them for Meta approval",
+      "fields": "Colored tags and custom contact fields",
+      "deals": "Currency used in deals, pipeline, and reports",
+      "products": "Catalog of pre-registered products (name, value, commission)",
+      "quickReplies": "Canned messages inserted by typing \"/\" in the inbox",
+      "attendance": "Departments, closing reasons, business hours, SLA goals, and holidays",
+      "nps": "Automatic post-service satisfaction survey over WhatsApp",
+      "members": "Team member roster and roles",
+      "api": "Account REST API credentials",
+      "integrations": "Connect external services to automate your workflow"
+    },
+    "search": {
+      "placeholder": "Search settings...",
+      "noResults": "No results for \"{query}\""
     }
   },
   "reports": {
