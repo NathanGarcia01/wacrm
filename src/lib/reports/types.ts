@@ -390,7 +390,15 @@ export interface TicketDashboardCards {
   inProgress: number
   agentsCount: number
   contactsServed: number
+  /** Every contact created in the period, including bulk imports for
+   *  a broadcast send that never replied — shown only inside the
+   *  "Novos contatos que conversaram" tooltip, not as its own card
+   *  (see newContactsEngaged). */
   newContacts: number
+  /** Contacts created in the period who also sent at least one
+   *  message in the period — the card value for "Novos contatos que
+   *  conversaram". */
+  newContactsEngaged: number
   /** Seconds. Null when there were no agent-closed, non-backfill
    *  tickets in the period. */
   tmaSeconds: number | null
@@ -423,7 +431,8 @@ export interface TicketsByDepartmentPoint {
   count: number
 }
 
-/** One point per calendar day in the period, account-tz keyed (YYYY-MM-DD). */
+/** One point per bucket in the period, account-tz keyed — YYYY-MM-DD
+ *  when `granularity` is "day", YYYY-MM-DDTHH:00:00 when "hour". */
 export interface TicketsPerDayPoint {
   date: string
   count: number
@@ -434,6 +443,10 @@ export interface TicketDashboardBundle {
    *  the "horário de atendimento não configurado" warning when the
    *  business-hours toggle is on. */
   businessHoursConfigured: boolean
+  /** "hour" when the resolved period spans <= 1 day (e.g. "hoje"),
+   *  "day" otherwise — drives how TicketsPerDayChart buckets/labels
+   *  charts.daily. */
+  granularity: "hour" | "day"
   cards: TicketDashboardCards
   charts: {
     byChannel: TicketsByChannelPoint[]

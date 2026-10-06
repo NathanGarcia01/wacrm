@@ -2585,7 +2585,8 @@
       "channelLabel": "Channel",
       "allChannels": "All channels",
       "businessHoursOn": "Business hours",
-      "businessHoursOff": "24h"
+      "businessHoursOff": "24h",
+      "hoursModeLabel": "Hours"
     },
     "attendanceTab": {
       "loadFailed": "Could not load the attendance dashboard.",
@@ -2605,16 +2606,17 @@
       "agentsCountTooltip": "Number of different agents who handled at least one ticket in the period.",
       "contactsServed": "Contacts served",
       "contactsServedTooltip": "Number of distinct contacts with at least one ticket in the period.",
-      "newContacts": "New contacts",
-      "newContactsTooltip": "Contacts created in the period — does not apply the user, department, or channel filters, since a contact doesn't belong to any of them directly.",
       "tma": "AHT",
       "tmaTooltip": "Average handling time: average time between opening and closing of tickets closed by an agent in the period.",
       "firstResponse": "1st response time",
-      "firstResponseTooltip": "Average time between a ticket's opening (started by the customer) and the company's first response, in the period."
+      "firstResponseTooltip": "Average time between a ticket's opening (started by the customer) and the company's first response, in the period.",
+      "newContactsEngaged": "New contacts who replied",
+      "newContactsEngagedTooltip": "Contacts created in the period who sent at least one message in the period — does not apply the user, department, or channel filters, since a contact doesn't belong to any of them directly. {total} new contacts were created in the period in total (including broadcast-send imports that haven't replied yet)."
     },
     "ticketsPerDayChart": {
       "title": "Tickets per day",
-      "seriesCount": "Tickets"
+      "seriesCount": "Tickets",
+      "titleHourly": "Tickets per hour"
     },
     "ticketsByChannelChart": {
       "title": "Tickets by channel",

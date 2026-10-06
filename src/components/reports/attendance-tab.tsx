@@ -71,7 +71,7 @@ export function AttendanceTab() {
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadTicketDashboard(db, { accountId, period, userId, departmentId, channelId, businessHours })
+    loadTicketDashboard(db, { accountId, period, timezone, userId, departmentId, channelId, businessHours })
       .then((b) => {
         if (!cancelled) setBundle(b)
       })
@@ -85,7 +85,7 @@ export function AttendanceTab() {
     return () => {
       cancelled = true
     }
-  }, [accountId, period, userId, departmentId, channelId, businessHours, t])
+  }, [accountId, period, timezone, userId, departmentId, channelId, businessHours, t])
 
   function handlePeriodChange(next: { period: TicketDashboardPeriodKey; from?: string; to?: string }) {
     setPeriodKey(next.period)
@@ -179,10 +179,10 @@ export function AttendanceTab() {
               tooltip={t("contactsServedTooltip")}
             />
             <MetricCard
-              title={t("newContacts")}
-              value={bundle.cards.newContacts.toLocaleString()}
+              title={t("newContactsEngaged")}
+              value={bundle.cards.newContactsEngaged.toLocaleString()}
               icon={UserPlus}
-              tooltip={t("newContactsTooltip")}
+              tooltip={t("newContactsEngagedTooltip", { total: bundle.cards.newContacts })}
             />
             <MetricCard
               title={t("tma")}
@@ -200,7 +200,7 @@ export function AttendanceTab() {
         )}
       </div>
 
-      <TicketsPerDayChart data={bundle?.charts.daily ?? []} />
+      <TicketsPerDayChart data={bundle?.charts.daily ?? []} granularity={bundle?.granularity ?? "day"} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <TicketsByChannelChart data={bundle?.charts.byChannel ?? []} />

@@ -2585,7 +2585,8 @@
       "channelLabel": "Canal",
       "allChannels": "Todos os canais",
       "businessHoursOn": "Horas úteis",
-      "businessHoursOff": "24h"
+      "businessHoursOff": "24h",
+      "hoursModeLabel": "Horário"
     },
     "attendanceTab": {
       "loadFailed": "Não foi possível carregar o dash de atendimento.",
@@ -2605,16 +2606,17 @@
       "agentsCountTooltip": "Quantidade de atendentes diferentes que atenderam ao menos um atendimento no período.",
       "contactsServed": "Contatos atendidos",
       "contactsServedTooltip": "Quantidade de contatos distintos com ao menos um atendimento no período.",
-      "newContacts": "Novos contatos",
-      "newContactsTooltip": "Contatos criados no período — não aplica os filtros de usuário, departamento ou canal, pois um contato não pertence a nenhum deles diretamente.",
       "tma": "TMA",
       "tmaTooltip": "Tempo médio de atendimento: média do tempo entre abertura e fechamento dos atendimentos fechados por um atendente no período.",
       "firstResponse": "Tempo de 1ª resposta",
-      "firstResponseTooltip": "Média do tempo entre a abertura do atendimento (iniciado pelo cliente) e a primeira resposta da empresa, no período."
+      "firstResponseTooltip": "Média do tempo entre a abertura do atendimento (iniciado pelo cliente) e a primeira resposta da empresa, no período.",
+      "newContactsEngaged": "Novos contatos que conversaram",
+      "newContactsEngagedTooltip": "Contatos criados no período que enviaram ao menos uma mensagem no período — não aplica os filtros de usuário, departamento ou canal, pois um contato não pertence a nenhum deles diretamente. {total} contatos novos foram cadastrados no período no total (incluindo importações para disparo que ainda não responderam)."
     },
     "ticketsPerDayChart": {
       "title": "Atendimentos por dia",
-      "seriesCount": "Atendimentos"
+      "seriesCount": "Atendimentos",
+      "titleHourly": "Atendimentos por hora"
     },
     "ticketsByChannelChart": {
       "title": "Atendimentos por canal",

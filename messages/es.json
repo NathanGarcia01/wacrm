@@ -2585,7 +2585,8 @@
       "channelLabel": "Canal",
       "allChannels": "Todos los canales",
       "businessHoursOn": "Horario laboral",
-      "businessHoursOff": "24h"
+      "businessHoursOff": "24h",
+      "hoursModeLabel": "Horario"
     },
     "attendanceTab": {
       "loadFailed": "No se pudo cargar el panel de atención.",
@@ -2605,16 +2606,17 @@
       "agentsCountTooltip": "Cantidad de agentes diferentes que atendieron al menos una atención en el período.",
       "contactsServed": "Contactos atendidos",
       "contactsServedTooltip": "Cantidad de contactos distintos con al menos una atención en el período.",
-      "newContacts": "Nuevos contactos",
-      "newContactsTooltip": "Contactos creados en el período — no aplica los filtros de usuario, departamento o canal, ya que un contacto no pertenece directamente a ninguno de ellos.",
       "tma": "TMA",
       "tmaTooltip": "Tiempo medio de atención: promedio del tiempo entre apertura y cierre de las atenciones cerradas por un agente en el período.",
       "firstResponse": "Tiempo de 1ª respuesta",
-      "firstResponseTooltip": "Promedio del tiempo entre la apertura de la atención (iniciada por el cliente) y la primera respuesta de la empresa, en el período."
+      "firstResponseTooltip": "Promedio del tiempo entre la apertura de la atención (iniciada por el cliente) y la primera respuesta de la empresa, en el período.",
+      "newContactsEngaged": "Nuevos contactos que conversaron",
+      "newContactsEngagedTooltip": "Contactos creados en el período que enviaron al menos un mensaje en el período — no aplica los filtros de usuario, departamento o canal, ya que un contacto no pertenece directamente a ninguno de ellos. Se crearon {total} contactos nuevos en el período en total (incluyendo importaciones para envío que aún no respondieron)."
     },
     "ticketsPerDayChart": {
       "title": "Atenciones por día",
-      "seriesCount": "Atenciones"
+      "seriesCount": "Atenciones",
+      "titleHourly": "Atenciones por hora"
     },
     "ticketsByChannelChart": {
       "title": "Atenciones por canal",

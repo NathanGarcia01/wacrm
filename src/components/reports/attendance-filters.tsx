@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
 import type { TicketDashboardFilterOptions } from "@/lib/reports/types"
 import type { TicketDashboardPeriodKey, TicketDashboardPeriodRange } from "@/lib/reports/ticket-dashboard-period"
 
@@ -162,7 +162,7 @@ export function AttendanceFilters({
           value={departmentId ?? ALL}
           onValueChange={(v) => onDepartmentChange(v === ALL ? null : v)}
         >
-          <SelectTrigger className="w-44 bg-card">
+          <SelectTrigger className="w-56 bg-card">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -197,11 +197,25 @@ export function AttendanceFilters({
         </Select>
       </div>
 
-      <div className="flex items-center gap-2 pb-1.5">
-        <Switch checked={businessHours} onCheckedChange={(v) => onBusinessHoursChange(!!v)} />
-        <span className="text-sm text-foreground">
-          {businessHours ? t("businessHoursOn") : t("businessHoursOff")}
-        </span>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground">{t("hoursModeLabel")}</label>
+        <div className="flex gap-1 rounded-lg border border-border bg-muted p-1">
+          {([false, true] as const).map((mode) => (
+            <button
+              key={String(mode)}
+              type="button"
+              onClick={() => onBusinessHoursChange(mode)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                businessHours === mode
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {mode ? t("businessHoursOn") : t("businessHoursOff")}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
