@@ -2545,7 +2545,9 @@
       "avgCloseTime": "Average close time",
       "periodCommission": "Period commission",
       "projectedCommission": "Projected commission",
-      "openDealsSubtitle": "Open deals"
+      "openDealsSubtitle": "Open deals",
+      "avgTimeToWin": "Avg time to win",
+      "avgTimeToWinTooltip": "Average days between the opening of the ticket that originated the deal (the contact's most recent ticket before the deal was created, within 30 days) and the moment the deal was won. Deals with no linked ticket aren't included in the average."
     },
     "qualityTab": {
       "loadFailed": "Failed to query Meta.",
@@ -2725,6 +2727,29 @@
       "empty": "No agent activity in the selected period.",
       "noAgent": "No agent",
       "unknownAgent": "Removed agent"
+    },
+    "pipelineLossReasonChart": {
+      "title": "Lost by reason",
+      "empty": "No lost deals in the selected period.",
+      "noReason": "No reason",
+      "seriesCount": "Lost deals"
+    },
+    "ticketConversionBySourceTable": {
+      "title": "Conversion by ticket source",
+      "colSource": "Source",
+      "colGenerated": "Generated",
+      "colWon": "Won",
+      "colConversion": "Conversion",
+      "empty": "No tickets in the selected period.",
+      "noTicket": "No ticket"
+    },
+    "ticketConversionByCampaignTable": {
+      "title": "Conversion by campaign",
+      "colCampaign": "Campaign",
+      "colGenerated": "Generated",
+      "colWon": "Won",
+      "colConversion": "Conversion",
+      "empty": "No campaign tickets in the selected period."
     }
   },
   "flows": {

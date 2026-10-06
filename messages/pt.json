@@ -2545,7 +2545,9 @@
       "avgCloseTime": "Tempo médio de fechamento",
       "periodCommission": "Comissão do período",
       "projectedCommission": "Comissão prevista",
-      "openDealsSubtitle": "Deals em aberto"
+      "openDealsSubtitle": "Deals em aberto",
+      "avgTimeToWin": "Tempo médio até ganhar",
+      "avgTimeToWinTooltip": "Média de dias entre a abertura do atendimento que originou o negócio (último atendimento do contato antes da criação do deal, em até 30 dias) e o momento em que o negócio foi ganho. Negócios sem atendimento vinculado não entram na média."
     },
     "qualityTab": {
       "loadFailed": "Falha ao consultar a Meta.",
@@ -2725,6 +2727,29 @@
       "empty": "Nenhum atendente com atividade no período selecionado.",
       "noAgent": "Sem atendente",
       "unknownAgent": "Atendente removido"
+    },
+    "pipelineLossReasonChart": {
+      "title": "Perdidos por motivo",
+      "empty": "Nenhum deal perdido no período selecionado.",
+      "noReason": "Sem motivo",
+      "seriesCount": "Deals perdidos"
+    },
+    "ticketConversionBySourceTable": {
+      "title": "Conversão por origem do atendimento",
+      "colSource": "Origem",
+      "colGenerated": "Gerou negócio",
+      "colWon": "Ganhos",
+      "colConversion": "Conversão",
+      "empty": "Nenhum atendimento no período selecionado.",
+      "noTicket": "Sem atendimento"
+    },
+    "ticketConversionByCampaignTable": {
+      "title": "Conversão por campanha",
+      "colCampaign": "Campanha",
+      "colGenerated": "Gerou negócio",
+      "colWon": "Ganhos",
+      "colConversion": "Conversão",
+      "empty": "Nenhum atendimento de campanha no período selecionado."
     }
   },
   "flows": {

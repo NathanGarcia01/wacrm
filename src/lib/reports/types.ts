@@ -115,12 +115,52 @@ export interface DealReportRow {
   status: string
 }
 
+/** `deals.lost_reason` is free text with no FK to the `deal_loss_reasons`
+ *  catalog — grouped by `lower(trim(lost_reason))` server-side, label is
+ *  the most frequent original spelling within that group (empty string
+ *  when the deal had no lost_reason at all — rendered as "Sem motivo"). */
+export interface LossReasonPoint {
+  label: string
+  count: number
+  value: number
+}
+
+/** `tickets.source` — 'inbound' | 'manual_outbound' | 'campaign' | 'automation'.
+ *  Null means the deal's contact had no ticket in the attribution window
+ *  (get_pipeline_dashboard's deal_attribution — last-touch, single
+ *  attribution, max 30 days before the deal was created) — rendered as
+ *  "Sem atendimento". `generated`/`won` partition ALL created/won deals
+ *  in the period exactly once each (never double-counted across sources,
+ *  unlike the Broadcast ROI tab's deliberately-overlapping attribution). */
+export interface SourceConversionRow {
+  source: string | null
+  generated: number
+  won: number
+}
+
+/** Same attribution as SourceConversionRow, narrowed to tickets with
+ *  source='campaign' and grouped by campaign (broadcasts.id/name). */
+export interface CampaignConversionRow {
+  campaignId: string
+  campaignName: string
+  generated: number
+  won: number
+}
+
 export interface PipelineReportBundle {
   cards: PipelineReportCards
+  /** Average days from the attributed ticket's opened_at to won_at, over
+   *  deals won in the period that have a ticket attribution. Null when
+   *  no won deal in the period has one (e.g. all were created without a
+   *  linked ticket). */
+  avgTimeToWinDays: number | null
   funnel: PipelineFunnelStage[]
   dealsPerDay: DealsPerDayPoint[]
   deals: DealReportRow[]
   commissionByAgent: CommissionAgentRow[]
+  lossByReason: LossReasonPoint[]
+  conversionBySource: SourceConversionRow[]
+  conversionByCampaign: CampaignConversionRow[]
 }
 
 // ------------------------------------------------------------

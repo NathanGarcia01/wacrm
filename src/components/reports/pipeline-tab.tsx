@@ -5,7 +5,16 @@ import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
-import { CalendarClock, CheckCircle2, Coins, DollarSign, Percent, Ticket, XCircle } from "lucide-react"
+import {
+  CalendarClock,
+  CheckCircle2,
+  Coins,
+  DollarSign,
+  Hourglass,
+  Percent,
+  Ticket,
+  XCircle,
+} from "lucide-react"
 import { loadPipelineReport } from "@/lib/reports/pipeline-queries"
 import type { PeriodRange, PipelineReportBundle } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
@@ -14,6 +23,9 @@ import { PipelineFunnelChart } from "@/components/reports/pipeline-funnel-chart"
 import { DealsPerDayChart } from "@/components/reports/deals-per-day-chart"
 import { DealsTable } from "@/components/reports/deals-table"
 import { CommissionAgentRankingTable } from "@/components/reports/commission-agent-ranking-table"
+import { PipelineLossReasonChart } from "@/components/reports/pipeline-loss-reason-chart"
+import { TicketConversionBySourceTable } from "@/components/reports/ticket-conversion-by-source-table"
+import { TicketConversionByCampaignTable } from "@/components/reports/ticket-conversion-by-campaign-table"
 
 function fmtPct(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(0)}%`
@@ -25,17 +37,21 @@ function fmtDays(v: number | null): string {
 
 export function PipelineTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.pipelineTab")
-  const { defaultCurrency } = useAuth()
+  const { account, defaultCurrency } = useAuth()
+  const accountId = account?.id ?? null
+  const timezone = account?.timezone ?? "America/Sao_Paulo"
   const [bundle, setBundle] = useState<PipelineReportBundle | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!accountId) return
     let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadPipelineReport(db, period)
+    loadPipelineReport(db, period, accountId, timezone)
       .then((b) => {
         if (!cancelled) setBundle(b)
       })
@@ -49,7 +65,7 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
     return () => {
       cancelled = true
     }
-  }, [period, t])
+  }, [period, accountId, timezone, t])
 
   return (
     <div className="space-y-5">
@@ -61,7 +77,7 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading || !bundle ? (
-          Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
             <MetricCard title={t("dealsCreated")} value={bundle.cards.dealsCreated.toLocaleString()} icon={Ticket} />
@@ -98,6 +114,12 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
               icon={Coins}
               subtitle={t("openDealsSubtitle")}
             />
+            <MetricCard
+              title={t("avgTimeToWin")}
+              value={fmtDays(bundle.avgTimeToWinDays)}
+              icon={Hourglass}
+              tooltip={t("avgTimeToWinTooltip")}
+            />
           </>
         )}
       </div>
@@ -105,6 +127,13 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PipelineFunnelChart stages={bundle?.funnel ?? []} />
         <DealsPerDayChart data={bundle?.dealsPerDay ?? []} />
+      </div>
+
+      <PipelineLossReasonChart data={bundle?.lossByReason ?? []} />
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <TicketConversionBySourceTable rows={bundle?.conversionBySource ?? []} loading={loading} />
+        <TicketConversionByCampaignTable rows={bundle?.conversionByCampaign ?? []} loading={loading} />
       </div>
 
       <CommissionAgentRankingTable
