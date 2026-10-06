@@ -2568,6 +2568,80 @@
       "avgResponseTimeHeaderTooltip": "Sender_id isn't reliable per-agent yet — it will be computed individually once that data is available.",
       "avgResponseTimeCellTooltip": "Will be computed individually once the data is available.",
       "empty": "No member found."
+    },
+    "attendanceFilters": {
+      "periodLabel": "Period",
+      "today": "Today",
+      "d7": "7 days",
+      "d30": "30 days",
+      "custom": "Custom",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "userLabel": "User",
+      "allUsers": "All users",
+      "departmentLabel": "Department",
+      "allDepartments": "All departments",
+      "channelLabel": "Channel",
+      "allChannels": "All channels",
+      "businessHoursOn": "Business hours",
+      "businessHoursOff": "24h"
+    },
+    "attendanceTab": {
+      "loadFailed": "Could not load the attendance dashboard.",
+      "businessHoursNotConfigured": "Business hours not configured.",
+      "businessHoursNotConfiguredLink": "Configure in Settings → Attendance",
+      "totalTickets": "Total tickets",
+      "totalTicketsTooltip": "Number of tickets opened in the period, with the selected filters applied.",
+      "initiatedByCustomer": "Started by customer",
+      "initiatedByCustomerTooltip": "Tickets in the period whose first message came from the customer.",
+      "initiatedByCompany": "Started by company",
+      "initiatedByCompanyTooltip": "Tickets in the period whose first message was sent by the company (manual, campaign, or an automation that got a reply).",
+      "pending": "Pending",
+      "pendingTooltip": "Tickets waiting for a first agent right now — a live queue, not scoped to the selected period.",
+      "inProgress": "In progress",
+      "inProgressTooltip": "Tickets currently being handled by an agent — a live queue, not scoped to the selected period.",
+      "agentsCount": "Distinct agents",
+      "agentsCountTooltip": "Number of different agents who handled at least one ticket in the period.",
+      "contactsServed": "Contacts served",
+      "contactsServedTooltip": "Number of distinct contacts with at least one ticket in the period.",
+      "newContacts": "New contacts",
+      "newContactsTooltip": "Contacts created in the period — does not apply the user, department, or channel filters, since a contact doesn't belong to any of them directly.",
+      "tma": "AHT",
+      "tmaTooltip": "Average handling time: average time between opening and closing of tickets closed by an agent in the period.",
+      "firstResponse": "1st response time",
+      "firstResponseTooltip": "Average time between a ticket's opening (started by the customer) and the company's first response, in the period."
+    },
+    "ticketsPerDayChart": {
+      "title": "Tickets per day",
+      "seriesCount": "Tickets"
+    },
+    "ticketsByChannelChart": {
+      "title": "Tickets by channel",
+      "empty": "No tickets in the selected period.",
+      "noChannel": "No channel",
+      "seriesCount": "Tickets"
+    },
+    "ticketsBySourceChart": {
+      "title": "Tickets by source",
+      "empty": "No tickets in the selected period.",
+      "seriesCount": "Tickets",
+      "inbound": "Inbound",
+      "manualOutbound": "Manual outbound",
+      "campaign": "Campaign",
+      "automation": "Automation"
+    },
+    "ticketsByDepartmentChart": {
+      "title": "Tickets by department",
+      "empty": "No tickets in the selected period.",
+      "noDepartment": "No department",
+      "seriesCount": "Tickets"
+    },
+    "ticketsByClosingReasonChart": {
+      "title": "Tickets by closing reason",
+      "empty": "No closed tickets in the selected period.",
+      "noReason": "No reason",
+      "seriesCount": "Tickets"
     }
   },
   "flows": {

@@ -2568,6 +2568,80 @@
       "avgResponseTimeHeaderTooltip": "Sender_id aún no es confiable por agente — se calculará individualmente cuando ese dato esté disponible.",
       "avgResponseTimeCellTooltip": "Se calculará individualmente cuando los datos estén disponibles.",
       "empty": "No se encontró ningún miembro."
+    },
+    "attendanceFilters": {
+      "periodLabel": "Período",
+      "today": "Hoy",
+      "d7": "7 días",
+      "d30": "30 días",
+      "custom": "Personalizado",
+      "from": "Desde",
+      "to": "Hasta",
+      "apply": "Aplicar",
+      "userLabel": "Usuario",
+      "allUsers": "Todos los usuarios",
+      "departmentLabel": "Departamento",
+      "allDepartments": "Todos los departamentos",
+      "channelLabel": "Canal",
+      "allChannels": "Todos los canales",
+      "businessHoursOn": "Horario laboral",
+      "businessHoursOff": "24h"
+    },
+    "attendanceTab": {
+      "loadFailed": "No se pudo cargar el panel de atención.",
+      "businessHoursNotConfigured": "Horario de atención no configurado.",
+      "businessHoursNotConfiguredLink": "Configurar en Configuración → Atención",
+      "totalTickets": "Total de atenciones",
+      "totalTicketsTooltip": "Cantidad de atenciones abiertas en el período, considerando los filtros aplicados.",
+      "initiatedByCustomer": "Iniciadas por el cliente",
+      "initiatedByCustomerTooltip": "Atenciones del período cuyo primer mensaje vino del cliente.",
+      "initiatedByCompany": "Iniciadas por la empresa",
+      "initiatedByCompanyTooltip": "Atenciones del período cuyo primer mensaje fue enviado por la empresa (envío manual, campaña o automatización respondida).",
+      "pending": "Pendientes",
+      "pendingTooltip": "Atenciones esperando un primer agente ahora — cola en vivo, no limitada al período seleccionado.",
+      "inProgress": "En curso",
+      "inProgressTooltip": "Atenciones en curso con un agente ahora — cola en vivo, no limitada al período seleccionado.",
+      "agentsCount": "Agentes distintos",
+      "agentsCountTooltip": "Cantidad de agentes diferentes que atendieron al menos una atención en el período.",
+      "contactsServed": "Contactos atendidos",
+      "contactsServedTooltip": "Cantidad de contactos distintos con al menos una atención en el período.",
+      "newContacts": "Nuevos contactos",
+      "newContactsTooltip": "Contactos creados en el período — no aplica los filtros de usuario, departamento o canal, ya que un contacto no pertenece directamente a ninguno de ellos.",
+      "tma": "TMA",
+      "tmaTooltip": "Tiempo medio de atención: promedio del tiempo entre apertura y cierre de las atenciones cerradas por un agente en el período.",
+      "firstResponse": "Tiempo de 1ª respuesta",
+      "firstResponseTooltip": "Promedio del tiempo entre la apertura de la atención (iniciada por el cliente) y la primera respuesta de la empresa, en el período."
+    },
+    "ticketsPerDayChart": {
+      "title": "Atenciones por día",
+      "seriesCount": "Atenciones"
+    },
+    "ticketsByChannelChart": {
+      "title": "Atenciones por canal",
+      "empty": "Ninguna atención en el período seleccionado.",
+      "noChannel": "Sin canal",
+      "seriesCount": "Atenciones"
+    },
+    "ticketsBySourceChart": {
+      "title": "Atenciones por origen",
+      "empty": "Ninguna atención en el período seleccionado.",
+      "seriesCount": "Atenciones",
+      "inbound": "Espontánea",
+      "manualOutbound": "Envío manual",
+      "campaign": "Campaña",
+      "automation": "Automatización"
+    },
+    "ticketsByDepartmentChart": {
+      "title": "Atenciones por departamento",
+      "empty": "Ninguna atención en el período seleccionado.",
+      "noDepartment": "Sin departamento",
+      "seriesCount": "Atenciones"
+    },
+    "ticketsByClosingReasonChart": {
+      "title": "Atenciones por motivo de cierre",
+      "empty": "Ninguna atención cerrada en el período seleccionado.",
+      "noReason": "Sin motivo",
+      "seriesCount": "Atenciones"
     }
   },
   "flows": {

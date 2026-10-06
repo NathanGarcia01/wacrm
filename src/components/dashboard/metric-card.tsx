@@ -1,6 +1,11 @@
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
+import { ArrowDown, ArrowUp, HelpCircle, Minus } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { cn } from '@/lib/utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface MetricCardProps {
   title: string
@@ -19,13 +24,27 @@ interface MetricCardProps {
   }
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string
+  /** Explanation of how the metric is calculated, shown behind a help
+   *  icon next to the title — nobody should have to trust a number
+   *  without knowing what it measures. */
+  tooltip?: string
 }
 
-export function MetricCard({ title, value, icon: Icon, delta, subtitle }: MetricCardProps) {
+export function MetricCard({ title, value, icon: Icon, delta, subtitle, tooltip }: MetricCardProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger className="text-muted-foreground/70 hover:text-muted-foreground">
+                <HelpCircle className="h-3.5 w-3.5" />
+              </TooltipTrigger>
+              <TooltipContent>{tooltip}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
           <Icon className="h-4 w-4" />
         </div>

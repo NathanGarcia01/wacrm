@@ -69,6 +69,10 @@ interface AccountSummary {
    *  (default) means the inbox stays on the pre-tickets UI entirely —
    *  rolled out account-by-account by hand while this is validated. */
   tickets_ui_enabled: boolean;
+  /** IANA zone, e.g. "America/Sao_Paulo" (migration 069). Falls back to
+   *  that same default when absent — mirrors the SQL functions'
+   *  (business_hours_elapsed, get_ticket_dashboard) own fallback. */
+  timezone: string;
   /** Null when the account has no subscription row at all (shouldn't
    *  happen after migration 050, but forks/edge cases may lack one). */
   subscriptionStatus: string | null;
@@ -189,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // `plans(code)` nested a level deeper still, off
           // subscriptions.plan_id — needs `plans_select` (migration
           // 050, USING (true)) which is already public-readable.
-          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, signature, account:accounts!inner(id, name, default_currency, is_internal, is_active, tickets_ui_enabled, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
+          "id, full_name, email, avatar_url, role, beta_features, account_id, account_role, language, onboarding_completed, signature, account:accounts!inner(id, name, default_currency, is_internal, is_active, tickets_ui_enabled, timezone, subscriptions!subscriptions_account_id_fkey(status, trial_end, plans(code)))",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -218,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               is_internal?: boolean | null;
               is_active?: boolean | null;
               tickets_ui_enabled?: boolean | null;
+              timezone?: string | null;
               subscriptions?:
                 | SubscriptionEmbed
                 | SubscriptionEmbed[]
@@ -254,6 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               is_internal: accountRaw.is_internal ?? false,
               is_active: accountRaw.is_active ?? true,
               tickets_ui_enabled: accountRaw.tickets_ui_enabled ?? false,
+              timezone: accountRaw.timezone ?? "America/Sao_Paulo",
               subscriptionStatus: subscriptionRaw?.status ?? null,
               trialEnd: subscriptionRaw?.trial_end ?? null,
               planCode: planRaw?.code ?? null,

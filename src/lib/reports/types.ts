@@ -375,3 +375,77 @@ export interface NpsReportBundle {
   agentRanking: NpsAgentRankingRow[]
   trend: NpsTrendPoint[]
 }
+
+// ------------------------------------------------------------
+// Atendimento tab (Dash de Atendimento — get_ticket_dashboard())
+// ------------------------------------------------------------
+
+export interface TicketDashboardCards {
+  totalTickets: number
+  initiatedByCustomer: number
+  initiatedByCompany: number
+  /** Current open queue — NOT period-scoped, mirrors the RPC's
+   *  current_status_tickets (a live count, not a historical cut). */
+  pending: number
+  inProgress: number
+  agentsCount: number
+  contactsServed: number
+  newContacts: number
+  /** Seconds. Null when there were no agent-closed, non-backfill
+   *  tickets in the period. */
+  tmaSeconds: number | null
+  /** Seconds. Null when no customer-initiated ticket in the period
+   *  got a first response (or all were backfilled). */
+  firstResponseSeconds: number | null
+}
+
+export interface TicketsByChannelPoint {
+  channelId: string | null
+  channelName: string | null
+  count: number
+}
+
+/** `tickets.source` — 'inbound' | 'manual_outbound' | 'campaign' | 'automation'. */
+export interface TicketsBySourcePoint {
+  source: string
+  count: number
+}
+
+export interface TicketsByClosingReasonPoint {
+  closingReasonId: string | null
+  label: string | null
+  count: number
+}
+
+export interface TicketsByDepartmentPoint {
+  departmentId: string | null
+  name: string | null
+  count: number
+}
+
+/** One point per calendar day in the period, account-tz keyed (YYYY-MM-DD). */
+export interface TicketsPerDayPoint {
+  date: string
+  count: number
+}
+
+export interface TicketDashboardBundle {
+  /** False when the account has no business_hours rows at all — drives
+   *  the "horário de atendimento não configurado" warning when the
+   *  business-hours toggle is on. */
+  businessHoursConfigured: boolean
+  cards: TicketDashboardCards
+  charts: {
+    byChannel: TicketsByChannelPoint[]
+    bySource: TicketsBySourcePoint[]
+    byClosingReason: TicketsByClosingReasonPoint[]
+    byDepartment: TicketsByDepartmentPoint[]
+    daily: TicketsPerDayPoint[]
+  }
+}
+
+export interface TicketDashboardFilterOptions {
+  agents: { userId: string; name: string }[]
+  departments: { id: string; name: string }[]
+  channels: { id: string; name: string }[]
+}

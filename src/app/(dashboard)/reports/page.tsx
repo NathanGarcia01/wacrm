@@ -23,6 +23,7 @@ import { BroadcastRoiTab } from "@/components/reports/broadcast-roi-tab"
 import { QualityTab } from "@/components/reports/quality-tab"
 import { NpsTab } from "@/components/reports/nps-tab"
 import { CommissionsTab } from "@/components/reports/commissions-tab"
+import { AttendanceTab } from "@/components/reports/attendance-tab"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type ReportTab =
@@ -33,6 +34,7 @@ type ReportTab =
   | "quality"
   | "satisfaction"
   | "commissions"
+  | "attendance"
 
 function isPeriodKey(v: string | null): v is PeriodKey {
   return v === "today" || v === "week" || v === "month" || v === "custom"
@@ -46,7 +48,8 @@ function isReportTab(v: string | null): v is ReportTab {
     v === "broadcastRoi" ||
     v === "quality" ||
     v === "satisfaction" ||
-    v === "commissions"
+    v === "commissions" ||
+    v === "attendance"
   )
 }
 
@@ -64,10 +67,15 @@ export default function ReportsPage() {
 function ReportsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { defaultCurrency } = useAuth()
+  const { defaultCurrency, ticketsUiEnabled } = useAuth()
 
   const tabParam = searchParams.get("tab")
-  const tab: ReportTab = isReportTab(tabParam) ? tabParam : "overview"
+  // "attendance" is gated behind the tickets rollout flag — a stale
+  // deep link (or a manually edited URL) for an account that doesn't
+  // have it falls back to the Overview landing instead of rendering a
+  // tab with no matching trigger in the list above it.
+  const tab: ReportTab =
+    isReportTab(tabParam) && (tabParam !== "attendance" || ticketsUiEnabled) ? tabParam : "overview"
 
   const periodParam = searchParams.get("period")
   // The Transmissões report reads better zoomed out (a single day of
@@ -154,11 +162,17 @@ function ReportsPageInner() {
             <TabsTrigger value="broadcastRoi">ROI de Transmissões</TabsTrigger>
             <TabsTrigger value="quality">Qualidade da conta</TabsTrigger>
             <TabsTrigger value="satisfaction">Satisfação</TabsTrigger>
+            {ticketsUiEnabled && <TabsTrigger value="attendance">Atendimento</TabsTrigger>}
           </TabsList>
         </Tabs>
       </div>
 
-      <PeriodFilter period={period} onChange={updatePeriod} />
+      {/* The Atendimento tab owns its own period/user/department/channel
+          filter bar (different period semantics — hoje/7 dias/30 dias in
+          the account's timezone, not this generic today/week/month) —
+          showing this one too would just be a second, conflicting period
+          control. */}
+      {tab !== "attendance" && <PeriodFilter period={period} onChange={updatePeriod} />}
 
       {tab === "overview" && (
         <div className="space-y-5">
@@ -228,6 +242,7 @@ function ReportsPageInner() {
       {tab === "broadcastRoi" && <BroadcastRoiTab period={period} />}
       {tab === "quality" && <QualityTab />}
       {tab === "satisfaction" && <NpsTab period={period} />}
+      {tab === "attendance" && ticketsUiEnabled && <AttendanceTab />}
     </div>
   )
 }
