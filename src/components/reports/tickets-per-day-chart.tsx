@@ -60,7 +60,7 @@ export function TicketsPerDayChart({
               tickLine={false}
               axisLine={false}
               allowDecimals={false}
-              width={36}
+              width={40}
               fill=""
               stroke=""
             />

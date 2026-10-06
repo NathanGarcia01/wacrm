@@ -31,7 +31,7 @@ export function TicketsByChannelChart({ data }: { data: TicketsByChannelPoint[] 
                 tickLine={false}
                 axisLine={false}
                 allowDecimals={false}
-                width={28}
+                width={40}
                 fill=""
                 stroke=""
               />

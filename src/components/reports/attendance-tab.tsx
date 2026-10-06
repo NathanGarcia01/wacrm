@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
@@ -20,7 +21,11 @@ import {
 } from "lucide-react"
 
 import { loadTicketDashboard, loadTicketDashboardFilterOptions } from "@/lib/reports/ticket-dashboard-queries"
-import { resolveTicketDashboardPeriod, type TicketDashboardPeriodKey } from "@/lib/reports/ticket-dashboard-period"
+import {
+  isTicketDashboardPeriodKey,
+  resolveTicketDashboardPeriod,
+  type TicketDashboardPeriodKey,
+} from "@/lib/reports/ticket-dashboard-period"
 import { formatDurationSeconds } from "@/lib/reports/format"
 import type { TicketDashboardBundle, TicketDashboardFilterOptions } from "@/lib/reports/types"
 
@@ -33,24 +38,55 @@ import { TicketsBySourceChart } from "@/components/reports/tickets-by-source-cha
 import { TicketsByDepartmentChart } from "@/components/reports/tickets-by-department-chart"
 import { TicketsByClosingReasonChart } from "@/components/reports/tickets-by-closing-reason-chart"
 
+// Own query params (at-prefixed) rather than reusing the generic
+// Reports page's period/from/to — this tab's period vocabulary
+// (today/7d/30d/custom) doesn't overlap with the page-level one
+// (today/week/month/custom), and this tab stays mounted only while
+// `tab=attendance`, so there's no risk of two tabs fighting over the
+// same param.
+const PARAM = {
+  period: "atPeriod",
+  from: "atFrom",
+  to: "atTo",
+  user: "atUser",
+  dept: "atDept",
+  channel: "atChannel",
+  bh: "atBh",
+} as const
+
 export function AttendanceTab() {
   const t = useTranslations("reports.attendanceTab")
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const { account } = useAuth()
   const accountId = account?.id ?? null
   const timezone = account?.timezone ?? "America/Sao_Paulo"
 
-  const [periodKey, setPeriodKey] = useState<TicketDashboardPeriodKey>("today")
-  const [customFrom, setCustomFrom] = useState<string | undefined>(undefined)
-  const [customTo, setCustomTo] = useState<string | undefined>(undefined)
-  const [userId, setUserId] = useState<string | null>(null)
-  const [departmentId, setDepartmentId] = useState<string | null>(null)
-  const [channelId, setChannelId] = useState<string | null>(null)
-  const [businessHours, setBusinessHours] = useState(false)
+  // URL is the single source of truth for every filter here — read on
+  // load/back-forward nav, written on every change — so the filter
+  // bar, the fetched data, and the address bar never drift apart.
+  const periodParam = searchParams.get(PARAM.period)
+  const periodKey: TicketDashboardPeriodKey = isTicketDashboardPeriodKey(periodParam) ? periodParam : "today"
+  const customFrom = searchParams.get(PARAM.from) ?? undefined
+  const customTo = searchParams.get(PARAM.to) ?? undefined
+  const userId = searchParams.get(PARAM.user)
+  const departmentId = searchParams.get(PARAM.dept)
+  const channelId = searchParams.get(PARAM.channel)
+  const businessHours = searchParams.get(PARAM.bh) === "1"
 
   const period = useMemo(
     () => resolveTicketDashboardPeriod(periodKey, timezone, customFrom, customTo),
     [periodKey, timezone, customFrom, customTo],
   )
+
+  function setParams(updates: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === null) params.delete(key)
+      else params.set(key, value)
+    }
+    router.replace(`/reports?${params.toString()}`, { scroll: false })
+  }
 
   const [options, setOptions] = useState<TicketDashboardFilterOptions>({ agents: [], departments: [], channels: [] })
   useEffect(() => {
@@ -88,11 +124,11 @@ export function AttendanceTab() {
   }, [accountId, period, timezone, userId, departmentId, channelId, businessHours, t])
 
   function handlePeriodChange(next: { period: TicketDashboardPeriodKey; from?: string; to?: string }) {
-    setPeriodKey(next.period)
-    if (next.period === "custom") {
-      setCustomFrom(next.from)
-      setCustomTo(next.to)
-    }
+    setParams({
+      [PARAM.period]: next.period,
+      [PARAM.from]: next.period === "custom" ? next.from ?? null : null,
+      [PARAM.to]: next.period === "custom" ? next.to ?? null : null,
+    })
   }
 
   const showBusinessHoursWarning = businessHours && bundle != null && !bundle.businessHoursConfigured
@@ -109,13 +145,13 @@ export function AttendanceTab() {
         period={period}
         onPeriodChange={handlePeriodChange}
         userId={userId}
-        onUserChange={setUserId}
+        onUserChange={(v) => setParams({ [PARAM.user]: v })}
         departmentId={departmentId}
-        onDepartmentChange={setDepartmentId}
+        onDepartmentChange={(v) => setParams({ [PARAM.dept]: v })}
         channelId={channelId}
-        onChannelChange={setChannelId}
+        onChannelChange={(v) => setParams({ [PARAM.channel]: v })}
         businessHours={businessHours}
-        onBusinessHoursChange={setBusinessHours}
+        onBusinessHoursChange={(v) => setParams({ [PARAM.bh]: v ? "1" : null })}
         options={options}
       />
 

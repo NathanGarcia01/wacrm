@@ -9,6 +9,10 @@
 
 export type TicketDashboardPeriodKey = "today" | "7d" | "30d" | "custom"
 
+export function isTicketDashboardPeriodKey(v: string | null): v is TicketDashboardPeriodKey {
+  return v === "today" || v === "7d" || v === "30d" || v === "custom"
+}
+
 export interface TicketDashboardPeriodRange {
   key: TicketDashboardPeriodKey
   /** Inclusive start, ISO timestamp (UTC instant). */
