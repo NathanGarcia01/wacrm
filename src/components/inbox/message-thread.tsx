@@ -35,7 +35,8 @@ import {
   MailOpen,
   Smartphone,
 } from "lucide-react";
-import { format, isToday, isYesterday, differenceInHours } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
+import { computeSessionWindow } from "@/lib/whatsapp/session-window";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -363,32 +364,35 @@ export function MessageThread({
     [conversation, activeChannelId, channels, onChannelChange, t],
   );
 
-  // 24-hour session timer
+  // 24-hour session timer — Fase 2: the actual math now lives in
+  // computeSessionWindow (src/lib/whatsapp/session-window.ts), gated
+  // by the active channel's type. Cloud API only — see that module's
+  // doc comment for why Evolution channels must never show or block
+  // on this (that gate was the bug this extraction fixes: the old
+  // inline version ran unconditionally).
+  const sessionWindow = useMemo(
+    () => computeSessionWindow(messages, activeChannel?.channel_type),
+    [messages, activeChannel?.channel_type],
+  );
   const sessionInfo = useMemo(() => {
-    if (!messages.length) return { expired: false, remaining: "" };
-
-    // Find last customer message
-    const lastCustomerMsg = [...messages]
-      .reverse()
-      .find((m) => m.sender_type === "customer");
-
-    if (!lastCustomerMsg) return { expired: true, remaining: t("noCustomerMessages") };
-
-    const hoursSince = differenceInHours(new Date(), new Date(lastCustomerMsg.created_at));
-    const expired = hoursSince >= 24;
-
-    if (expired) {
-      return { expired: true, remaining: t("sessionExpired") };
+    switch (sessionWindow.status) {
+      case "not-applicable":
+      case "loading":
+        return { applicable: sessionWindow.status !== "not-applicable", expired: false, remaining: "" };
+      case "no-customer-message":
+        return { applicable: true, expired: true, remaining: t("noCustomerMessages") };
+      case "expired":
+        return { applicable: true, expired: true, remaining: t("sessionExpired") };
+      case "active": {
+        const hoursLeft = sessionWindow.hoursLeft ?? 0;
+        const remaining =
+          hoursLeft >= 1
+            ? t("hoursRemaining", { hours: Math.floor(hoursLeft) })
+            : t("minutesRemaining", { minutes: Math.floor(hoursLeft * 60) });
+        return { applicable: true, expired: false, remaining };
+      }
     }
-
-    const hoursLeft = 24 - hoursSince;
-    const remaining =
-      hoursLeft >= 1
-        ? t("hoursRemaining", { hours: Math.floor(hoursLeft) })
-        : t("minutesRemaining", { minutes: Math.floor(hoursLeft * 60) });
-
-    return { expired, remaining };
-  }, [messages, t]);
+  }, [sessionWindow, t]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -1170,19 +1174,23 @@ export function MessageThread({
             <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
-              the name + back arrow keep their room. */}
-          <Badge
-            variant="outline"
-            className={cn(
-              "ml-1 hidden gap-1 text-[10px] font-mono sm:inline-flex sm:ml-2",
-              sessionInfo.expired
-                ? "border-destructive/30 text-destructive"
-                : "border-transparent bg-gold-soft text-gold",
-            )}
-          >
-            <Clock className="h-3 w-3" />
-            {sessionInfo.remaining}
-          </Badge>
+              the name + back arrow keep their room. Never rendered at
+              all for a non-Cloud-API channel (Evolution has no 24h
+              window — see computeSessionWindow's doc comment). */}
+          {sessionInfo.applicable && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "ml-1 hidden gap-1 text-[10px] font-mono sm:inline-flex sm:ml-2",
+                sessionInfo.expired
+                  ? "border-destructive/30 text-destructive"
+                  : "border-transparent bg-gold-soft text-gold",
+              )}
+            >
+              <Clock className="h-3 w-3" />
+              {sessionInfo.remaining}
+            </Badge>
+          )}
 
           {/* Which WhatsApp number this conversation sends through — only
               shown when the account actually has more than one to

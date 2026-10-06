@@ -140,7 +140,7 @@ export default function InboxPage() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("conversations")
-        .select("*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number)")
+        .select("*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number, channel_type)")
         .eq("id", convId)
         .maybeSingle();
       if (error) {

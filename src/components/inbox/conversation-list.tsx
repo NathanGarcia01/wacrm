@@ -182,7 +182,7 @@ export function ConversationList({
     const supabase = createClient();
     supabase
       .from("whatsapp_channels")
-      .select("id, name, display_phone_number, is_default")
+      .select("id, name, display_phone_number, is_default, channel_type")
       .eq("is_active", true)
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: true })
@@ -222,7 +222,7 @@ export function ConversationList({
       const { data, error } = await supabase
         .from("conversations")
         .select(
-          "*, contact:contacts(*, contact_tags(tag_id), deals(status, stage_id)), channel:whatsapp_channels(name, display_phone_number)",
+          "*, contact:contacts(*, contact_tags(tag_id), deals(status, stage_id)), channel:whatsapp_channels(name, display_phone_number, channel_type)",
         )
         .order("last_message_at", { ascending: false });
 
@@ -420,7 +420,7 @@ export function ConversationList({
       let query = supabase
         .from("tickets")
         .select(
-          "*, conversation:conversations(*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number))",
+          "*, conversation:conversations(*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number, channel_type))",
           { count: "exact" },
         )
         .eq("status", "closed")

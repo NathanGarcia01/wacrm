@@ -186,7 +186,11 @@ export interface Conversation {
   /** WhatsApp channel that received/sent through this conversation.
    *  null = the account's default channel (see src/lib/whatsapp/channels.ts). */
   channel_id?: string | null;
-  channel?: { name: string; display_phone_number: string | null } | null;
+  channel?: {
+    name: string;
+    display_phone_number: string | null;
+    channel_type?: WhatsAppChannelType;
+  } | null;
   /** Meta click-to-WhatsApp ad referral, mirrored from the contact at
    *  the time the conversation started (migration 067). */
   ad_source_id?: string | null;
@@ -201,6 +205,13 @@ export interface Conversation {
   ticket?: Ticket | null;
 }
 
+/** `whatsapp_channels.channel_type` (migration 052). The 24h customer-
+ *  session window (Fase 2) only applies to `cloud_api` — Meta enforces
+ *  it on their end; Evolution channels are unofficial WhatsApp Web
+ *  sessions with no such limit, so nothing session-related may ever
+ *  show or block on one. */
+export type WhatsAppChannelType = 'cloud_api' | 'evolution';
+
 /** Active whatsapp_channels row, as returned by GET /api/whatsapp/channels —
  *  drives the inbox's per-conversation channel picker. */
 export interface WhatsAppChannelOption {
@@ -208,6 +219,7 @@ export interface WhatsAppChannelOption {
   name: string;
   display_phone_number: string | null;
   is_default: boolean;
+  channel_type: WhatsAppChannelType;
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';
