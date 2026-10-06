@@ -207,8 +207,7 @@
       "unassignSelected": "Remove assignment",
       "noMembersAvailable": "No members available",
       "allChannels": "All channels",
-      "previousPage": "Previous",
-      "pageOf": "Page {page} of {total}"
+      "selectAllLoaded": "Select all loaded"
     },
     "filters": {
       "filters": "Filters",
@@ -485,6 +484,48 @@
         "success": "Ticket transferred",
         "failed": "Failed to transfer ticket"
       }
+    },
+    "bulk": {
+      "transfer": "Transfer",
+      "allSelected": "{count, plural, one {1 conversation selected} other {# conversations selected}}",
+      "selectAllMatching": "Select all {count, plural, one {1 conversation} other {# conversations}} in this filter",
+      "configureTitle": {
+        "transfer": "Transfer conversations",
+        "close": "Close conversations"
+      },
+      "actionLabel": {
+        "mark_read": "mark as read",
+        "mark_unread": "mark as unread",
+        "assign": "assign",
+        "transfer": "transfer",
+        "return_to_queue": "return to queue",
+        "close": "close"
+      },
+      "agentLabel": "Agent",
+      "agentPlaceholder": "Select an agent",
+      "me": "me",
+      "toAgent": "Agent",
+      "toDepartment": "Department",
+      "departmentLabel": "Department",
+      "departmentPlaceholder": "Select a department",
+      "departmentUnassignsHint": "Transferring to a department clears the current agent — the ticket goes back to the queue (pending) until someone claims it.",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Select a reason",
+      "noteLabel": "Note (optional)",
+      "notePlaceholder": "Details about the closing...",
+      "cancel": "Cancel",
+      "next": "Next",
+      "confirm": "Confirm",
+      "confirmTitle": "Confirm bulk action",
+      "confirmDescription": "Are you sure you want to {action} {count, plural, one {1 conversation} other {# conversations}}?",
+      "runningTitle": "Processing...",
+      "runningProgress": "{processed} of {total} processed",
+      "summaryTitle": "Done",
+      "summarySucceeded": "{count, plural, one {1 conversation succeeded} other {# conversations succeeded}}",
+      "summarySkipped": "{count, plural, one {1 skipped — no attendance} other {# skipped — no attendance}}",
+      "summaryFailed": "{count, plural, one {1 failed} other {# failed}}",
+      "done": "Done",
+      "unknownError": "Unknown error"
     }
   },
   "contacts": {

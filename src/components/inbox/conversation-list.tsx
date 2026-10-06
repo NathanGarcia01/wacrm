@@ -5,22 +5,28 @@ import { useTranslations, useLocale } from "next-intl";
 import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePaginatedInboxList } from "@/hooks/use-paginated-inbox-list";
+import { useInboxTabCounts } from "@/hooks/use-inbox-tab-counts";
+import { resolveAllTabConversationIds } from "@/lib/inbox/resolve-tab-conversation-ids";
+import type { BulkAction } from "@/lib/inbox/bulk-action-client";
 import { cn } from "@/lib/utils";
 import type {
   Contact,
   Conversation,
   ConversationStatus,
   Profile,
-  Ticket,
   WhatsAppChannelOption,
 } from "@/types";
 import {
   Search,
   ChevronDown,
+  CheckSquare,
+  Square,
   X,
   Mail,
   MailOpen,
   Archive,
+  ArrowRightLeft,
   UserPlus,
   Smartphone,
 } from "lucide-react";
@@ -39,14 +45,8 @@ import {
   EMPTY_CONVERSATION_FILTERS,
   type ConversationFiltersState,
 } from "./conversation-filters";
-import { TicketStatusTabs, type TicketTab, type TicketTabCounts } from "./ticket-status-tabs";
-
-/** Page size for the paginated "Fechados" tab — see the dedicated
- *  fetch effect below. Kept small: closed tickets accumulate
- *  indefinitely (the Etapa 5 backfill alone seeded 1000+ in one
- *  account), so unlike every other tab this one can never be "just
- *  fetch everything and filter client-side". */
-const CLOSED_PAGE_SIZE = 25;
+import { TicketStatusTabs, type TicketTab } from "./ticket-status-tabs";
+import { BulkActionDialog } from "./bulk-action-dialog";
 
 /** Extra joins fetched only for client-side filtering — not part of the
  *  shared `Contact` type since nothing outside this filter logic needs them. */
@@ -67,6 +67,14 @@ interface ConversationListProps {
    * or the tab was throttled. Optional so existing callers keep working.
    */
   resyncToken?: number;
+  /** Bumped (debounced ~400ms) by the page on every realtime
+   *  message/conversation/ticket event — feeds the four ticket
+   *  tabs' pagination + counts (see usePaginatedInboxList's doc
+   *  comment) so a new message or a ticket status change shows up
+   *  without a manual reload. The legacy (non-ticket) list doesn't
+   *  need this: it already live-patches via the `conversations`
+   *  prop, which inbox/page.tsx's realtime handlers update directly. */
+  inboxActivityToken?: number;
 }
 
 const STATUS_COLORS: Record<ConversationStatus, string> = {
@@ -95,9 +103,11 @@ export function ConversationList({
   conversations,
   onConversationsLoaded,
   resyncToken = 0,
+  inboxActivityToken = 0,
 }: ConversationListProps) {
   const t = useTranslations("inbox.list");
-  const { ticketsUiEnabled, user, profileLoading } = useAuth();
+  const tBulk = useTranslations("inbox.bulk");
+  const { ticketsUiEnabled, user, accountId, profileLoading } = useAuth();
   const [search, setSearch] = useState("");
   // Default to "open" for the legacy (non-tickets) dropdown; "Ativos"
   // (in_progress) for the ticket tabs. `profileLoading` is what
@@ -159,8 +169,6 @@ export function ConversationList({
   // component doesn't need its own copy of the list to stay in sync.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [bulkActing, setBulkActing] = useState(false);
-  const selectionActive = selectedIds.size > 0;
 
   // Account members for the bulk "assign" action. RLS scopes this to
   // the caller's own account, same as the assign dropdown in
@@ -202,6 +210,12 @@ export function ConversationList({
   // the fetch runs once on mount so it's fine to read the slightly
   // older value — the very next render updates the ref for any
   // subsequent async completion.
+  // Bumped after a bulk action completes on the legacy (non-ticket)
+  // path to force the fetch effect below to refire — it has no
+  // RPC-backed `refresh()` of its own to call instead (see
+  // handleBulkDone further down).
+  const [legacyReloadToken, setLegacyReloadToken] = useState(0);
+
   const onConversationsLoadedRef = useRef(onConversationsLoaded);
   useEffect(() => {
     onConversationsLoadedRef.current = onConversationsLoaded;
@@ -240,41 +254,19 @@ export function ConversationList({
         return;
       }
 
-      let loaded = (data ?? []) as Conversation[];
-
-      // Fase 1 (atendimento) Etapa 6 — join each conversation's most
-      // recent ticket. A second query rather than an embedded
-      // `tickets(*)` select: conversation→tickets is 1-to-many (every
-      // past attendance cycle is its own row), and PostgREST has no
-      // "latest only" embed — so this fetches all of them and keeps
-      // just the newest per conversation_id (`order` puts it first).
-      // Skipped entirely for accounts without the flag; after this
-      // initial join, the page's realtime handler keeps `.ticket`
-      // fresh (same pattern as the `contact` join + hydrateConversation).
-      if (ticketsUiEnabled && loaded.length > 0) {
-        const { data: ticketRows, error: ticketsError } = await supabase
-          .from("tickets")
-          .select("*")
-          .in("conversation_id", loaded.map((c) => c.id))
-          .order("opened_at", { ascending: false });
-        if (cancelled) return;
-        if (ticketsError) {
-          console.error("Failed to fetch tickets for conversation list:", ticketsError);
-        } else {
-          const latestByConversation = new Map<string, Ticket>();
-          for (const row of (ticketRows as Ticket[] | null) ?? []) {
-            if (!latestByConversation.has(row.conversation_id)) {
-              latestByConversation.set(row.conversation_id, row);
-            }
-          }
-          loaded = loaded.map((c) => ({
-            ...c,
-            ticket: latestByConversation.get(c.id) ?? null,
-          }));
-        }
-      }
-
-      onConversationsLoadedRef.current(loaded);
+      // No ticket join here anymore — the four ticket tabs render
+      // from usePaginatedInboxList (migration 075's RPC), not from
+      // this array. This fetch still has to run for every account
+      // (ticketsUiEnabled or not): `conversations` is what
+      // inbox/page.tsx uses to resolve `?c=<id>` deep links and as
+      // the patch target for realtime conversation/message events —
+      // the active-thread plumbing, independent of what the list
+      // displays. Known limitation carried over unchanged: still
+      // capped at PostgREST's default 1000 rows, so a deep link to a
+      // conversation outside the 1000 most-recently-active ones won't
+      // auto-select — same as before this fix, not something the
+      // approved plan asked to resolve today.
+      onConversationsLoadedRef.current((data ?? []) as Conversation[]);
       setLoading(false);
     })();
 
@@ -284,39 +276,26 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-    // `profileLoading`/`ticketsUiEnabled` are included so the single
-    // fetch above waits for (and then reflects) the resolved flag —
-    // see the guard at the top of this effect.
-  }, [resyncToken, profileLoading, ticketsUiEnabled]);
+    // `profileLoading` is included so this waits for ticketsUiEnabled
+    // to resolve before the legacy `filtered` memo below ever runs —
+    // same reasoning as before, now only gating the legacy path.
+    // `legacyReloadToken` is bumped after a bulk action completes on
+    // the legacy (non-ticket) path, which has no RPC-backed `refresh()`
+    // of its own to call instead.
+  }, [resyncToken, profileLoading, legacyReloadToken]);
 
+  // Legacy (non-ticket) path only — when ticketsUiEnabled, the list
+  // renders from usePaginatedInboxList instead (server-side filtered
+  // and paginated; see migration 075). This memo and the fetch
+  // feeding it stay exactly as they were for accounts still on the
+  // pre-tickets inbox.
   const filtered = useMemo(() => {
     let result = conversations;
 
     if (filter === "unread") {
       result = result.filter((c) => c.unread_count > 0);
-    } else if (ticketsUiEnabled && filter === "pending") {
-      result = result.filter((c) => c.ticket?.status === "pending");
-    } else if (ticketsUiEnabled && filter === "in_progress") {
-      result = result.filter((c) => c.ticket?.status === "in_progress");
-    } else if (ticketsUiEnabled && filter === "no_ticket") {
-      result = result.filter((c) => !c.ticket);
-    } else if (ticketsUiEnabled && filter === "closed") {
-      // Unused in practice — the "Fechados" tab renders from the
-      // dedicated paginated query below instead of this memo (closed
-      // tickets accumulate indefinitely; "fetch everything, filter
-      // client-side" doesn't scale for that one tab). Kept correct
-      // anyway rather than silently wrong if something ever reads it.
-      result = result.filter((c) => c.ticket?.status === "closed");
-    } else if (filter !== "all") {
+    } else if (filter !== "all" && !ticketsUiEnabled) {
       result = result.filter((c) => c.status === filter);
-    }
-
-    if (ticketsUiEnabled && unreadOnly) {
-      result = result.filter((c) => c.unread_count > 0);
-    }
-
-    if (ticketsUiEnabled && onlyMine) {
-      result = result.filter((c) => c.ticket?.assigned_agent_id === user?.id);
     }
 
     if (search.trim()) {
@@ -382,132 +361,34 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, advancedFilters, channelFilter, ticketsUiEnabled, unreadOnly, onlyMine, user?.id]);
+  }, [conversations, filter, search, advancedFilters, channelFilter, ticketsUiEnabled]);
 
-  // "Fechados" — paginated separately from everything else above.
-  // Closed tickets accumulate forever (the Etapa 5 backfill alone
-  // seeded 1000+ in one account); loading them into the same
-  // fetch-everything-then-filter-client-side flow every other tab
-  // uses would mean pulling the account's entire closed history on
-  // every inbox load. Ordered by closed_at desc (approved plan).
-  //
-  // Known limitation: unlike every other tab, this one does NOT
-  // live-update when a ticket closes while you're looking at it —
-  // only `resyncToken` (WS reconnect / tab refocus) and explicit page
-  // changes refetch it. Pagination and "always instantly live" are
-  // in tension; the explicit ask here was pagination.
-  const [closedPage, setClosedPage] = useState(0);
-  const [closedTickets, setClosedTickets] = useState<(Ticket & { conversation: Conversation })[]>([]);
-  const [closedTotal, setClosedTotal] = useState<number | null>(null);
-  const [closedLoading, setClosedLoading] = useState(false);
-
-  useEffect(() => {
-    if (!ticketsUiEnabled) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClosedPage(0);
-  }, [ticketsUiEnabled, onlyMine, unreadOnly]);
-
-  useEffect(() => {
-    if (!ticketsUiEnabled || filter !== "closed") return;
-    const supabase = createClient();
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClosedLoading(true);
-
-    (async () => {
-      const from = closedPage * CLOSED_PAGE_SIZE;
-      const to = from + CLOSED_PAGE_SIZE - 1;
-      let query = supabase
-        .from("tickets")
-        .select(
-          "*, conversation:conversations(*, contact:contacts(*), channel:whatsapp_channels(name, display_phone_number, channel_type))",
-          { count: "exact" },
-        )
-        .eq("status", "closed")
-        .order("closed_at", { ascending: false })
-        .range(from, to);
-      if (onlyMine && user?.id) {
-        query = query.eq("assigned_agent_id", user.id);
-      }
-      const { data, count, error } = await query;
-      if (cancelled) return;
-      if (error) {
-        console.error("Failed to fetch closed tickets:", error);
-        setClosedLoading(false);
-        return;
-      }
-      setClosedTickets((data ?? []) as unknown as (Ticket & { conversation: Conversation })[]);
-      setClosedTotal(count ?? 0);
-      setClosedLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [ticketsUiEnabled, filter, closedPage, onlyMine, user?.id, resyncToken]);
-
-  // Count-only companion so the "Fechados" tab badge has a number
-  // before the agent ever clicks into it — the effect above only
-  // fetches while `filter === "closed"`. `head: true` keeps this
-  // cheap (no rows returned, just the count).
-  useEffect(() => {
-    if (!ticketsUiEnabled || filter === "closed") return;
-    const supabase = createClient();
-    let cancelled = false;
-    (async () => {
-      let query = supabase
-        .from("tickets")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "closed");
-      if (onlyMine && user?.id) {
-        query = query.eq("assigned_agent_id", user.id);
-      }
-      const { count, error } = await query;
-      if (cancelled || error) return;
-      setClosedTotal(count ?? 0);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [ticketsUiEnabled, filter, onlyMine, user?.id, resyncToken]);
-
-  // Client-side search over just the current page — searching the
-  // account's entire closed history server-side is a reasonable
-  // future improvement, not attempted here (see the pagination
-  // comment above for why "fetch everything" isn't an option).
-  const filteredClosedTickets = useMemo(() => {
-    let result = closedTickets;
-    if (unreadOnly) {
-      result = result.filter((t) => (t.conversation?.unread_count ?? 0) > 0);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter((t) => {
-        const name = t.conversation?.contact?.name?.toLowerCase() ?? "";
-        const phone = t.conversation?.contact?.phone?.toLowerCase() ?? "";
-        return name.includes(q) || phone.includes(q);
-      });
-    }
-    return result;
-  }, [closedTickets, search, unreadOnly]);
-
-  const closedTotalPages = closedTotal != null ? Math.max(1, Math.ceil(closedTotal / CLOSED_PAGE_SIZE)) : 1;
-
-  // Tab badge counts — derived from the same `conversations` array
-  // already in memory, no extra query (mirrors `filtered` itself).
-  // Excludes "closed", which can't be counted this way (see the
-  // pagination comment above) — that one comes from `closedTotal`.
-  const ticketCounts = useMemo<TicketTabCounts>(() => {
-    let pending = 0;
-    let inProgress = 0;
-    let noTicket = 0;
-    for (const c of conversations) {
-      if (!c.ticket) noTicket++;
-      else if (c.ticket.status === "pending") pending++;
-      else if (c.ticket.status === "in_progress") inProgress++;
-    }
-    return { pending, in_progress: inProgress, no_ticket: noTicket, closed: closedTotal };
-  }, [conversations, closedTotal]);
+  // Fase 1 (atendimento) — the four ticket tabs, server-paginated via
+  // migration 075's RPCs (see the hooks' own doc comments for why:
+  // the old "fetch everything, filter in memory" model silently
+  // capped at PostgREST's default 1000-row limit — that's what the
+  // "Sem atendimento" counter stuck at 1000 was).
+  const paginatedList = usePaginatedInboxList({
+    enabled: ticketsUiEnabled,
+    accountId,
+    tab: filter as TicketTab,
+    userId: user?.id,
+    onlyMine,
+    unreadOnly,
+    channelId: channelFilter,
+    search,
+    resyncToken,
+    activityToken: inboxActivityToken,
+  });
+  const inboxCounts = useInboxTabCounts({
+    enabled: ticketsUiEnabled,
+    accountId,
+    userId: user?.id,
+    onlyMine,
+    unreadOnly,
+    resyncToken,
+    activityToken: inboxActivityToken,
+  });
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -532,45 +413,87 @@ export function ConversationList({
     });
   }, []);
 
-  const handleCancelSelection = useCallback(() => {
-    setSelectedIds(new Set());
+  // "Selecionar todos" — two modes. "page": every conversation
+  // currently loaded (this page/batch of the active tab) — a
+  // concrete id set, same as checking every box by hand. "allMatching":
+  // every conversation matching the active tab + filters, including
+  // whatever hasn't loaded yet — resolved server-side only once the
+  // bulk action actually runs (see getTargetIds below), never as an
+  // upfront id list in state. Only offered for the four ticket tabs,
+  // which is what migration 075's RPC can resolve; the legacy
+  // (non-ticket) tabs keep "select everything currently loaded" as
+  // their ceiling, same as before this fix.
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
+  const selectionActive = selectedIds.size > 0 || selectAllMatching;
+
+  const currentLoadedIds = useMemo(
+    () => (ticketsUiEnabled ? paginatedList.items.map((c) => c.id) : filtered.map((c) => c.id)),
+    [ticketsUiEnabled, paginatedList.items, filtered],
+  );
+  const allLoadedSelected =
+    currentLoadedIds.length > 0 && currentLoadedIds.every((id) => selectedIds.has(id));
+  const totalForActiveTab = ticketsUiEnabled
+    ? inboxCounts.counts[filter as TicketTab]
+    : filtered.length;
+
+  const handleToggleSelectAllLoaded = useCallback(() => {
+    setSelectAllMatching(false);
+    setSelectedIds((prev) => {
+      if (currentLoadedIds.length > 0 && currentLoadedIds.every((id) => prev.has(id))) {
+        return new Set();
+      }
+      return new Set(currentLoadedIds);
+    });
+  }, [currentLoadedIds]);
+
+  const handleSelectAllMatching = useCallback(() => {
+    setSelectAllMatching(true);
   }, []);
 
-  const runBulkUpdate = useCallback(
-    async (patch: Record<string, unknown>) => {
-      if (selectedIds.size === 0) return;
-      setBulkActing(true);
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("conversations")
-        .update(patch)
-        .in("id", Array.from(selectedIds));
-      setBulkActing(false);
-      if (error) {
-        console.error("Bulk conversation update failed:", error);
-        return;
-      }
-      setSelectedIds(new Set());
+  const handleCancelSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
+  }, []);
+
+  // Bulk action dialog — one flow for every action, both inboxes.
+  // See bulk-action-dialog.tsx's doc comment.
+  const [bulkDialog, setBulkDialog] = useState<{
+    action: BulkAction;
+    presetPayload?: Record<string, unknown>;
+  } | null>(null);
+
+  const openBulkAction = useCallback(
+    (action: BulkAction, presetPayload?: Record<string, unknown>) => {
+      setBulkDialog({ action, presetPayload });
     },
-    [selectedIds]
+    [],
   );
 
-  const handleMarkSelectedRead = useCallback(
-    () => runBulkUpdate({ unread_count: 0 }),
-    [runBulkUpdate]
-  );
-  const handleMarkSelectedUnread = useCallback(
-    () => runBulkUpdate({ unread_count: 1 }),
-    [runBulkUpdate]
-  );
-  const handleCloseSelected = useCallback(
-    () => runBulkUpdate({ status: "closed" satisfies ConversationStatus }),
-    [runBulkUpdate]
-  );
-  const handleAssignSelected = useCallback(
-    (agentId: string | null) => runBulkUpdate({ assigned_agent_id: agentId }),
-    [runBulkUpdate]
-  );
+  const getBulkTargetIds = useCallback(async (): Promise<string[]> => {
+    if (selectAllMatching && ticketsUiEnabled && accountId) {
+      return resolveAllTabConversationIds({
+        accountId,
+        tab: filter as TicketTab,
+        userId: user?.id,
+        onlyMine,
+        unreadOnly,
+        channelId: channelFilter,
+        search,
+      });
+    }
+    return Array.from(selectedIds);
+  }, [selectAllMatching, ticketsUiEnabled, accountId, filter, user?.id, onlyMine, unreadOnly, channelFilter, search, selectedIds]);
+
+  const handleBulkDone = useCallback(() => {
+    setSelectedIds(new Set());
+    setSelectAllMatching(false);
+    inboxCounts.refresh();
+    if (ticketsUiEnabled) {
+      paginatedList.refresh();
+    } else {
+      setLegacyReloadToken((n) => n + 1);
+    }
+  }, [ticketsUiEnabled, inboxCounts, paginatedList]);
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
   const activeFilterLabel = activeFilter ? t(activeFilter.labelKey) : t("all");
@@ -585,85 +508,124 @@ export function ConversationList({
     <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
       {/* Search + Filter, or the bulk-action bar while conversations are selected. */}
       {selectionActive ? (
-        <div className="flex items-center justify-between gap-2 border-b border-border p-3">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCancelSelection}
-              aria-label={t("cancelSelection")}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <span className="truncate text-xs font-medium text-foreground">
-              {t("selectedCount", { count: selectedIds.size })}
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={handleMarkSelectedRead}
-              disabled={bulkActing}
-              aria-label={t("markSelectedRead")}
-              title={t("markSelectedRead")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-            >
-              <MailOpen className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleMarkSelectedUnread}
-              disabled={bulkActing}
-              aria-label={t("markSelectedUnread")}
-              title={t("markSelectedUnread")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-            >
-              <Mail className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleCloseSelected}
-              disabled={bulkActing}
-              aria-label={t("closeSelected")}
-              title={t("closeSelected")}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
-            >
-              <Archive className="h-3.5 w-3.5" />
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                disabled={bulkActing}
-                aria-label={t("assignSelected")}
-                title={t("assignSelected")}
+        <div className="space-y-2 border-b border-border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCancelSelection}
+                aria-label={t("cancelSelection")}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleToggleSelectAllLoaded}
+                aria-label={t("selectAllLoaded")}
+                title={t("selectAllLoaded")}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                {allLoadedSelected || selectAllMatching ? (
+                  <CheckSquare className="h-4 w-4" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
+              </button>
+              <span className="truncate text-xs font-medium text-foreground">
+                {selectAllMatching
+                  ? tBulk("allSelected", { count: totalForActiveTab })
+                  : t("selectedCount", { count: selectedIds.size })}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => openBulkAction("mark_read")}
+                disabled={bulkDialog !== null}
+                aria-label={t("markSelectedRead")}
+                title={t("markSelectedRead")}
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
               >
-                <UserPlus className="h-3.5 w-3.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="border-border bg-popover">
-                {profiles.length === 0 ? (
-                  <DropdownMenuItem disabled className="text-sm text-muted-foreground">
-                    {t("noMembersAvailable")}
-                  </DropdownMenuItem>
-                ) : (
-                  profiles.map((p) => (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => handleAssignSelected(p.user_id)}
-                      className="text-sm text-popover-foreground"
-                    >
-                      {p.full_name || p.email}
-                    </DropdownMenuItem>
-                  ))
-                )}
-                <DropdownMenuItem
-                  onClick={() => handleAssignSelected(null)}
-                  className="text-sm text-muted-foreground"
+                <MailOpen className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => openBulkAction("mark_unread")}
+                disabled={bulkDialog !== null}
+                aria-label={t("markSelectedUnread")}
+                title={t("markSelectedUnread")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <Mail className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => openBulkAction("close")}
+                disabled={bulkDialog !== null}
+                aria-label={t("closeSelected")}
+                title={t("closeSelected")}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <Archive className="h-3.5 w-3.5" />
+              </button>
+              {ticketsUiEnabled && (
+                <button
+                  type="button"
+                  onClick={() => openBulkAction("transfer")}
+                  disabled={bulkDialog !== null}
+                  aria-label={tBulk("transfer")}
+                  title={tBulk("transfer")}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                 >
-                  {t("unassignSelected")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  disabled={bulkDialog !== null}
+                  aria-label={t("assignSelected")}
+                  title={t("assignSelected")}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="border-border bg-popover">
+                  {profiles.length === 0 ? (
+                    <DropdownMenuItem disabled className="text-sm text-muted-foreground">
+                      {t("noMembersAvailable")}
+                    </DropdownMenuItem>
+                  ) : (
+                    profiles.map((p) => (
+                      <DropdownMenuItem
+                        key={p.id}
+                        onClick={() => openBulkAction("assign", { agentId: p.user_id })}
+                        className="text-sm text-popover-foreground"
+                      >
+                        {p.full_name || p.email}
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                  <DropdownMenuItem
+                    onClick={() => openBulkAction("return_to_queue")}
+                    className="text-sm text-muted-foreground"
+                  >
+                    {t("unassignSelected")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
+
+          {ticketsUiEnabled && !selectAllMatching && totalForActiveTab > currentLoadedIds.length && (
+            <button
+              type="button"
+              onClick={handleSelectAllMatching}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {tBulk("selectAllMatching", { count: totalForActiveTab })}
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2 border-b border-border p-3">
@@ -681,7 +643,7 @@ export function ConversationList({
             <TicketStatusTabs
               value={filter as TicketTab}
               onChange={setFilter}
-              counts={ticketCounts}
+              counts={inboxCounts.counts}
               unreadOnly={unreadOnly}
               onToggleUnreadOnly={handleToggleUnreadOnly}
               onlyMine={onlyMine}
@@ -758,60 +720,53 @@ export function ConversationList({
 
       {/* Conversation Items.
           `min-h-0` is load-bearing: a flex child defaults to
-          min-height:auto, so without it this ScrollArea grows to fit
-          every conversation instead of shrinking to the remaining
-          space — the list then overflows and gets clipped by the
-          parent's overflow-hidden with no scrollbar (issue #229). */}
-      {ticketsUiEnabled && filter === "closed" ? (
-        <>
-          <ScrollArea className="min-h-0 flex-1">
-            {closedLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              </div>
-            ) : filteredClosedTickets.length === 0 ? (
-              <div className="px-4 py-12 text-center">
-                <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
-              </div>
-            ) : (
-              <div className="flex flex-col">
-                {filteredClosedTickets.map((row) => (
-                  <ConversationItem
-                    key={row.id}
-                    conversation={{ ...row.conversation, ticket: row }}
-                    isActive={row.conversation.id === activeConversationId}
-                    onSelect={handleSelect}
-                    selectionActive={selectionActive}
-                    selected={selectedIds.has(row.conversation.id)}
-                    onToggleSelect={handleToggleSelect}
-                    showChannel={multiChannel}
-                  />
-                ))}
-              </div>
-            )}
-          </ScrollArea>
-          <div className="flex items-center justify-between border-t border-border px-3 py-2 text-xs text-muted-foreground">
-            <button
-              type="button"
-              onClick={() => setClosedPage((p) => Math.max(0, p - 1))}
-              disabled={closedPage === 0 || closedLoading}
-              className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground disabled:opacity-40"
-            >
-              {t("previousPage")}
-            </button>
-            <span>
-              {t("pageOf", { page: closedPage + 1, total: closedTotalPages })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setClosedPage((p) => Math.min(closedTotalPages - 1, p + 1))}
-              disabled={closedPage + 1 >= closedTotalPages || closedLoading}
-              className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground disabled:opacity-40"
-            >
-              {t("nextPage")}
-            </button>
-          </div>
-        </>
+          min-height:auto, so without it this list grows to fit every
+          conversation instead of shrinking to the remaining space —
+          it then overflows and gets clipped by the parent's
+          overflow-hidden with no scrollbar (issue #229). */}
+      {ticketsUiEnabled ? (
+        <div
+          className="min-h-0 flex-1 overflow-y-auto"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            // "carregar mais ao rolar" — 150px from the bottom is
+            // close enough to start the next page before the user
+            // actually hits the end and sees a blank gap.
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
+              paginatedList.loadMore();
+            }
+          }}
+        >
+          {paginatedList.loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : paginatedList.items.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {paginatedList.items.map((conv) => (
+                <ConversationItem
+                  key={conv.id}
+                  conversation={conv}
+                  isActive={conv.id === activeConversationId}
+                  onSelect={handleSelect}
+                  selectionActive={selectionActive}
+                  selected={selectedIds.has(conv.id)}
+                  onToggleSelect={handleToggleSelect}
+                  showChannel={multiChannel}
+                />
+              ))}
+              {paginatedList.loadingMore && (
+                <div className="flex items-center justify-center py-4">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
           {loading ? (
@@ -839,6 +794,21 @@ export function ConversationList({
             </div>
           )}
         </ScrollArea>
+      )}
+
+      {bulkDialog && (
+        <BulkActionDialog
+          open
+          onOpenChange={(open) => !open && setBulkDialog(null)}
+          action={bulkDialog.action}
+          ticketsUiEnabled={ticketsUiEnabled}
+          targetCount={selectAllMatching ? totalForActiveTab : selectedIds.size}
+          profiles={profiles}
+          currentUserId={user?.id}
+          presetPayload={bulkDialog.presetPayload}
+          getTargetIds={getBulkTargetIds}
+          onDone={handleBulkDone}
+        />
       )}
     </div>
   );

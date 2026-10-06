@@ -207,8 +207,7 @@
       "unassignSelected": "Remover atribuição",
       "noMembersAvailable": "Nenhum membro disponível",
       "allChannels": "Todos os canais",
-      "previousPage": "Anterior",
-      "pageOf": "Página {page} de {total}"
+      "selectAllLoaded": "Selecionar todas as carregadas"
     },
     "filters": {
       "filters": "Filtros",
@@ -485,6 +484,48 @@
         "success": "Ticket transferido",
         "failed": "Falha ao transferir ticket"
       }
+    },
+    "bulk": {
+      "transfer": "Transferir",
+      "allSelected": "{count, plural, one {1 conversa selecionada} other {# conversas selecionadas}}",
+      "selectAllMatching": "Selecionar todas as {count, plural, one {1 conversa} other {# conversas}} deste filtro",
+      "configureTitle": {
+        "transfer": "Transferir conversas",
+        "close": "Fechar conversas"
+      },
+      "actionLabel": {
+        "mark_read": "marcar como lidas",
+        "mark_unread": "marcar como não lidas",
+        "assign": "atribuir",
+        "transfer": "transferir",
+        "return_to_queue": "devolver à fila",
+        "close": "fechar"
+      },
+      "agentLabel": "Agente",
+      "agentPlaceholder": "Selecione um agente",
+      "me": "eu",
+      "toAgent": "Agente",
+      "toDepartment": "Departamento",
+      "departmentLabel": "Departamento",
+      "departmentPlaceholder": "Selecione um departamento",
+      "departmentUnassignsHint": "Transferir para um departamento remove o agente atual — o ticket volta para a fila (pendente) até alguém assumir.",
+      "reasonLabel": "Motivo",
+      "reasonPlaceholder": "Selecione um motivo",
+      "noteLabel": "Observação (opcional)",
+      "notePlaceholder": "Detalhes sobre o fechamento...",
+      "cancel": "Cancelar",
+      "next": "Avançar",
+      "confirm": "Confirmar",
+      "confirmTitle": "Confirmar ação em massa",
+      "confirmDescription": "Tem certeza que quer {action} {count, plural, one {1 conversa} other {# conversas}}?",
+      "runningTitle": "Processando...",
+      "runningProgress": "{processed} de {total} processadas",
+      "summaryTitle": "Concluído",
+      "summarySucceeded": "{count, plural, one {1 conversa processada com sucesso} other {# conversas processadas com sucesso}}",
+      "summarySkipped": "{count, plural, one {1 ignorada — sem atendimento} other {# ignoradas — sem atendimento}}",
+      "summaryFailed": "{count, plural, one {1 falhou} other {# falharam}}",
+      "done": "Concluir",
+      "unknownError": "Erro desconhecido"
     }
   },
   "contacts": {

@@ -215,12 +215,39 @@ export default function InboxPage() {
     checkConnection();
   }, []);
 
+  // Fase 1 (atendimento) — tells ConversationList's ticket-tab
+  // pagination + counts (usePaginatedInboxList / useInboxTabCounts)
+  // that *something* relevant to the inbox just happened, so a new
+  // message can bump a conversation to the top of its tab and a
+  // ticket crossing into/out of the active tab shows up without a
+  // manual reload. Debounced (not a bump per event) because a burst
+  // — e.g. a 200-conversation bulk action — would otherwise fire a
+  // refetch per row; one coalesced state update per ~400ms window is
+  // what actually reaches ConversationList.
+  const [inboxActivityToken, setInboxActivityToken] = useState(0);
+  const inboxActivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bumpInboxActivity = useCallback(() => {
+    if (inboxActivityTimerRef.current) return;
+    inboxActivityTimerRef.current = setTimeout(() => {
+      inboxActivityTimerRef.current = null;
+      setInboxActivityToken((n) => n + 1);
+    }, 400);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (inboxActivityTimerRef.current) clearTimeout(inboxActivityTimerRef.current);
+    };
+  }, []);
+
   // Handle realtime message events
   const handleMessageEvent = useCallback(
     (event: { eventType: string; new: Message; old: Partial<Message> }) => {
       const newMsg = event.new;
 
       if (event.eventType === "INSERT") {
+        // Not on UPDATE (delivery/read ticks) — too frequent to be
+        // worth a tab refetch, and doesn't change ordering/membership.
+        bumpInboxActivity();
         // Add to messages if it belongs to active conversation
         if (
           activeConversation &&
@@ -275,7 +302,7 @@ export default function InboxPage() {
         );
       }
     },
-    [activeConversation, hydrateConversation]
+    [activeConversation, hydrateConversation, bumpInboxActivity]
   );
 
   // Handle realtime conversation events
@@ -286,6 +313,7 @@ export default function InboxPage() {
       old: Partial<Conversation>;
     }) => {
       const conv = event.new;
+      bumpInboxActivity();
 
       if (event.eventType === "INSERT") {
         // Prepend immediately for snappy UX so the new conv shows in the
@@ -336,7 +364,7 @@ export default function InboxPage() {
         }
       }
     },
-    [activeConversation, hydrateConversation]
+    [activeConversation, hydrateConversation, bumpInboxActivity]
   );
 
   // Fase 1 (atendimento) Etapa 6 — patch conversation.ticket on any
@@ -353,6 +381,7 @@ export default function InboxPage() {
     (event: { eventType: string; new: Ticket; old: Partial<Ticket> }) => {
       if (event.eventType === "DELETE") return;
       const ticket = event.new;
+      bumpInboxActivity();
       setConversations((prev) =>
         prev.map((c) => (c.id === ticket.conversation_id ? { ...c, ticket } : c)),
       );
@@ -360,7 +389,7 @@ export default function InboxPage() {
         prev && prev.id === ticket.conversation_id ? { ...prev, ticket } : prev,
       );
     },
-    [],
+    [bumpInboxActivity],
   );
 
   // Subscribe to realtime. The `isConnected` flag below feeds the
@@ -661,6 +690,7 @@ export default function InboxPage() {
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
             resyncToken={resyncToken}
+            inboxActivityToken={inboxActivityToken}
           />
         </div>
 

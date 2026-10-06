@@ -9,9 +9,7 @@ export type TicketTab = "pending" | "in_progress" | "closed" | "no_ticket";
 export interface TicketTabCounts {
   pending: number;
   in_progress: number;
-  /** null while the (lazy, count-only) closed-tickets count hasn't
-   *  resolved yet — renders without a badge rather than "0". */
-  closed: number | null;
+  closed: number;
   no_ticket: number;
 }
 
