@@ -2337,6 +2337,27 @@
         "addFailed": "Failed to add holiday",
         "deleteFailed": "Failed to delete holiday",
         "adminOnlyHint": "Only account admins can edit holidays."
+      },
+      "slaGoals": {
+        "title": "SLA goals",
+        "description": "First-response and resolution goals for the SLA dashboard. Leave a field empty to disable that goal.",
+        "firstResponse": {
+          "label": "First-response goal",
+          "hint": "Maximum time between opening and the company's first response."
+        },
+        "resolution": {
+          "label": "Resolution goal",
+          "hint": "Maximum time between opening and closing the ticket."
+        },
+        "disabledPlaceholder": "Disabled",
+        "unitMinutes": "min",
+        "unitHours": "h",
+        "businessHoursOff": "24h",
+        "businessHoursOn": "Business hours",
+        "saveButton": "Save goals",
+        "saveFailed": "Failed to save SLA goals",
+        "saved": "SLA goals updated",
+        "adminOnlyHint": "Only account admins can edit SLA goals."
       }
     }
   },
@@ -2644,6 +2665,45 @@
       "empty": "No closed tickets in the selected period.",
       "noReason": "No reason",
       "seriesCount": "Tickets"
+    },
+    "slaTab": {
+      "loadFailed": "Could not load the SLA dashboard.",
+      "goalFirstResponse": "first response",
+      "goalResolution": "resolution",
+      "goalsNotConfigured": "{goals} goal not configured.",
+      "goalsNotConfiguredLink": "Configure in Settings → Attendance",
+      "firstResponsePct": "% within goal — 1st response",
+      "firstResponsePctTooltip": "Of tickets already judged (responded, or still unresponded past the deadline), % that got a first response within the configured goal.",
+      "resolutionPct": "% within goal — Resolution",
+      "resolutionPctTooltip": "Of tickets already judged (closed, or still open past the deadline), % that closed within the configured resolution goal.",
+      "firstResponseViolations": "First-response violations",
+      "firstResponseViolationsTooltip": "Tickets already past the first-response goal with no response yet, or that responded late — counts immediately, even while the ticket is still open.",
+      "resolutionViolations": "Resolution violations",
+      "resolutionViolationsTooltip": "Tickets still open past the resolution goal, or that closed late — counts immediately, even while the ticket is still open."
+    },
+    "slaComplianceTrendChart": {
+      "title": "Goal compliance over time",
+      "empty": "No tickets judged in the selected period.",
+      "seriesFirstResponse": "First response",
+      "seriesResolution": "Resolution"
+    },
+    "slaAgentRankingTable": {
+      "title": "SLA ranking by agent",
+      "colAgent": "Agent",
+      "colFirstResponsePct": "% 1st response",
+      "colFirstResponseViolations": "1st response violations",
+      "colResolutionPct": "% resolution",
+      "colResolutionViolations": "Resolution violations",
+      "empty": "No tickets judged in the selected period.",
+      "noAgent": "No agent",
+      "unknownAgent": "Removed agent"
+    },
+    "atRiskTicketsList": {
+      "title": "At risk now",
+      "goalNotConfigured": "First-response goal not configured — set it up in Settings → Attendance to see this list.",
+      "empty": "No tickets at risk right now.",
+      "unknownContact": "Unknown contact",
+      "breached": "Breached"
     }
   },
   "flows": {

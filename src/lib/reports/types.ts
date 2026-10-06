@@ -462,3 +462,71 @@ export interface TicketDashboardFilterOptions {
   departments: { id: string; name: string }[]
   channels: { id: string; name: string }[]
 }
+
+// ------------------------------------------------------------
+// SLA tab (get_sla_dashboard())
+// ------------------------------------------------------------
+
+/**
+ * Both SLA metrics share this shape: `total` only counts tickets
+ * that can already be JUDGED — a real first-response/closure
+ * (met or missed) OR still unresolved/open but already past the
+ * goal (an immediate violation). An unresolved ticket still inside
+ * the goal window isn't in `total` yet — see get_sla_dashboard's
+ * migration header for the full rule. `withinGoal`/`total` is the
+ * compliance % (null when total is 0); `total - withinGoal` is the
+ * violation count.
+ */
+export interface SlaMetricCounts {
+  total: number
+  withinGoal: number
+}
+
+export interface SlaDashboardCards {
+  firstResponse: SlaMetricCounts
+  resolution: SlaMetricCounts
+}
+
+/** One point per bucket (see TicketsPerDayPoint's doc — same
+ *  hour/day granularity rule), both metrics so the trend chart can
+ *  plot both lines from a single array. */
+export interface SlaDailyPoint {
+  date: string
+  firstResponse: SlaMetricCounts
+  resolution: SlaMetricCounts
+}
+
+export interface SlaAgentRankingRow {
+  /** Null → "Sem atendente" (unassigned tickets), rendered client-side. */
+  userId: string | null
+  firstResponse: SlaMetricCounts
+  resolution: SlaMetricCounts
+}
+
+/** A ticket >= 80% through its first-response goal with no response
+ *  yet — live, not period-scoped (see get_sla_dashboard's at_risk
+ *  CTE). `pctElapsed` can exceed 100 (already breached, still open). */
+export interface AtRiskTicketRow {
+  ticketId: string
+  conversationId: string
+  protocolNumber: number
+  contactName: string | null
+  departmentName: string | null
+  agentId: string | null
+  openedAt: string
+  pctElapsed: number
+}
+
+export interface SlaDashboardBundle {
+  granularity: "hour" | "day"
+  /** Null when the account hasn't set that goal — the UI shows "—"
+   *  with a link to Configurações → Atendimento, never a fake 0%. */
+  firstResponseGoalMinutes: number | null
+  firstResponseBusinessHours: boolean
+  resolutionGoalMinutes: number | null
+  resolutionBusinessHours: boolean
+  cards: SlaDashboardCards
+  daily: SlaDailyPoint[]
+  agentRanking: SlaAgentRankingRow[]
+  atRisk: AtRiskTicketRow[]
+}

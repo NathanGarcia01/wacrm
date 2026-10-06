@@ -5,6 +5,7 @@ import type {
   TicketsPerDayPoint,
 } from './types'
 import type { TicketDashboardPeriodRange } from './ticket-dashboard-period'
+import { bucketKeysForPeriod } from './bucket-fill'
 
 type DB = SupabaseClient
 
@@ -35,40 +36,6 @@ interface RpcResult {
     by_department: { department_id: string | null; name: string | null; count: number }[]
     daily: { date: string; count: number }[]
   }
-}
-
-/** YYYY-MM-DDTHH:00:00 for `epochMs` as observed in `timeZone` — must
- *  match the RPC's own `to_char(date_trunc('hour', ... at time zone
- *  v_tz), 'YYYY-MM-DD"T"HH24:00:00')` formatting exactly, or the gap-fill
- *  below silently misses every real bucket. */
-function hourKey(epochMs: number, timeZone: string): string {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-  })
-  const map: Record<string, string> = {}
-  for (const p of dtf.formatToParts(new Date(epochMs))) if (p.type !== "literal") map[p.type] = p.value
-  return `${map.year}-${map.month}-${map.day}T${map.hour}:00:00`
-}
-
-/** Inclusive list of YYYY-MM-DD keys from `fromDate` to `toDate` —
- *  string/UTC-anchored arithmetic only, deliberately independent of
- *  any timezone conversion (the RPC's day buckets are already
- *  account-tz calendar dates by the time they reach us as date keys). */
-function dayKeysBetween(fromDate: string, toDate: string): string[] {
-  const keys: string[] = []
-  const [fy, fm, fd] = fromDate.split("-").map(Number)
-  const cursor = new Date(Date.UTC(fy, fm - 1, fd))
-  const end = new Date(`${toDate}T00:00:00Z`)
-  while (cursor <= end) {
-    keys.push(cursor.toISOString().slice(0, 10))
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-  return keys
 }
 
 export async function loadTicketDashboard(
@@ -102,21 +69,9 @@ export async function loadTicketDashboard(
   // zero-ticket bucket as missing data (same convention as
   // buildMessagesPerDay in queries.ts).
   const byBucket = new Map(result.charts.daily.map((d) => [d.date, d.count]))
-  let daily: TicketsPerDayPoint[]
-  if (granularity === "hour") {
-    daily = []
-    const start = new Date(params.period.startISO).getTime()
-    const end = new Date(params.period.endISO).getTime()
-    for (let t = start; t < end; t += 3_600_000) {
-      const key = hourKey(t, params.timezone)
-      daily.push({ date: key, count: byBucket.get(key) ?? 0 })
-    }
-  } else {
-    daily = dayKeysBetween(params.period.fromDate, params.period.toDate).map((key) => ({
-      date: key,
-      count: byBucket.get(key) ?? 0,
-    }))
-  }
+  const daily: TicketsPerDayPoint[] = bucketKeysForPeriod(granularity, params.period, params.timezone).map(
+    (key) => ({ date: key, count: byBucket.get(key) ?? 0 }),
+  )
 
   return {
     businessHoursConfigured: result.filters.business_hours_configured,

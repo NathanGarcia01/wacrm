@@ -2337,6 +2337,27 @@
         "addFailed": "Falha ao adicionar feriado",
         "deleteFailed": "Falha ao excluir feriado",
         "adminOnlyHint": "Somente administradores da conta podem editar feriados."
+      },
+      "slaGoals": {
+        "title": "Metas de SLA",
+        "description": "Metas de 1ª resposta e de resolução para o Dashboard de SLA. Deixe o campo vazio para desativar uma meta.",
+        "firstResponse": {
+          "label": "Meta de 1ª resposta",
+          "hint": "Tempo máximo entre a abertura e a 1ª resposta da empresa."
+        },
+        "resolution": {
+          "label": "Meta de resolução",
+          "hint": "Tempo máximo entre a abertura e o fechamento do atendimento."
+        },
+        "disabledPlaceholder": "Desativada",
+        "unitMinutes": "min",
+        "unitHours": "h",
+        "businessHoursOff": "24h",
+        "businessHoursOn": "Horas úteis",
+        "saveButton": "Salvar metas",
+        "saveFailed": "Falha ao salvar as metas de SLA",
+        "saved": "Metas de SLA atualizadas",
+        "adminOnlyHint": "Somente administradores da conta podem editar as metas de SLA."
       }
     }
   },
@@ -2644,6 +2665,45 @@
       "empty": "Nenhum atendimento fechado no período selecionado.",
       "noReason": "Sem motivo",
       "seriesCount": "Atendimentos"
+    },
+    "slaTab": {
+      "loadFailed": "Não foi possível carregar o dashboard de SLA.",
+      "goalFirstResponse": "1ª resposta",
+      "goalResolution": "resolução",
+      "goalsNotConfigured": "Meta de {goals} não configurada.",
+      "goalsNotConfiguredLink": "Configurar em Configurações → Atendimento",
+      "firstResponsePct": "% dentro da meta — 1ª resposta",
+      "firstResponsePctTooltip": "Dos atendimentos já julgados (respondidos ou já sem resposta além do prazo), % que respondeu dentro da meta de 1ª resposta configurada.",
+      "resolutionPct": "% dentro da meta — Resolução",
+      "resolutionPctTooltip": "Dos atendimentos já julgados (fechados ou ainda abertos além do prazo), % que fechou dentro da meta de resolução configurada.",
+      "firstResponseViolations": "Violações de 1ª resposta",
+      "firstResponseViolationsTooltip": "Atendimentos que já passaram da meta de 1ª resposta sem resposta, ou que responderam fora do prazo — conta na hora, mesmo que o atendimento ainda esteja aberto.",
+      "resolutionViolations": "Violações de resolução",
+      "resolutionViolationsTooltip": "Atendimentos ainda abertos que já passaram da meta de resolução, ou que fecharam fora do prazo — conta na hora, mesmo que o atendimento ainda esteja aberto."
+    },
+    "slaComplianceTrendChart": {
+      "title": "Evolução do cumprimento da meta",
+      "empty": "Nenhum atendimento julgado no período selecionado.",
+      "seriesFirstResponse": "1ª resposta",
+      "seriesResolution": "Resolução"
+    },
+    "slaAgentRankingTable": {
+      "title": "Ranking de SLA por atendente",
+      "colAgent": "Atendente",
+      "colFirstResponsePct": "% 1ª resposta",
+      "colFirstResponseViolations": "Violações 1ª resposta",
+      "colResolutionPct": "% resolução",
+      "colResolutionViolations": "Violações resolução",
+      "empty": "Nenhum atendimento julgado no período selecionado.",
+      "noAgent": "Sem atendente",
+      "unknownAgent": "Atendente removido"
+    },
+    "atRiskTicketsList": {
+      "title": "Em risco agora",
+      "goalNotConfigured": "Meta de 1ª resposta não configurada — configure em Configurações → Atendimento para ver esta lista.",
+      "empty": "Nenhum atendimento em risco agora.",
+      "unknownContact": "Contato desconhecido",
+      "breached": "Estourado"
     }
   },
   "flows": {

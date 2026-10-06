@@ -7,6 +7,7 @@ import { DepartmentsSettings } from './departments-settings';
 import { ClosingReasonsSettings } from './closing-reasons-settings';
 import { BusinessHoursSettings } from './business-hours-settings';
 import { HolidaysSettings } from './holidays-settings';
+import { SlaGoalsSettings } from './sla-goals-settings';
 
 /**
  * Settings → Atendimento (Fase 1, Etapa 7). Groups the four
@@ -26,6 +27,7 @@ export function AttendanceSettings() {
       <DepartmentsSettings />
       <ClosingReasonsSettings />
       <BusinessHoursSettings />
+      <SlaGoalsSettings />
       <HolidaysSettings />
     </section>
   );

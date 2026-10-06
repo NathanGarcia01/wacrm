@@ -24,6 +24,7 @@ import { QualityTab } from "@/components/reports/quality-tab"
 import { NpsTab } from "@/components/reports/nps-tab"
 import { CommissionsTab } from "@/components/reports/commissions-tab"
 import { AttendanceTab } from "@/components/reports/attendance-tab"
+import { SlaTab } from "@/components/reports/sla-tab"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 type ReportTab =
@@ -35,6 +36,7 @@ type ReportTab =
   | "satisfaction"
   | "commissions"
   | "attendance"
+  | "sla"
 
 function isPeriodKey(v: string | null): v is PeriodKey {
   return v === "today" || v === "week" || v === "month" || v === "custom"
@@ -49,7 +51,8 @@ function isReportTab(v: string | null): v is ReportTab {
     v === "quality" ||
     v === "satisfaction" ||
     v === "commissions" ||
-    v === "attendance"
+    v === "attendance" ||
+    v === "sla"
   )
 }
 
@@ -75,7 +78,9 @@ function ReportsPageInner() {
   // have it falls back to the Overview landing instead of rendering a
   // tab with no matching trigger in the list above it.
   const tab: ReportTab =
-    isReportTab(tabParam) && (tabParam !== "attendance" || ticketsUiEnabled) ? tabParam : "overview"
+    isReportTab(tabParam) && ((tabParam !== "attendance" && tabParam !== "sla") || ticketsUiEnabled)
+      ? tabParam
+      : "overview"
 
   const periodParam = searchParams.get("period")
   // The Transmissões report reads better zoomed out (a single day of
@@ -163,16 +168,17 @@ function ReportsPageInner() {
             <TabsTrigger value="quality">Qualidade da conta</TabsTrigger>
             <TabsTrigger value="satisfaction">Satisfação</TabsTrigger>
             {ticketsUiEnabled && <TabsTrigger value="attendance">Atendimento</TabsTrigger>}
+            {ticketsUiEnabled && <TabsTrigger value="sla">SLA</TabsTrigger>}
           </TabsList>
         </Tabs>
       </div>
 
-      {/* The Atendimento tab owns its own period/user/department/channel
-          filter bar (different period semantics — hoje/7 dias/30 dias in
-          the account's timezone, not this generic today/week/month) —
-          showing this one too would just be a second, conflicting period
-          control. */}
-      {tab !== "attendance" && <PeriodFilter period={period} onChange={updatePeriod} />}
+      {/* Atendimento and SLA each own their own period/user/department/
+          channel filter bar (different period semantics — hoje/7 dias/
+          30 dias in the account's timezone, not this generic
+          today/week/month) — showing this one too would just be a
+          second, conflicting period control. */}
+      {tab !== "attendance" && tab !== "sla" && <PeriodFilter period={period} onChange={updatePeriod} />}
 
       {tab === "overview" && (
         <div className="space-y-5">
@@ -243,6 +249,7 @@ function ReportsPageInner() {
       {tab === "quality" && <QualityTab />}
       {tab === "satisfaction" && <NpsTab period={period} />}
       {tab === "attendance" && ticketsUiEnabled && <AttendanceTab />}
+      {tab === "sla" && ticketsUiEnabled && <SlaTab />}
     </div>
   )
 }

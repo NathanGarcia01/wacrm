@@ -35,6 +35,7 @@ export function AttendanceFilters({
   onChannelChange,
   businessHours,
   onBusinessHoursChange,
+  showBusinessHoursToggle = true,
   options,
 }: {
   period: TicketDashboardPeriodRange
@@ -45,8 +46,12 @@ export function AttendanceFilters({
   onDepartmentChange: (v: string | null) => void
   channelId: string | null
   onChannelChange: (v: string | null) => void
-  businessHours: boolean
-  onBusinessHoursChange: (v: boolean) => void
+  /** Omit along with `showBusinessHoursToggle={false}` for a tab
+   *  whose own goal config already fixes 24h/horas úteis (e.g. SLA —
+   *  there's no view-time toggle left to show there). */
+  businessHours?: boolean
+  onBusinessHoursChange?: (v: boolean) => void
+  showBusinessHoursToggle?: boolean
   options: TicketDashboardFilterOptions
 }) {
   const t = useTranslations("reports.attendanceFilters")
@@ -197,26 +202,28 @@ export function AttendanceFilters({
         </Select>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-muted-foreground">{t("hoursModeLabel")}</label>
-        <div className="flex gap-1 rounded-lg border border-border bg-muted p-1">
-          {([false, true] as const).map((mode) => (
-            <button
-              key={String(mode)}
-              type="button"
-              onClick={() => onBusinessHoursChange(mode)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                businessHours === mode
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {mode ? t("businessHoursOn") : t("businessHoursOff")}
-            </button>
-          ))}
+      {showBusinessHoursToggle && onBusinessHoursChange && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-muted-foreground">{t("hoursModeLabel")}</label>
+          <div className="flex gap-1 rounded-lg border border-border bg-muted p-1">
+            {([false, true] as const).map((mode) => (
+              <button
+                key={String(mode)}
+                type="button"
+                onClick={() => onBusinessHoursChange(mode)}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  businessHours === mode
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {mode ? t("businessHoursOn") : t("businessHoursOff")}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
