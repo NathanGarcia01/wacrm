@@ -367,7 +367,13 @@
       "editFailed": "Falha ao editar mensagem",
       "deleteFailed": "Falha ao apagar mensagem",
       "deleteMetaWarning": "Apagada aqui, mas o WhatsApp não confirmou a exclusão: {reason}",
-      "loadingTicket": "Carregando ticket..."
+      "loadingTicket": "Carregando ticket...",
+      "marketingOptOutConfirm": {
+        "title": "Contato pediu para sair dos disparos",
+        "description": "Este template é de categoria Marketing e o contato está com opt-out ativo. Enviar mesmo assim?",
+        "cancel": "Cancelar",
+        "confirm": "Enviar mesmo assim"
+      }
     },
     "tagPicker": {
       "addFailed": "Falha ao adicionar tag",
@@ -929,7 +935,8 @@
       "channelBadge": "Canal: {name}",
       "tasksComingSoon": "Tarefas ainda não implementadas.",
       "filesComingSoon": "Arquivos ainda não implementados.",
-      "eventsEmpty": "Nenhum registro ainda."
+      "eventsEmpty": "Nenhum registro ainda.",
+      "openInInbox": "Abrir na Caixa de Entrada"
     }
   },
   "automations": {

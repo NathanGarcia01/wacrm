@@ -46,6 +46,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions } from "./message-actions";
 import {
@@ -209,7 +218,7 @@ export function MessageThread({
   const intlLocale = localeToIntl(locale);
   const tReplyQuote = useTranslations("inbox.replyQuote");
   const tInboxList = useTranslations("inbox.list");
-  const { user, ticketsUiEnabled } = useAuth();
+  const { user, accountId, ticketsUiEnabled } = useAuth();
   // Fase 1 (atendimento) Etapa 6 fix — fetched directly by
   // conversation_id and kept live by its own realtime subscription,
   // deliberately NOT derived from `conversation.ticket` (the
@@ -234,6 +243,14 @@ export function MessageThread({
   // (fetch quietly) — see the effect for why this matters.
   const prevConversationIdRef = useRef<string | undefined>(undefined);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  // Fase 6 Etapa 3, decisão 6 — template de categoria Marketing pra um
+  // contato com opt-out ativo exige confirmação explícita antes de
+  // enviar (vale tanto na inbox quanto no painel de negócio, já que
+  // ambos passam por este mesmo handleSendTemplate).
+  const [pendingMarketingTemplate, setPendingMarketingTemplate] = useState<{
+    template: MessageTemplate;
+    values: { body: string[]; headerText?: string; buttonParams?: Record<number, string> };
+  } | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -828,7 +845,7 @@ export function MessageThread({
     setTemplateModalOpen(true);
   }, []);
 
-  const handleSendTemplate = useCallback(
+  const doSendTemplate = useCallback(
     async (
       template: MessageTemplate,
       values: {
@@ -898,6 +915,40 @@ export function MessageThread({
     },
     [conversation, onNewMessage, onUpdateMessage, activeChannelId],
   );
+
+  const handleSendTemplate = useCallback(
+    async (
+      template: MessageTemplate,
+      values: { body: string[]; headerText?: string; buttonParams?: Record<number, string> },
+    ) => {
+      if (!conversation || !accountId) return;
+
+      if (template.category === "Marketing" && contact?.phone) {
+        const supabase = createClient();
+        const { data: blocked } = await supabase
+          .from("blocked_phones")
+          .select("id")
+          .eq("account_id", accountId)
+          .eq("phone_normalized", contact.phone.replace(/\D/g, ""))
+          .is("unblocked_at", null)
+          .maybeSingle();
+        if (blocked) {
+          setPendingMarketingTemplate({ template, values });
+          return;
+        }
+      }
+
+      await doSendTemplate(template, values);
+    },
+    [conversation, accountId, contact?.phone, doSendTemplate],
+  );
+
+  const handleConfirmMarketingTemplate = useCallback(async () => {
+    if (!pendingMarketingTemplate) return;
+    const { template, values } = pendingMarketingTemplate;
+    setPendingMarketingTemplate(null);
+    await doSendTemplate(template, values);
+  }, [pendingMarketingTemplate, doSendTemplate]);
 
   // Build a quick id → Message map so reply quotes can be rendered without
   // an extra fetch — the thread already holds the full conversation.
@@ -1515,6 +1566,41 @@ export function MessageThread({
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
       />
+
+      <Dialog
+        open={pendingMarketingTemplate !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingMarketingTemplate(null);
+        }}
+      >
+        <DialogContent className="border-border bg-popover text-popover-foreground sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">
+              {t("marketingOptOutConfirm.title")}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t("marketingOptOutConfirm.description")}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingMarketingTemplate(null)}
+              className="border-border bg-transparent text-muted-foreground hover:bg-muted"
+            >
+              {t("marketingOptOutConfirm.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmMarketingTemplate}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {t("marketingOptOutConfirm.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

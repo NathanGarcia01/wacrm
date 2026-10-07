@@ -367,7 +367,13 @@
       "editFailed": "Failed to edit message",
       "deleteFailed": "Failed to delete message",
       "deleteMetaWarning": "Deleted here, but WhatsApp did not confirm the deletion: {reason}",
-      "loadingTicket": "Loading ticket..."
+      "loadingTicket": "Loading ticket...",
+      "marketingOptOutConfirm": {
+        "title": "Contact opted out of marketing",
+        "description": "This template is Marketing category and the contact has an active opt-out. Send anyway?",
+        "cancel": "Cancel",
+        "confirm": "Send anyway"
+      }
     },
     "tagPicker": {
       "addFailed": "Failed to add tag",
@@ -929,7 +935,8 @@
       "channelBadge": "Channel: {name}",
       "tasksComingSoon": "Tasks not implemented yet.",
       "filesComingSoon": "Files not implemented yet.",
-      "eventsEmpty": "No history yet."
+      "eventsEmpty": "No history yet.",
+      "openInInbox": "Open in Inbox"
     }
   },
   "automations": {

@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import type { Contact, Conversation, Message } from "@/types";
 import { MessageThread } from "@/components/inbox/message-thread";
+import { OptOutBanner } from "@/components/shared/opt-out-banner";
 import { Button } from "@/components/ui/button";
-import { Loader2, MessageSquarePlus, Smartphone } from "lucide-react";
+import { ExternalLink, Loader2, MessageSquarePlus, Smartphone } from "lucide-react";
 
 /**
  * Fase 6 (negócio com conversa embutida), Etapa 2 — reaproveita
@@ -135,12 +137,28 @@ export function DealConversationTab({ contact }: { contact: Contact | null }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {conversation.channel && (
-        <div className="flex shrink-0 items-center gap-1.5 border-b border-border/50 px-3 py-1.5 text-[11px] text-muted-foreground">
-          <Smartphone className="h-3 w-3" />
-          {t("channelBadge", {
-            name: conversation.channel.display_phone_number || conversation.channel.name,
-          })}
+      <div className="flex shrink-0 items-center justify-between gap-1.5 border-b border-border/50 px-3 py-1.5 text-[11px] text-muted-foreground">
+        {conversation.channel ? (
+          <span className="flex items-center gap-1.5">
+            <Smartphone className="h-3 w-3" />
+            {t("channelBadge", {
+              name: conversation.channel.display_phone_number || conversation.channel.name,
+            })}
+          </span>
+        ) : (
+          <span />
+        )}
+        <Link
+          href={`/inbox?c=${conversation.id}`}
+          className="flex items-center gap-1 text-primary hover:underline"
+        >
+          {t("openInInbox")}
+          <ExternalLink className="h-3 w-3" />
+        </Link>
+      </div>
+      {contact?.phone && (
+        <div className="shrink-0 px-3 pt-2">
+          <OptOutBanner phone={contact.phone} />
         </div>
       )}
       <div className="min-h-0 flex-1">
