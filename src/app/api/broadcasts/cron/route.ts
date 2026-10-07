@@ -17,6 +17,7 @@ import {
 } from '@/lib/broadcast-variables'
 import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
 import { computeAndSaveBroadcastCost } from '@/lib/broadcasts/meta-cost'
+import { isPhoneBlocked } from '@/lib/whatsapp/blocked-phones'
 
 // Lazy service-role client — mirrors the inline pattern used by
 // src/app/api/whatsapp/webhook/route.ts and src/lib/automations/admin-client.ts.
@@ -261,6 +262,18 @@ export async function GET(request: Request) {
     const accessToken = config.accessToken
     const configOwnerUserId = await resolveAccountOwnerUserId(admin, row.account_id)
 
+    // Fase 5, Etapa 5 — fetched once per broadcast (not per
+    // recipient): accounts.broadcast_optout_enforced gates whether
+    // blocked_phones is actually enforced on sends. Capture (writing
+    // to blocked_phones) always runs regardless of this flag; this
+    // only controls whether it changes who gets a message.
+    const { data: accountRow } = await admin
+      .from('accounts')
+      .select('broadcast_optout_enforced')
+      .eq('id', row.account_id)
+      .maybeSingle()
+    const optOutEnforced = accountRow?.broadcast_optout_enforced ?? false
+
     const { data: rawTemplateRow } = await admin
       .from('message_templates')
       .select('*')
@@ -374,6 +387,25 @@ export async function GET(request: Request) {
           batchSentDelta++
           continue
         }
+      }
+
+      // Fase 5, Etapa 5 — opt-out guard, re-checked HERE (send time)
+      // for the same reason as exclude_recent_days/deal_status_filter
+      // above: a broadcast can trickle out over many batches/days, so
+      // a recipient who passed the creation-time check (resolveAudience,
+      // src/hooks/use-broadcast-sending.ts) can still get blocked in
+      // the meantime. Only enforced when the account turned it on.
+      if (optOutEnforced && (await isPhoneBlocked(admin, row.account_id, rawPhone))) {
+        await admin
+          .from('broadcast_recipients')
+          .update({
+            status: 'skipped',
+            error_message: 'Excluded — phone opted out of marketing (blocked_phones)',
+          })
+          .eq('id', recipient.id)
+        messagesSkipped++
+        batchSentDelta++
+        continue
       }
 
       await sleep(randomDelayMs(row.message_delay_min_seconds, row.message_delay_max_seconds))

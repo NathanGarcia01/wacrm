@@ -36,6 +36,7 @@ import {
   Trash2,
   Pause,
   Play,
+  Ban,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -448,6 +449,16 @@ export default function BroadcastDetailPage() {
 
   const status = getBroadcastStatus(broadcast.status);
 
+  // Fase 5, Etapa 5 — recipients skipped specifically for the
+  // marketing opt-out (blocked_phones), distinguished from the other
+  // two skip reasons (exclude_recent_days, deal_status_filter) by the
+  // exact error_message the cron writes
+  // (src/app/api/broadcasts/cron/route.ts). Derived client-side from
+  // the already-fetched `recipients` — no extra query needed.
+  const optOutSkippedCount = recipients.filter(
+    (r) => r.status === 'skipped' && r.error_message?.startsWith('Excluded — phone opted out'),
+  ).length;
+
   const funnelSteps: FunnelStep[] = [
     { label: t('funnelSent'), value: broadcast.sent_count, color: 'bg-primary' },
     { label: t('funnelDelivered'), value: broadcast.delivered_count, color: 'bg-primary' },
@@ -564,8 +575,8 @@ export default function BroadcastDetailPage() {
         <BatchProgress broadcast={broadcast} />
       )}
 
-      {/* Stats — 6 cards: Total / Sent / Delivered / Read / Replied / Failed */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      {/* Stats — 7 cards: Total / Sent / Delivered / Read / Replied / Failed / Opt-out skipped */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <StatCard
           label={t('statTotalRecipients')}
           value={broadcast.total_recipients}
@@ -607,6 +618,13 @@ export default function BroadcastDetailPage() {
           total={broadcast.total_recipients}
           icon={<AlertCircle className="h-4 w-4" />}
           color="bg-destructive/10 text-destructive"
+        />
+        <StatCard
+          label={t('statOptOutSkipped')}
+          value={optOutSkippedCount}
+          total={broadcast.total_recipients}
+          icon={<Ban className="h-4 w-4" />}
+          color="bg-muted text-muted-foreground"
         />
       </div>
 

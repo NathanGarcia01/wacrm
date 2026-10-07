@@ -167,6 +167,31 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       contacts = contacts.filter((c) => !recentIds.has(c.id));
     }
 
+    // Fase 5, Etapa 5 — marketing opt-out (blocked_phones, migration
+    // 091), keyed by phone_normalized rather than contact_id so it
+    // still excludes a re-imported contact. Only applied when the
+    // account turned on enforcement (accounts.broadcast_optout_enforced
+    // — Settings → Vendas → Bloqueio de marketing); capture itself
+    // always runs regardless. Re-checked again at send time in the
+    // cron (src/app/api/broadcasts/cron/route.ts) — a phone blocked
+    // AFTER this broadcast was created still needs to be caught before
+    // its turn to actually send comes up.
+    if (accountId) {
+      const { data: accountRow } = await supabase
+        .from('accounts')
+        .select('broadcast_optout_enforced')
+        .eq('id', accountId)
+        .maybeSingle();
+      if (accountRow?.broadcast_optout_enforced) {
+        const { data: blockedRows } = await supabase
+          .from('blocked_phones')
+          .select('phone_normalized')
+          .is('unblocked_at', null);
+        const blockedSet = new Set((blockedRows ?? []).map((r) => r.phone_normalized as string));
+        contacts = contacts.filter((c) => !blockedSet.has(c.phone_normalized ?? ''));
+      }
+    }
+
     return contacts;
   }
 

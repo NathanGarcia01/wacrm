@@ -1442,6 +1442,7 @@
       "statRead": "Read",
       "statReplied": "Replied",
       "statFailed": "Failed",
+      "statOptOutSkipped": "Excluded (opt-out)",
       "recipientsCountOf": "Recipients ({count} of {total})",
       "recipientsCount": "Recipients ({count})",
       "allStatuses": "All statuses",

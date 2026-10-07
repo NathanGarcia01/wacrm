@@ -1442,6 +1442,7 @@
       "statRead": "Leído",
       "statReplied": "Respondido",
       "statFailed": "Falló",
+      "statOptOutSkipped": "Excluidos (opt-out)",
       "recipientsCountOf": "Destinatarios ({count} de {total})",
       "recipientsCount": "Destinatarios ({count})",
       "allStatuses": "Todos los estados",
