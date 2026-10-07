@@ -216,6 +216,13 @@ function ContactsPageInner() {
   const [leadOriginId, setLeadOriginId] = useState<string | null>(() => searchParams.get('leadOrigin'));
   const [contactStatuses, setContactStatuses] = useState<ContactStatus[]>([]);
   const [leadOrigins, setLeadOrigins] = useState<LeadOrigin[]>([]);
+  // Fase 5 (opt-out de marketing) — bloqueio ATIVO em blocked_phones
+  // (migration 091), via filter_contacts' p_opted_out (migration 100).
+  // 'true'/'false' string in the URL; null = sem filtro.
+  const [optedOut, setOptedOut] = useState<boolean | null>(() => {
+    const raw = searchParams.get('optedOut');
+    return raw === 'true' ? true : raw === 'false' ? false : null;
+  });
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -292,7 +299,8 @@ function ContactsPageInner() {
     adOrigin !== null ||
     adName.trim().length > 0 ||
     statusId !== null ||
-    leadOriginId !== null;
+    leadOriginId !== null ||
+    optedOut !== null;
 
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
@@ -343,6 +351,7 @@ function ContactsPageInner() {
         p_ad_name: adName.trim() || null,
         p_status_id: statusId,
         p_lead_origin_id: leadOriginId,
+        p_opted_out: optedOut,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
@@ -430,6 +439,7 @@ function ContactsPageInner() {
     adName,
     statusId,
     leadOriginId,
+    optedOut,
     t,
   ]);
 
@@ -478,6 +488,7 @@ function ContactsPageInner() {
     if (adName.trim()) params.set('adName', adName.trim());
     if (statusId) params.set('status', statusId);
     if (leadOriginId) params.set('leadOrigin', leadOriginId);
+    if (optedOut !== null) params.set('optedOut', String(optedOut));
 
     const qs = params.toString();
     router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
@@ -500,6 +511,7 @@ function ContactsPageInner() {
     adName,
     statusId,
     leadOriginId,
+    optedOut,
   ]);
 
   function openAddForm() {
@@ -649,7 +661,8 @@ function ContactsPageInner() {
     (adOrigin !== null ? 1 : 0) +
     (adName.trim().length > 0 ? 1 : 0) +
     (statusId !== null ? 1 : 0) +
-    (leadOriginId !== null ? 1 : 0);
+    (leadOriginId !== null ? 1 : 0) +
+    (optedOut !== null ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
   function toggleTagFilter(tagId: string) {
@@ -729,6 +742,11 @@ function ContactsPageInner() {
     setPage(0);
   }
 
+  function updateOptedOut(next: boolean | null) {
+    setOptedOut(next);
+    setPage(0);
+  }
+
   function clearAllFilters() {
     setSearch('');
     setSelectedTagIds([]);
@@ -747,6 +765,7 @@ function ContactsPageInner() {
     setAdName('');
     setStatusId(null);
     setLeadOriginId(null);
+    setOptedOut(null);
     setPage(0);
   }
 
@@ -788,6 +807,8 @@ function ContactsPageInner() {
 
   const statusLabel = contactStatuses.find((s) => s.id === statusId)?.label ?? null;
   const leadOriginLabel = leadOrigins.find((o) => o.id === leadOriginId)?.label ?? null;
+  const optedOutLabel =
+    optedOut === true ? t('filterOptedOutYes') : optedOut === false ? t('filterOptedOutNo') : null;
 
   return (
     <div className="space-y-6">
@@ -1125,6 +1146,23 @@ function ContactsPageInner() {
                   </select>
                 </div>
 
+                {/* Pediu para sair dos disparos — blocked_phones ativo,
+                    migration 091/100 */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {t('filterOptedOut')}
+                  </label>
+                  <select
+                    value={optedOut === null ? '' : String(optedOut)}
+                    onChange={(e) => updateOptedOut(e.target.value === '' ? null : e.target.value === 'true')}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">{t('filterOptedOutAny')}</option>
+                    <option value="true">{t('filterOptedOutYes')}</option>
+                    <option value="false">{t('filterOptedOutNo')}</option>
+                  </select>
+                </div>
+
                 {/* City / state — only shown when the account has the field */}
                 {hasCityField && (
                   <div className="space-y-1.5">
@@ -1267,6 +1305,14 @@ function ContactsPageInner() {
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
                 {leadOriginLabel}
                 <button onClick={() => updateLeadOriginId(null)} aria-label={t('removeLeadOriginFilterAria')} className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {optedOutLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {optedOutLabel}
+                <button onClick={() => updateOptedOut(null)} aria-label={t('removeOptedOutFilterAria')} className="hover:opacity-70">
                   <X className="size-3" />
                 </button>
               </span>

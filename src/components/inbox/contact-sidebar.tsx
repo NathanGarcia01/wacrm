@@ -5,9 +5,11 @@ import { useTranslations, useLocale } from "next-intl";
 import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useCan } from "@/hooks/use-can";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type {
+  BlockedPhone,
   Contact,
   ContactStatus,
   Deal,
@@ -39,6 +41,7 @@ import {
   Megaphone,
   UserCircle2,
   Compass,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +51,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -126,8 +138,10 @@ interface ContactSidebarProps {
 
 export function ContactSidebar({ contact, conversationId, onContactUpdated }: ContactSidebarProps) {
   const t = useTranslations("inbox.sidebar");
+  const tOptOut = useTranslations("settings.optOut.blockedPhones");
   const locale = useLocale() as Locale;
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
+  const canManageOptOut = useCan("edit-settings");
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -154,6 +168,13 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   // once per account the same way, just without a .eq("contact_id", ...).
   const [statuses, setStatuses] = useState<ContactStatus[]>([]);
   const [leadOrigins, setLeadOrigins] = useState<LeadOrigin[]>([]);
+  // Fase 5 (opt-out de marketing) — bloqueio ATIVO do telefone deste
+  // contato, se houver (blocked_phones, migration 091, join por
+  // phone_normalized). Null = não bloqueado.
+  const [blockedPhone, setBlockedPhone] = useState<BlockedPhone | null>(null);
+  const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
+  const [releaseReason, setReleaseReason] = useState(() => t("optOutBanner.releaseReasonDefault"));
+  const [releasing, setReleasing] = useState(false);
 
   // Base UI's <Select> only resolves the trigger's displayed label from
   // its `items` map (or from the popup's <SelectItem> children once the
@@ -176,9 +197,9 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
 
     const supabase = createClient();
 
-    // Fetch deals, notes, tags, custom fields/values, and the two
-    // status/origin catalogs in parallel.
-    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes, statusesRes, originsRes] = await Promise.all([
+    // Fetch deals, notes, tags, custom fields/values, the two
+    // status/origin catalogs, and any active opt-out block in parallel.
+    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes, statusesRes, originsRes, blockedRes] = await Promise.all([
       supabase
         .from("deals")
         .select(
@@ -202,12 +223,19 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         .eq("contact_id", contact.id),
       supabase.from("contact_statuses").select("*").order("position"),
       supabase.from("lead_origins").select("*").order("position"),
+      supabase
+        .from("blocked_phones")
+        .select("*")
+        .eq("phone_normalized", contact.phone.replace(/\D/g, ""))
+        .is("unblocked_at", null)
+        .maybeSingle(),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
     if (statusesRes.data) setStatuses(statusesRes.data as ContactStatus[]);
     if (originsRes.data) setLeadOrigins(originsRes.data as LeadOrigin[]);
+    setBlockedPhone((blockedRes.data as BlockedPhone | null) ?? null);
     if (tagsRes.data) {
       const mapped = tagsRes.data
         .filter((ct: Record<string, unknown>) => ct.tags)
@@ -289,6 +317,28 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     },
     [contact, onContactUpdated, t],
   );
+
+  const handleReleaseOptOut = useCallback(async () => {
+    if (!blockedPhone || !releaseReason.trim()) return;
+    setReleasing(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("blocked_phones")
+      .update({
+        unblocked_at: new Date().toISOString(),
+        unblocked_by: user?.id ?? null,
+        unblock_reason: releaseReason.trim(),
+      })
+      .eq("id", blockedPhone.id);
+    setReleasing(false);
+    if (error) {
+      toast.error(t("optOutBanner.releaseFailed"));
+      return;
+    }
+    toast.success(t("optOutBanner.releaseSuccess"));
+    setReleaseDialogOpen(false);
+    setBlockedPhone(null);
+  }, [blockedPhone, releaseReason, user, t]);
 
   const handleCommitCustomField = useCallback(
     async (fieldId: string, value: string) => {
@@ -568,6 +618,41 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
               />
             </div>
           </div>
+
+          {/* Fase 5 (opt-out de marketing) — aviso de bloqueio ATIVO
+              deste telefone, com data/origem/motivo, e ação pra
+              liberar com motivo obrigatório. */}
+          {blockedPhone && (
+            <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+              <div className="flex items-start gap-2">
+                <Ban className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <div className="min-w-0 flex-1 space-y-1 text-xs">
+                  <p className="font-medium text-destructive">{t("optOutBanner.title")}</p>
+                  <p className="text-destructive/80">
+                    {t("optOutBanner.blockedOn", { date: format(new Date(blockedPhone.blocked_at), "dd/MM/yyyy") })}
+                    {" · "}
+                    {tOptOut(`sourceLabels.${blockedPhone.source}`)}
+                  </p>
+                  {blockedPhone.reason && (
+                    <p className="text-destructive/80">{blockedPhone.reason}</p>
+                  )}
+                </div>
+              </div>
+              {canManageOptOut && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2 w-full border-destructive/40 bg-transparent text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    setReleaseReason(t("optOutBanner.releaseReasonDefault"));
+                    setReleaseDialogOpen(true);
+                  }}
+                >
+                  {t("optOutBanner.releaseButton")}
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
@@ -1093,6 +1178,42 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
           onSaved={fetchContactData}
         />
       )}
+
+      <Dialog open={releaseDialogOpen} onOpenChange={setReleaseDialogOpen}>
+        <DialogContent className="border-border bg-popover text-popover-foreground sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-popover-foreground">{t("optOutBanner.releaseDialogTitle")}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label className="text-muted-foreground">{t("optOutBanner.releaseReasonLabel")}</Label>
+            <Textarea
+              value={releaseReason}
+              onChange={(e) => setReleaseReason(e.target.value)}
+              placeholder={t("optOutBanner.releaseReasonPlaceholder")}
+              className="border-border bg-muted text-foreground"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReleaseDialogOpen(false)}
+              disabled={releasing}
+              className="border-border bg-transparent text-muted-foreground hover:bg-muted"
+            >
+              {t("optOutBanner.cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleReleaseOptOut}
+              disabled={releasing || !releaseReason.trim()}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {releasing ? <Loader2 className="size-4 animate-spin" /> : t("optOutBanner.releaseButton")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
