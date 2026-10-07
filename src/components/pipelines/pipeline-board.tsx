@@ -15,7 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import type { Deal, PipelineStage } from "@/types";
+import type { Deal, DealIndicators, PipelineStage } from "@/types";
 import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -47,6 +47,10 @@ const FUNNEL_WIDTH_MIN = 150;
 interface PipelineBoardProps {
   stages: PipelineStage[];
   deals: Deal[];
+  /** Fase 6 — indicadores por deal, buscados em lote pelo pai
+   *  (get_pipeline_deal_indicators). Ausência de entrada = ainda não
+   *  carregado ou deal sem contato/conversa. */
+  indicators?: Record<string, DealIndicators>;
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
@@ -55,6 +59,7 @@ interface PipelineBoardProps {
 export function PipelineBoard({
   stages,
   deals,
+  indicators,
   onDealMoved,
   onAddDeal,
   onEditDeal,
@@ -175,6 +180,7 @@ export function PipelineBoard({
               key={stage.id}
               stage={stage}
               deals={stageDeals}
+              indicators={indicators}
               totalValue={totalValue}
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
@@ -195,6 +201,7 @@ export function PipelineBoard({
               key={stage.id}
               stage={stage}
               deals={stageDeals}
+              indicators={indicators}
               totalValue={totalValue}
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
@@ -219,6 +226,7 @@ export function PipelineBoard({
               stage={
                 sortedStages.find((s) => s.id === activeDeal.stage_id) ?? null
               }
+              indicators={indicators?.[activeDeal.id]}
               onEdit={() => {}}
               isOverlay
             />
@@ -271,6 +279,7 @@ export function PipelineBoard({
 function StageColumn({
   stage,
   deals,
+  indicators,
   totalValue,
   currency,
   onAddDeal,
@@ -281,6 +290,7 @@ function StageColumn({
 }: {
   stage: PipelineStage;
   deals: Deal[];
+  indicators?: Record<string, DealIndicators>;
   totalValue: number;
   currency: string;
   onAddDeal: (stageId: string) => void;
@@ -362,6 +372,7 @@ function StageColumn({
               key={deal.id}
               deal={deal}
               stage={stage}
+              indicators={indicators?.[deal.id]}
               onEdit={onEditDeal}
             />
           ))
@@ -384,10 +395,12 @@ function StageColumn({
 function DraggableDealCard({
   deal,
   stage,
+  indicators,
   onEdit,
 }: {
   deal: Deal;
   stage: PipelineStage;
+  indicators?: DealIndicators;
   onEdit: (deal: Deal) => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -401,7 +414,7 @@ function DraggableDealCard({
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} />
+      <DealCard deal={deal} stage={stage} indicators={indicators} onEdit={onEdit} />
     </div>
   );
 }

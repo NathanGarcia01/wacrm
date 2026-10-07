@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
-import type { Pipeline, PipelineStage, Deal, Profile, Tag } from "@/types";
+import type { Pipeline, PipelineStage, Deal, DealIndicators, Profile, Tag } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
@@ -77,6 +77,10 @@ export default function PipelinesPage() {
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
+  // Fase 6 — indicadores de card (não lidas, ticket aberto, fora da
+  // 24h, opt-out), buscados em lote por pipeline (get_pipeline_deal_
+  // indicators, migration 102) — nunca por card.
+  const [indicators, setIndicators] = useState<Record<string, DealIndicators>>({});
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<PipelineFilters>(DEFAULT_PIPELINE_FILTERS);
@@ -142,6 +146,25 @@ export default function PipelinesPage() {
         .eq("pipeline_id", pipelineId)
         .order("created_at", { ascending: false });
       return (data ?? []) as Deal[];
+    },
+    [supabase],
+  );
+
+  const loadIndicators = useCallback(
+    async (pipelineId: string) => {
+      const { data } = await supabase.rpc("get_pipeline_deal_indicators", {
+        p_pipeline_id: pipelineId,
+      });
+      const map: Record<string, DealIndicators> = {};
+      for (const row of data ?? []) {
+        map[row.deal_id] = {
+          unreadCount: row.unread_count,
+          ticketStatus: row.ticket_status,
+          outside24h: row.outside_24h,
+          optedOut: row.opted_out,
+        };
+      }
+      return map;
     },
     [supabase],
   );
@@ -250,22 +273,26 @@ export default function PipelinesPage() {
       setStages([]);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDeals([]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIndicators({});
       return;
     }
     let cancelled = false;
     (async () => {
-      const [s, d] = await Promise.all([
+      const [s, d, i] = await Promise.all([
         loadStages(selectedPipelineId),
         loadDeals(selectedPipelineId),
+        loadIndicators(selectedPipelineId),
       ]);
       if (cancelled) return;
       setStages(s);
       setDeals(d);
+      setIndicators(i);
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedPipelineId, loadStages, loadDeals]);
+  }, [selectedPipelineId, loadStages, loadDeals, loadIndicators]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
@@ -282,8 +309,13 @@ export default function PipelinesPage() {
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setDeals(await loadDeals(selectedPipelineId));
-  }, [loadDeals, selectedPipelineId]);
+    const [d, i] = await Promise.all([
+      loadDeals(selectedPipelineId),
+      loadIndicators(selectedPipelineId),
+    ]);
+    setDeals(d);
+    setIndicators(i);
+  }, [loadDeals, loadIndicators, selectedPipelineId]);
 
   // Keep the latest refreshDeals in a ref so the realtime subscription
   // below doesn't need it as a dependency — refreshDeals's identity
@@ -633,6 +665,7 @@ export default function PipelinesPage() {
               <PipelineBoard
                 stages={stages}
                 deals={filteredDeals}
+                indicators={indicators}
                 onDealMoved={handleDealMoved}
                 onAddDeal={handleAddDeal}
                 onEditDeal={handleEditDeal}

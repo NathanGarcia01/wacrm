@@ -1,13 +1,15 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import type { Deal, PipelineStage } from "@/types";
-import { Calendar, Check, X } from "lucide-react";
+import type { Deal, DealIndicators, PipelineStage } from "@/types";
+import { Calendar, Check, Clock, MessageCircle, ShieldOff, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 
 interface DealCardProps {
   deal: Deal;
   stage: PipelineStage | null;
+  /** Fase 6 — indicadores em lote (get_pipeline_deal_indicators). */
+  indicators?: DealIndicators;
   onEdit: (deal: Deal) => void;
   isOverlay?: boolean;
 }
@@ -26,7 +28,7 @@ function initials(name?: string, fallback?: string) {
   return source.charAt(0).toUpperCase();
 }
 
-export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
+export function DealCard({ deal, stage, indicators, onEdit, isOverlay }: DealCardProps) {
   const t = useTranslations("pipelines.dealCard");
   const contactLabel = deal.contact?.name || deal.contact?.phone || t("noContact");
   const assigneeLabel = deal.assignee?.full_name || null;
@@ -83,6 +85,46 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         </span>
         <span className="truncate text-xs text-muted-foreground">{contactLabel}</span>
       </div>
+
+      {indicators &&
+        (indicators.unreadCount > 0 ||
+          indicators.ticketStatus ||
+          indicators.outside24h ||
+          indicators.optedOut) && (
+          <div className="mt-2 flex items-center gap-1.5">
+            {indicators.unreadCount > 0 && (
+              <span
+                title={t("unreadTooltip", { count: indicators.unreadCount })}
+                className="flex items-center gap-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
+              >
+                <MessageCircle className="h-3 w-3" />
+                {indicators.unreadCount}
+              </span>
+            )}
+            {indicators.ticketStatus && (
+              <span
+                title={t(`ticketStatus.${indicators.ticketStatus}`)}
+                className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                  indicators.ticketStatus === "pending"
+                    ? "bg-amber-500/15 text-amber-600"
+                    : "bg-blue-500/15 text-blue-600"
+                }`}
+              >
+                {t(`ticketStatus.${indicators.ticketStatus}`)}
+              </span>
+            )}
+            {indicators.outside24h && (
+              <span title={t("outside24hTooltip")}>
+                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+              </span>
+            )}
+            {indicators.optedOut && (
+              <span title={t("optedOutTooltip")}>
+                <ShieldOff className="h-3.5 w-3.5 text-destructive" />
+              </span>
+            )}
+          </div>
+        )}
 
       <div className="mt-2 flex items-center justify-between">
         <span className="flex items-center gap-1.5">

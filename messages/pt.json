@@ -819,7 +819,14 @@
       "noContact": "Sem contato",
       "commissionTotal": "Total de comissão dos produtos",
       "won": "Ganho",
-      "lost": "Perdido"
+      "lost": "Perdido",
+      "unreadTooltip": "{count, plural, one {# mensagem não lida} other {# mensagens não lidas}}",
+      "ticketStatus": {
+        "pending": "Pendente",
+        "in_progress": "Em atendimento"
+      },
+      "outside24hTooltip": "Fora da janela de 24h",
+      "optedOutTooltip": "Pediu para sair dos disparos"
     },
     "settings": {
       "managePipeline": "Gerenciar Pipeline",

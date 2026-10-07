@@ -469,6 +469,15 @@ export interface Deal {
   products?: DealProduct[];
 }
 
+/** Fase 6 — indicadores do card do pipeline (get_pipeline_deal_indicators,
+ *  migration 102), batched por pipeline pra evitar N+1. */
+export interface DealIndicators {
+  unreadCount: number;
+  ticketStatus: 'pending' | 'in_progress' | null;
+  outside24h: boolean;
+  optedOut: boolean;
+}
+
 export type DealEventType = 'created' | 'stage_changed' | 'won' | 'lost' | 'assignee_changed' | 'value_changed';
 
 /** Deal history ("Registros"), migration 101 — append-only, written
