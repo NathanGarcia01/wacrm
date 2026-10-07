@@ -1737,7 +1737,8 @@
       "attendance": "Departments, hours & SLA",
       "contactStatuses": "Customer status",
       "leadOrigins": "Lead origins",
-      "salesGoals": "Sales goal"
+      "salesGoals": "Sales goal",
+      "optOut": "Marketing opt-out"
     },
     "railGroups": {
       "account": "Account",
@@ -2401,7 +2402,8 @@
       "integrations": "Connect external services to automate your workflow",
       "contactStatuses": "Configurable status list to classify contacts (New, Negotiating, Customer, Inactive...)",
       "leadOrigins": "Catalog of lead origins the system can't detect automatically",
-      "salesGoals": "Monthly sales goal per account and per user, in value and/or count"
+      "salesGoals": "Monthly sales goal per account and per user, in value and/or count",
+      "optOut": "Phones blocked from marketing and opt-out keywords"
     },
     "search": {
       "placeholder": "Search settings...",
@@ -2487,6 +2489,72 @@
         "saveButton": "Save",
         "saved": "Goal updated",
         "saveFailed": "Failed to save the goal"
+      }
+    },
+    "optOut": {
+      "title": "Marketing opt-out",
+      "description": "Phones that should no longer receive broadcasts/campaigns, and the keywords that trigger an automatic block on the customer's reply.",
+      "keywords": {
+        "title": "Keywords and enforcement",
+        "description": "A customer reply with one of these words (the whole message, no other text) blocks the phone automatically.",
+        "enforcedLabel": "Enforce the block on sends",
+        "enforcedHint": "Off: the block is only recorded. On: blocked phones are excluded from sends and get the automatic confirmation reply.",
+        "enforcedSaveFailed": "Failed to update send enforcement",
+        "enforcedOn": "Send enforcement enabled",
+        "enforcedOff": "Send enforcement disabled",
+        "keywordsLabel": "Opt-out keywords",
+        "keywordsHint": "Always matched against the whole message (lowercase, no accents) — never by containing the word.",
+        "keywordsEmpty": "No keywords configured.",
+        "removeKeywordAria": "Remove keyword \"{word}\"",
+        "newKeywordPlaceholder": "New keyword",
+        "addKeywordButton": "Add",
+        "saveButton": "Save",
+        "saved": "Keywords updated",
+        "saveFailed": "Failed to save the keywords",
+        "adminOnlyHint": "Only account admins can edit this."
+      },
+      "blockedPhones": {
+        "title": "Blocked phones",
+        "description": "Active blocks and their history — manual, by keyword, via Meta's button, or by a Cloud API error.",
+        "exportButton": "Export CSV",
+        "importButton": "Import CSV",
+        "blockButton": "Block number",
+        "showHistoryLabel": "Show history (includes unblocked)",
+        "colPhone": "Phone",
+        "colSource": "Source",
+        "colReason": "Reason",
+        "colBlockedAt": "Blocked on",
+        "unblockedBadge": "(unblocked)",
+        "unblockButton": "Unblock",
+        "empty": "No blocked phones.",
+        "adminOnlyHint": "Only account admins can block/unblock.",
+        "blockDialogTitle": "Block phone",
+        "phonePlaceholder": "e.g. 11999990000",
+        "reasonPlaceholder": "Reason (optional)",
+        "unblockDialogTitle": "Unblock {phone}",
+        "blocked": "Phone blocked",
+        "blockFailed": "Failed to block the phone",
+        "alreadyBlocked": "This phone is already blocked",
+        "unblocked": "Phone unblocked",
+        "unblockFailed": "Failed to unblock the phone",
+        "importNoPhoneColumn": "The CSV needs a phone column (telefone/phone/celular/whatsapp).",
+        "importEmpty": "No valid rows found in the CSV.",
+        "importSuccess": "{count} of {total} phone(s) imported (active duplicates are skipped).",
+        "sourceLabels": {
+          "manual": "Manual",
+          "keyword": "Keyword",
+          "meta_stop_promotions": "Meta's button",
+          "cloud_api_error": "Cloud API error",
+          "import": "Import"
+        },
+        "csv": {
+          "phone": "Phone",
+          "source": "Source",
+          "reason": "Reason",
+          "blockedBy": "Blocked by",
+          "blockedAt": "Blocked on",
+          "unblockedAt": "Unblocked on"
+        }
       }
     }
   },

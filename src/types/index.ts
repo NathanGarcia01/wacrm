@@ -162,6 +162,27 @@ export interface LeadOrigin {
   created_at: string;
 }
 
+export type BlockedPhoneSource = 'manual' | 'keyword' | 'meta_stop_promotions' | 'cloud_api_error' | 'import';
+
+/** Marketing opt-out block (Fase 5, migration 091) — keyed by
+ *  phone_normalized, not contact_id, so it survives a deleted and
+ *  re-imported contact. `unblocked_at === null` means the block is
+ *  currently active; a phone can be re-blocked after being unblocked
+ *  (new row), so history is append-only. */
+export interface BlockedPhone {
+  id: string;
+  account_id: string;
+  phone: string;
+  phone_normalized: string;
+  source: BlockedPhoneSource;
+  reason: string | null;
+  blocked_by: string | null;
+  blocked_at: string;
+  unblocked_at: string | null;
+  unblocked_by: string | null;
+  unblock_reason: string | null;
+}
+
 export interface Tag {
   id: string;
   user_id: string;

@@ -1,4 +1,5 @@
 import {
+  Ban,
   Coins,
   Compass,
   FileText,
@@ -43,6 +44,7 @@ export const SETTINGS_SECTIONS = [
   'deals',
   'products',
   'salesGoals',
+  'optOut',
   'quickReplies',
   'attendance',
   'nps',
@@ -90,6 +92,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   deals: { id: 'deals', icon: Coins, group: 'vendas' },
   products: { id: 'products', icon: Package, group: 'vendas' },
   salesGoals: { id: 'salesGoals', icon: Target, group: 'vendas' },
+  optOut: { id: 'optOut', icon: Ban, group: 'vendas' },
   members: { id: 'members', icon: UsersRound, group: 'avancado' },
   api: { id: 'api', icon: KeyRound, group: 'avancado' },
   integrations: { id: 'integrations', icon: Plug, group: 'avancado' },

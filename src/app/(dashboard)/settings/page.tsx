@@ -20,6 +20,7 @@ import { LeadOriginsSettings } from '@/components/settings/lead-origins-settings
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductCatalogSettings } from '@/components/settings/product-catalog-settings';
 import { SalesGoalsPanel } from '@/components/settings/sales-goals-panel';
+import { OptOutPanel } from '@/components/settings/opt-out-panel';
 import { QuickRepliesSettings } from '@/components/settings/quick-replies-settings';
 import { AttendanceSettings } from '@/components/settings/attendance-settings';
 import { NpsSettings } from '@/components/settings/nps-settings';
@@ -75,6 +76,7 @@ export default function SettingsPage() {
     deals: <DealsSettings />,
     products: <ProductCatalogSettings />,
     salesGoals: <SalesGoalsPanel />,
+    optOut: <OptOutPanel />,
     quickReplies: <QuickRepliesSettings />,
     attendance: <AttendanceSettings />,
     nps: <NpsSettings />,

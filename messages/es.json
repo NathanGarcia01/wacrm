@@ -1737,7 +1737,8 @@
       "attendance": "Departamentos, horario y SLA",
       "contactStatuses": "Estado del cliente",
       "leadOrigins": "Orígenes del lead",
-      "salesGoals": "Meta de ventas"
+      "salesGoals": "Meta de ventas",
+      "optOut": "Bloqueo de marketing"
     },
     "railGroups": {
       "account": "Cuenta",
@@ -2401,7 +2402,8 @@
       "integrations": "Conectar servicios externos para automatizar el flujo de trabajo",
       "contactStatuses": "Lista de estados configurable para clasificar contactos (Nuevo, En negociación, Cliente, Inactivo...)",
       "leadOrigins": "Catálogo de orígenes de lead que el sistema no detecta automáticamente",
-      "salesGoals": "Meta mensual de ventas por cuenta y por usuario, en valor y/o cantidad"
+      "salesGoals": "Meta mensual de ventas por cuenta y por usuario, en valor y/o cantidad",
+      "optOut": "Teléfonos bloqueados para marketing y palabras clave de baja"
     },
     "search": {
       "placeholder": "Buscar en configuración...",
@@ -2487,6 +2489,72 @@
         "saveButton": "Guardar",
         "saved": "Meta actualizada",
         "saveFailed": "Error al guardar la meta"
+      }
+    },
+    "optOut": {
+      "title": "Bloqueo de marketing",
+      "description": "Teléfonos que ya no deben recibir campañas/difusiones, y las palabras clave que activan el bloqueo automático en la respuesta del cliente.",
+      "keywords": {
+        "title": "Palabras clave y aplicación",
+        "description": "Una respuesta del cliente con una de estas palabras (el mensaje completo, sin otro texto) bloquea el teléfono automáticamente.",
+        "enforcedLabel": "Aplicar el bloqueo en los envíos",
+        "enforcedHint": "Desactivado: el bloqueo solo se registra. Activado: los bloqueados se excluyen de los envíos y reciben la confirmación automática.",
+        "enforcedSaveFailed": "Error al actualizar la aplicación del bloqueo",
+        "enforcedOn": "Aplicación en los envíos activada",
+        "enforcedOff": "Aplicación en los envíos desactivada",
+        "keywordsLabel": "Palabras clave de baja",
+        "keywordsHint": "Comparación siempre contra el mensaje completo (minúsculas, sin acentos) — nunca por contener la palabra.",
+        "keywordsEmpty": "Ninguna palabra clave configurada.",
+        "removeKeywordAria": "Eliminar palabra clave \"{word}\"",
+        "newKeywordPlaceholder": "Nueva palabra clave",
+        "addKeywordButton": "Agregar",
+        "saveButton": "Guardar",
+        "saved": "Palabras clave actualizadas",
+        "saveFailed": "Error al guardar las palabras clave",
+        "adminOnlyHint": "Solo los administradores de la cuenta pueden editar esto."
+      },
+      "blockedPhones": {
+        "title": "Teléfonos bloqueados",
+        "description": "Bloqueos activos y su historial — manuales, por palabra clave, por el botón de Meta o por un error de la Cloud API.",
+        "exportButton": "Exportar CSV",
+        "importButton": "Importar CSV",
+        "blockButton": "Bloquear número",
+        "showHistoryLabel": "Mostrar historial (incluye desbloqueados)",
+        "colPhone": "Teléfono",
+        "colSource": "Origen",
+        "colReason": "Motivo",
+        "colBlockedAt": "Bloqueado el",
+        "unblockedBadge": "(desbloqueado)",
+        "unblockButton": "Desbloquear",
+        "empty": "Ningún teléfono bloqueado.",
+        "adminOnlyHint": "Solo los administradores de la cuenta pueden bloquear/desbloquear.",
+        "blockDialogTitle": "Bloquear teléfono",
+        "phonePlaceholder": "Ej: 11999990000",
+        "reasonPlaceholder": "Motivo (opcional)",
+        "unblockDialogTitle": "Desbloquear {phone}",
+        "blocked": "Teléfono bloqueado",
+        "blockFailed": "Error al bloquear el teléfono",
+        "alreadyBlocked": "Este teléfono ya está bloqueado",
+        "unblocked": "Teléfono desbloqueado",
+        "unblockFailed": "Error al desbloquear el teléfono",
+        "importNoPhoneColumn": "El CSV necesita una columna de teléfono (telefone/phone/celular/whatsapp).",
+        "importEmpty": "No se encontraron filas válidas en el CSV.",
+        "importSuccess": "{count} de {total} teléfono(s) importado(s) (los duplicados activos se omiten).",
+        "sourceLabels": {
+          "manual": "Manual",
+          "keyword": "Palabra clave",
+          "meta_stop_promotions": "Botón de Meta",
+          "cloud_api_error": "Error de la Cloud API",
+          "import": "Importación"
+        },
+        "csv": {
+          "phone": "Teléfono",
+          "source": "Origen",
+          "reason": "Motivo",
+          "blockedBy": "Bloqueado por",
+          "blockedAt": "Bloqueado el",
+          "unblockedAt": "Desbloqueado el"
+        }
       }
     }
   },
