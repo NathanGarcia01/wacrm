@@ -23,14 +23,8 @@ import {
 import { dispatchWebhookOutEvent } from '@/lib/integrations/webhook-out'
 import { openTicketIfNeeded, resolveInboundTicketAttribution } from '@/lib/tickets/lifecycle'
 import { runTicketSideEffect } from '@/lib/tickets/safe-run'
-import {
-  matchesExactKeyword,
-  matchesReactivationKeyword,
-  normalizeOptOutText,
-  DEFAULT_OPT_OUT_CONFIRMATION_TEXT,
-  DEFAULT_OPT_OUT_REACTIVATION_TEXT,
-} from '@/lib/whatsapp/opt-out'
 import { blockPhone, unblockPhone } from '@/lib/whatsapp/blocked-phones'
+import { handleOptOutKeywords as optOutHandler } from '@/lib/whatsapp/opt-out-handler'
 import { engineSendText } from '@/lib/automations/meta-send'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
@@ -583,11 +577,14 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
 }
 
 /**
- * Fase 5, Etapa 1 — marketing opt-out keyword check + VOLTAR
- * reactivation, run on every inbound text message. Best-effort: a
- * failure here must never break the main inbound-message flow.
+ * Thin webhook-side wrapper around handleOptOutKeywords
+ * (src/lib/whatsapp/opt-out-handler.ts) — the actual logic lives
+ * there, extracted so it's unit-testable with a mocked Supabase
+ * client. This wrapper just supplies supabaseAdmin() and a real
+ * engineSendText-backed reply sender, and swallows errors (best
+ * effort: must never break the main inbound-message flow).
  */
-async function handleOptOutKeywords(args: {
+async function handleOptOutForInboundMessage(args: {
   accountId: string
   contactId: string
   conversationId: string
@@ -596,54 +593,17 @@ async function handleOptOutKeywords(args: {
   text: string
 }) {
   try {
-    const { data: account } = await supabaseAdmin()
-      .from('accounts')
-      .select('broadcast_optout_keywords')
-      .eq('id', args.accountId)
-      .maybeSingle()
-    const keywords = account?.broadcast_optout_keywords ?? []
-
-    if (keywords.length > 0 && matchesExactKeyword(args.text, keywords)) {
-      await blockPhone(
-        supabaseAdmin(),
-        args.accountId,
-        args.senderPhone,
-        'keyword',
-        `keyword:${normalizeOptOutText(args.text)}`,
-      )
-      await sendOptOutReply(args, DEFAULT_OPT_OUT_CONFIRMATION_TEXT)
-      return
-    }
-
-    if (matchesReactivationKeyword(args.text)) {
-      await unblockPhone(
-        supabaseAdmin(),
-        args.accountId,
-        args.senderPhone,
-        ['keyword', 'cloud_api_error', 'meta_stop_promotions'],
-        'keyword:voltar',
-      )
-      await sendOptOutReply(args, DEFAULT_OPT_OUT_REACTIVATION_TEXT)
-    }
-  } catch (err) {
-    console.error('[webhook] handleOptOutKeywords failed:', err)
-  }
-}
-
-async function sendOptOutReply(
-  args: { accountId: string; userId: string; conversationId: string; contactId: string },
-  text: string,
-) {
-  try {
-    await engineSendText({
-      accountId: args.accountId,
-      userId: args.userId,
-      conversationId: args.conversationId,
-      contactId: args.contactId,
-      text,
+    await optOutHandler(supabaseAdmin(), args, async (text) => {
+      await engineSendText({
+        accountId: args.accountId,
+        userId: args.userId,
+        conversationId: args.conversationId,
+        contactId: args.contactId,
+        text,
+      })
     })
   } catch (err) {
-    console.error('[webhook] opt-out confirmation reply failed:', err)
+    console.error('[webhook] handleOptOutForInboundMessage failed:', err)
   }
 }
 
@@ -1164,7 +1124,7 @@ async function processMessage(
   // compliance signal, not a substitute trigger system, so an
   // account's own automation keyed on the same word still fires.
   if (message.type === 'text') {
-    await handleOptOutKeywords({
+    await handleOptOutForInboundMessage({
       accountId,
       contactId: contactRecord.id,
       conversationId: conversation.id,
