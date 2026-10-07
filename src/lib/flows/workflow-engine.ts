@@ -47,6 +47,7 @@ import { sendNpsSurvey } from "@/lib/nps/send-survey";
 import { loadVariableContext, resolveVariables } from "./variables";
 import { assignTicket, closeTicketWithoutReason, findOpenTicket, returnToQueue } from "@/lib/tickets/lifecycle";
 import { runTicketSideEffect } from "@/lib/tickets/safe-run";
+import { isMarketingTemplateSendBlocked } from "@/lib/whatsapp/marketing-template-guard";
 import {
   endRun,
   evaluateConditionPredicate,
@@ -403,6 +404,29 @@ async function advanceWorkflow(
         const cfg = node.config as unknown as SendTemplateNodeConfig;
         try {
           if (!run.contact_id) throw new Error("send_template needs a contact");
+
+          // Fase 5, Etapa 6 — same guard as automations/engine.ts's
+          // identical send_template case: Marketing-category
+          // templates respect the opt-out blocklist, Utility/
+          // Authentication never do. A deliberate skip, not a
+          // failure — the run continues to next_node_key normally.
+          if (
+            await isMarketingTemplateSendBlocked(db, {
+              accountId: run.account_id,
+              contactId: run.contact_id,
+              templateName: cfg.template_name,
+              templateLanguage: cfg.language,
+            })
+          ) {
+            await logEvent(db, run.id, "node_entered", node.node_key, {
+              node_type: "send_template",
+              skipped: true,
+              reason: "opted_out_of_marketing",
+            });
+            currentKey = cfg.next_node_key;
+            continue;
+          }
+
           const conversationId = await resolveConversationId(db, run);
           const varContext = await loadVariableContext(db, {
             accountId: run.account_id,

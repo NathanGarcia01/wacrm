@@ -29,6 +29,7 @@ import { assignTicket, closeTicketWithoutReason, findOpenTicket, returnToQueue }
 import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 import { sendNpsSurvey } from '@/lib/nps/send-survey'
 import { loadVariableContext, resolveVariables } from '@/lib/flows/variables'
+import { isMarketingTemplateSendBlocked } from '@/lib/whatsapp/marketing-template-guard'
 
 /**
  * Thrown by the `stop_automation` step to unwind out of any nested
@@ -430,6 +431,22 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const cfg = step.step_config as SendTemplateStepConfig
       if (!args.contactId) throw new Error('send_template needs a contact')
       if (!cfg.template_name) throw new Error('send_template needs template_name')
+
+      // Fase 5, Etapa 6 — Marketing-category templates respect the
+      // opt-out blocklist the same way broadcasts do; Utility/
+      // Authentication are never blocked. Not an error: a deliberate,
+      // explainable skip, so the automation's own log reads success.
+      if (
+        await isMarketingTemplateSendBlocked(db, {
+          accountId: args.automation.account_id,
+          contactId: args.contactId,
+          templateName: cfg.template_name,
+          templateLanguage: cfg.language,
+        })
+      ) {
+        return 'template skipped — phone opted out of marketing (blocked_phones)'
+      }
+
       const conversationId = await resolveConversationId(args)
       const varContext = await loadVariableContext(db, {
         accountId: args.automation.account_id,
