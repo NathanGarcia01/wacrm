@@ -457,12 +457,40 @@ export interface Deal {
   lost_reason_id?: string | null;
   lost_at?: string;
   won_at?: string;
+  /** Maintained by a trigger (migration 039) — bumped to now() every
+   *  time stage_id changes, including on insert. Used to compute
+   *  "dias na etapa atual" (Fase 6). */
+  stage_changed_at?: string;
   created_at: string;
   updated_at?: string;
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
   products?: DealProduct[];
+}
+
+export type DealEventType = 'created' | 'stage_changed' | 'won' | 'lost' | 'assignee_changed' | 'value_changed';
+
+/** Deal history ("Registros"), migration 101 — append-only, written
+ *  by a DB trigger on every deals insert/update. actor_id is bare
+ *  uuid (no FK, same convention as ticket_events.actor_id) — null
+ *  means an automation/flow/cron wrote it (service role has no
+ *  auth.uid()), not a human. */
+export interface DealEvent {
+  id: string;
+  deal_id: string;
+  account_id: string;
+  event_type: DealEventType;
+  actor_id: string | null;
+  from_stage_id: string | null;
+  to_stage_id: string | null;
+  from_assigned_to: string | null;
+  to_assigned_to: string | null;
+  from_value: number | null;
+  to_value: number | null;
+  lost_reason: string | null;
+  lost_reason_id: string | null;
+  created_at: string;
 }
 
 export interface DealProduct {

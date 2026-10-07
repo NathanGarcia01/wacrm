@@ -910,6 +910,23 @@
         "noContact": "No response",
         "other": "Other"
       }
+    },
+    "dealDetail": {
+      "editFields": "Edit fields",
+      "noContact": "No contact",
+      "forecast": "Forecast",
+      "daysInStage": "{count, plural, one {# day in this stage} other {# days in this stage}}",
+      "daysOpen": "{count, plural, one {# day open} other {# days open}}",
+      "createdOn": "Created on {date}",
+      "moveStageFailed": "Failed to change stage",
+      "tabConversation": "Conversation",
+      "tabTasks": "Tasks",
+      "tabFiles": "Files",
+      "tabEvents": "History",
+      "conversationComingSoon": "The embedded conversation arrives in the next step.",
+      "tasksComingSoon": "Tasks not implemented yet.",
+      "filesComingSoon": "Files not implemented yet.",
+      "eventsEmpty": "No history yet."
     }
   },
   "automations": {

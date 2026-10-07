@@ -910,6 +910,23 @@
         "noContact": "Sem contato",
         "other": "Outro"
       }
+    },
+    "dealDetail": {
+      "editFields": "Editar campos",
+      "noContact": "Sem contato",
+      "forecast": "Previsão",
+      "daysInStage": "{count, plural, one {# dia nesta etapa} other {# dias nesta etapa}}",
+      "daysOpen": "{count, plural, one {# dia aberto} other {# dias aberto}}",
+      "createdOn": "Criado em {date}",
+      "moveStageFailed": "Falha ao mudar de etapa",
+      "tabConversation": "Conversa",
+      "tabTasks": "Tarefas",
+      "tabFiles": "Arquivos",
+      "tabEvents": "Registros",
+      "conversationComingSoon": "A conversa embutida chega na próxima etapa.",
+      "tasksComingSoon": "Tarefas ainda não implementadas.",
+      "filesComingSoon": "Arquivos ainda não implementados.",
+      "eventsEmpty": "Nenhum registro ainda."
     }
   },
   "automations": {

@@ -7,6 +7,7 @@ import type { Pipeline, PipelineStage, Deal, Profile, Tag } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
+import { DealDetailPanel } from "@/components/pipelines/deal-detail-panel";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import {
   PipelineFilterBar,
@@ -91,6 +92,18 @@ export default function PipelinesPage() {
   const [dealFormOpen, setDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
+
+  // Fase 6 — painel de detalhe (substitui o Sheet ao abrir um card
+  // EXISTENTE; o Sheet acima continua só para criar). Guardado por id,
+  // não por uma cópia congelada do objeto Deal, pra refletir sozinho
+  // qualquer refresh de `deals` (realtime já existente, ou onSaved
+  // chamado de dentro do próprio painel).
+  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+  const [detailDealId, setDetailDealId] = useState<string | null>(null);
+  const detailDeal = useMemo(
+    () => deals.find((d) => d.id === detailDealId) ?? null,
+    [deals, detailDealId],
+  );
 
   // Guard against double-seeding (React StrictMode double-effect in dev).
   const seedAttempted = useRef(false);
@@ -342,7 +355,19 @@ export default function PipelinesPage() {
     [stages],
   );
 
+  // Clicking an existing card opens the new detail panel (Fase 6) —
+  // the Sheet (DealForm) is reserved for creating a deal now.
   const handleEditDeal = useCallback((deal: Deal) => {
+    setDetailDealId(deal.id);
+    setDetailPanelOpen(true);
+  }, []);
+
+  // "Editar campos" inside the detail panel still opens the Sheet, in
+  // edit mode — reuses deal-form.tsx's full field editor as-is rather
+  // than duplicating it. Closes the panel first so the two overlays
+  // don't stack.
+  const handleOpenEditSheet = useCallback((deal: Deal) => {
+    setDetailPanelOpen(false);
     setEditingDeal(deal);
     setDefaultStageId(deal.stage_id);
     setDealFormOpen(true);
@@ -683,7 +708,7 @@ export default function PipelinesPage() {
         />
       )}
 
-      {/* Deal Form (Sheet) */}
+      {/* Deal Form (Sheet) — criação apenas (Fase 6) */}
       <DealForm
         open={dealFormOpen}
         onOpenChange={setDealFormOpen}
@@ -692,6 +717,17 @@ export default function PipelinesPage() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
+      />
+
+      {/* Painel de detalhe (Fase 6) — abre ao clicar num card existente */}
+      <DealDetailPanel
+        open={detailPanelOpen}
+        onOpenChange={setDetailPanelOpen}
+        deal={detailDeal}
+        stages={stages}
+        profiles={profiles}
+        onSaved={refreshDeals}
+        onEditFields={handleOpenEditSheet}
       />
     </div>
   );
