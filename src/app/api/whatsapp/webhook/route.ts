@@ -23,6 +23,15 @@ import {
 import { dispatchWebhookOutEvent } from '@/lib/integrations/webhook-out'
 import { openTicketIfNeeded, resolveInboundTicketAttribution } from '@/lib/tickets/lifecycle'
 import { runTicketSideEffect } from '@/lib/tickets/safe-run'
+import {
+  matchesExactKeyword,
+  matchesReactivationKeyword,
+  normalizeOptOutText,
+  DEFAULT_OPT_OUT_CONFIRMATION_TEXT,
+  DEFAULT_OPT_OUT_REACTIVATION_TEXT,
+} from '@/lib/whatsapp/opt-out'
+import { blockPhone, unblockPhone } from '@/lib/whatsapp/blocked-phones'
+import { engineSendText } from '@/lib/automations/meta-send'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,6 +125,21 @@ interface WhatsAppWebhookEntry {
         status: string
         timestamp: string
         recipient_id: string
+        // Fase 5, Etapa 1 — only populated on status: 'failed'. Code
+        // 131050 ("recipient opted out of marketing messages") is the
+        // one we act on; everything else is ignored here.
+        errors?: Array<{ code: number; title?: string; message?: string }>
+      }>
+      // Fase 5, Etapa 1 — Meta's own "stop/resume promotions" toggle,
+      // a separate webhook field from `statuses`/`messages`. Fires
+      // when the customer flips "Offers and Announcements" in their
+      // own WhatsApp app, unrelated to anything the business sent.
+      user_preferences?: Array<{
+        wa_id: string
+        category: string
+        value: string
+        detail?: string
+        timestamp: string
       }>
     }
     field: string
@@ -303,10 +327,32 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const value = change.value
 
-      // Handle status updates
+      // Handle status updates. Resolves the account separately from
+      // the messages path below (and tolerates failure to resolve —
+      // handleStatusUpdate's existing mirroring onto messages/
+      // broadcast_recipients never needed accountId before Fase 5,
+      // so a resolution miss here only skips the NEW 131050
+      // auto-block check, not the pre-existing behavior).
       if (value.statuses) {
+        const statusResolved = await resolveChannelByPhoneNumberId(
+          supabaseAdmin(),
+          value.metadata.phone_number_id,
+        )
         for (const status of value.statuses) {
-          await handleStatusUpdate(status)
+          await handleStatusUpdate(status, statusResolved?.accountId ?? null)
+        }
+      }
+
+      // Fase 5, Etapa 1 — Meta's "stop/resume promotions" toggle.
+      if (value.user_preferences) {
+        const prefResolved = await resolveChannelByPhoneNumberId(
+          supabaseAdmin(),
+          value.metadata.phone_number_id,
+        )
+        if (prefResolved) {
+          for (const pref of value.user_preferences) {
+            await handleUserPreferenceUpdate(pref, prefResolved.accountId)
+          }
         }
       }
 
@@ -400,12 +446,31 @@ function isValidStatusTransition(current: string, incoming: string): boolean {
   return ii > ci
 }
 
-async function handleStatusUpdate(status: {
-  id: string
-  status: string
-  timestamp: string
-  recipient_id: string
-}) {
+async function handleStatusUpdate(
+  status: {
+    id: string
+    status: string
+    timestamp: string
+    recipient_id: string
+    errors?: Array<{ code: number; title?: string; message?: string }>
+  },
+  accountId: string | null,
+) {
+  // Fase 5, Etapa 1 — error 131050 ("this recipient has chosen to
+  // stop receiving marketing messages on WhatsApp from your
+  // business") is Meta's documented signal for a user-level
+  // marketing opt-out. Deliberately NOT the same as 130403
+  // ("this business has blocked the user") — the opposite
+  // direction, never treated as opt-out. Independent of whether this
+  // status event is tied to a broadcast_recipients row below.
+  if (accountId && status.status === 'failed' && status.errors?.some((e) => e.code === 131050)) {
+    try {
+      await blockPhone(supabaseAdmin(), accountId, status.recipient_id, 'cloud_api_error', 'error_131050')
+    } catch (err) {
+      console.error('[webhook] opt-out block on error 131050 failed:', err)
+    }
+  }
+
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
   const { error: msgErr } = await supabaseAdmin()
@@ -455,6 +520,30 @@ async function handleStatusUpdate(status: {
 }
 
 /**
+ * Fase 5, Etapa 1 — Meta's own "stop/resume promotions" toggle
+ * (user_preferences webhook field). `value: 'stop'` blocks the
+ * phone; `value: 'resume'` unblocks it, but ONLY a block whose
+ * source is this exact same toggle (an admin's manual block, or one
+ * from a keyword/error, isn't undone by the customer's Meta-side
+ * toggle alone — see unblockPhone's docstring).
+ */
+async function handleUserPreferenceUpdate(
+  pref: { wa_id: string; category: string; value: string; detail?: string },
+  accountId: string,
+) {
+  if (pref.category !== 'marketing_messages') return
+  try {
+    if (pref.value === 'stop') {
+      await blockPhone(supabaseAdmin(), accountId, pref.wa_id, 'meta_stop_promotions', pref.detail ?? null)
+    } else if (pref.value === 'resume') {
+      await unblockPhone(supabaseAdmin(), accountId, pref.wa_id, ['meta_stop_promotions'], 'meta_stop_promotions:resume')
+    }
+  } catch (err) {
+    console.error('[webhook] handleUserPreferenceUpdate failed:', err)
+  }
+}
+
+/**
  * If an inbound message's sender is on a still-unreplied
  * broadcast_recipients row, flip it to `replied` so the reply count
  * advances on the parent broadcast.
@@ -490,6 +579,71 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
     }
   } catch (err) {
     console.error('flagBroadcastReplyIfAny failed:', err)
+  }
+}
+
+/**
+ * Fase 5, Etapa 1 — marketing opt-out keyword check + VOLTAR
+ * reactivation, run on every inbound text message. Best-effort: a
+ * failure here must never break the main inbound-message flow.
+ */
+async function handleOptOutKeywords(args: {
+  accountId: string
+  contactId: string
+  conversationId: string
+  userId: string
+  senderPhone: string
+  text: string
+}) {
+  try {
+    const { data: account } = await supabaseAdmin()
+      .from('accounts')
+      .select('broadcast_optout_keywords')
+      .eq('id', args.accountId)
+      .maybeSingle()
+    const keywords = account?.broadcast_optout_keywords ?? []
+
+    if (keywords.length > 0 && matchesExactKeyword(args.text, keywords)) {
+      await blockPhone(
+        supabaseAdmin(),
+        args.accountId,
+        args.senderPhone,
+        'keyword',
+        `keyword:${normalizeOptOutText(args.text)}`,
+      )
+      await sendOptOutReply(args, DEFAULT_OPT_OUT_CONFIRMATION_TEXT)
+      return
+    }
+
+    if (matchesReactivationKeyword(args.text)) {
+      await unblockPhone(
+        supabaseAdmin(),
+        args.accountId,
+        args.senderPhone,
+        ['keyword', 'cloud_api_error', 'meta_stop_promotions'],
+        'keyword:voltar',
+      )
+      await sendOptOutReply(args, DEFAULT_OPT_OUT_REACTIVATION_TEXT)
+    }
+  } catch (err) {
+    console.error('[webhook] handleOptOutKeywords failed:', err)
+  }
+}
+
+async function sendOptOutReply(
+  args: { accountId: string; userId: string; conversationId: string; contactId: string },
+  text: string,
+) {
+  try {
+    await engineSendText({
+      accountId: args.accountId,
+      userId: args.userId,
+      conversationId: args.conversationId,
+      contactId: args.contactId,
+      text,
+    })
+  } catch (err) {
+    console.error('[webhook] opt-out confirmation reply failed:', err)
   }
 }
 
@@ -1000,6 +1154,24 @@ async function processMessage(
       text: contentText ?? message.text?.body ?? '',
     })
     if (npsConsumed) return
+  }
+
+  // Fase 5, Etapa 1 — marketing opt-out via keyword (SAIR/PARAR/STOP/
+  // CANCELAR, configurable per account) and VOLTAR to reactivate.
+  // Whole-message match only, never "contém" — see
+  // src/lib/whatsapp/opt-out.ts. Runs independently of automations/
+  // flows below and does NOT consume the message: this is a
+  // compliance signal, not a substitute trigger system, so an
+  // account's own automation keyed on the same word still fires.
+  if (message.type === 'text') {
+    await handleOptOutKeywords({
+      accountId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      userId: configOwnerUserId,
+      senderPhone,
+      text: contentText ?? message.text?.body ?? '',
+    })
   }
 
   // If this contact was a recent broadcast recipient, flag the reply
