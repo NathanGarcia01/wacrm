@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, Profile } from '@/types';
+import type { Contact, Tag, ContactTag, Profile, ContactStatus, LeadOrigin } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -209,6 +209,14 @@ function ContactsPageInner() {
   const [hasCityField, setHasCityField] = useState(false);
   const [hasStateField, setHasStateField] = useState(false);
 
+  // Status do cliente / Origem do lead — manual catalogs (migration
+  // 086), separate from the Ativo/Receptivo tag-based `origin` filter
+  // above and from the automatic Meta ad fields (adOrigin/adName).
+  const [statusId, setStatusId] = useState<string | null>(() => searchParams.get('status'));
+  const [leadOriginId, setLeadOriginId] = useState<string | null>(() => searchParams.get('leadOrigin'));
+  const [contactStatuses, setContactStatuses] = useState<ContactStatus[]>([]);
+  const [leadOrigins, setLeadOrigins] = useState<LeadOrigin[]>([]);
+
   // Modals
   const [formOpen, setFormOpen] = useState(false);
   const [editContact, setEditContact] = useState<Contact | null>(null);
@@ -263,6 +271,15 @@ function ContactsPageInner() {
     );
   }, [supabase]);
 
+  const fetchStatusesAndOrigins = useCallback(async () => {
+    const [statusesRes, originsRes] = await Promise.all([
+      supabase.from('contact_statuses').select('*').order('position'),
+      supabase.from('lead_origins').select('*').order('position'),
+    ]);
+    setContactStatuses((statusesRes.data ?? []) as ContactStatus[]);
+    setLeadOrigins((originsRes.data ?? []) as LeadOrigin[]);
+  }, [supabase]);
+
   const hasAdvancedFilters =
     selectedTagIds.length > 0 ||
     dateRange !== null ||
@@ -273,7 +290,9 @@ function ContactsPageInner() {
     cityFilter.trim().length > 0 ||
     stateFilter.trim().length > 0 ||
     adOrigin !== null ||
-    adName.trim().length > 0;
+    adName.trim().length > 0 ||
+    statusId !== null ||
+    leadOriginId !== null;
 
   const fetchContacts = useCallback(async () => {
     const seq = ++fetchSeq.current;
@@ -322,6 +341,8 @@ function ContactsPageInner() {
         p_state: stateFilter.trim() || null,
         p_ad_origin: adOrigin,
         p_ad_name: adName.trim() || null,
+        p_status_id: statusId,
+        p_lead_origin_id: leadOriginId,
       });
       if (seq !== fetchSeq.current) return; // superseded by a newer fetch
       if (error) {
@@ -407,6 +428,8 @@ function ContactsPageInner() {
     stateFilter,
     adOrigin,
     adName,
+    statusId,
+    leadOriginId,
     t,
   ]);
 
@@ -418,7 +441,8 @@ function ContactsPageInner() {
     fetchTags();
     fetchProfiles();
     fetchCustomFieldFlags();
-  }, [fetchTags, fetchProfiles, fetchCustomFieldFlags]);
+    fetchStatusesAndOrigins();
+  }, [fetchTags, fetchProfiles, fetchCustomFieldFlags, fetchStatusesAndOrigins]);
 
   useEffect(() => {
     fetchContacts();
@@ -452,6 +476,8 @@ function ContactsPageInner() {
     if (stateFilter.trim()) params.set('state', stateFilter.trim());
     if (adOrigin) params.set('adOrigin', adOrigin);
     if (adName.trim()) params.set('adName', adName.trim());
+    if (statusId) params.set('status', statusId);
+    if (leadOriginId) params.set('leadOrigin', leadOriginId);
 
     const qs = params.toString();
     router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
@@ -472,6 +498,8 @@ function ContactsPageInner() {
     stateFilter,
     adOrigin,
     adName,
+    statusId,
+    leadOriginId,
   ]);
 
   function openAddForm() {
@@ -619,7 +647,9 @@ function ContactsPageInner() {
     (cityFilter.trim().length > 0 ? 1 : 0) +
     (stateFilter.trim().length > 0 ? 1 : 0) +
     (adOrigin !== null ? 1 : 0) +
-    (adName.trim().length > 0 ? 1 : 0);
+    (adName.trim().length > 0 ? 1 : 0) +
+    (statusId !== null ? 1 : 0) +
+    (leadOriginId !== null ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
 
   function toggleTagFilter(tagId: string) {
@@ -689,6 +719,16 @@ function ContactsPageInner() {
     setPage(0);
   }
 
+  function updateStatusId(next: string | null) {
+    setStatusId(next);
+    setPage(0);
+  }
+
+  function updateLeadOriginId(next: string | null) {
+    setLeadOriginId(next);
+    setPage(0);
+  }
+
   function clearAllFilters() {
     setSearch('');
     setSelectedTagIds([]);
@@ -705,6 +745,8 @@ function ContactsPageInner() {
     setStateFilter('');
     setAdOrigin(null);
     setAdName('');
+    setStatusId(null);
+    setLeadOriginId(null);
     setPage(0);
   }
 
@@ -743,6 +785,9 @@ function ContactsPageInner() {
 
   const adOriginLabel =
     adOrigin === 'ad' ? t('filterAdOriginAd') : adOrigin === 'organic' ? t('filterAdOriginOrganic') : null;
+
+  const statusLabel = contactStatuses.find((s) => s.id === statusId)?.label ?? null;
+  const leadOriginLabel = leadOrigins.find((o) => o.id === leadOriginId)?.label ?? null;
 
   return (
     <div className="space-y-6">
@@ -1042,6 +1087,44 @@ function ContactsPageInner() {
                   />
                 </div>
 
+                {/* Status do cliente — manual catalog, migration 086 */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {t('filterStatus')}
+                  </label>
+                  <select
+                    value={statusId ?? ''}
+                    onChange={(e) => updateStatusId(e.target.value || null)}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">{t('filterStatusAny')}</option>
+                    {contactStatuses.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Origem do lead — manual catalog, migration 086 */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {t('filterLeadOrigin')}
+                  </label>
+                  <select
+                    value={leadOriginId ?? ''}
+                    onChange={(e) => updateLeadOriginId(e.target.value || null)}
+                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">{t('filterLeadOriginAny')}</option>
+                    {leadOrigins.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* City / state — only shown when the account has the field */}
                 {hasCityField && (
                   <div className="space-y-1.5">
@@ -1168,6 +1251,22 @@ function ContactsPageInner() {
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
                 {t('filterAdName')}: {adName.trim()}
                 <button onClick={() => updateAdName('')} aria-label="Remover filtro de anúncio específico" className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {statusLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {statusLabel}
+                <button onClick={() => updateStatusId(null)} aria-label={t('removeStatusFilterAria')} className="hover:opacity-70">
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {leadOriginLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground">
+                {leadOriginLabel}
+                <button onClick={() => updateLeadOriginId(null)} aria-label={t('removeLeadOriginFilterAria')} className="hover:opacity-70">
                   <X className="size-3" />
                 </button>
               </span>
