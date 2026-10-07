@@ -1730,7 +1730,8 @@
       "integrations": "Integrações",
       "attendance": "Departamentos, horário e SLA",
       "contactStatuses": "Status do cliente",
-      "leadOrigins": "Origens do lead"
+      "leadOrigins": "Origens do lead",
+      "salesGoals": "Meta de vendas"
     },
     "railGroups": {
       "account": "Conta",
@@ -2393,7 +2394,8 @@
       "api": "Credenciais da API REST da conta",
       "integrations": "Conectar serviços externos pra automatizar o fluxo de trabalho",
       "contactStatuses": "Lista de status configurável pra classificar contatos (Novo, Em negociação, Cliente, Inativo...)",
-      "leadOrigins": "Catálogo de origens de lead que o sistema não detecta automaticamente"
+      "leadOrigins": "Catálogo de origens de lead que o sistema não detecta automaticamente",
+      "salesGoals": "Meta mensal de vendas por conta e por usuário, em valor e/ou quantidade"
     },
     "search": {
       "placeholder": "Buscar em configurações...",
@@ -2444,6 +2446,42 @@
       "deleteConfirm": "Excluir a origem \"{label}\"? Contatos com essa origem ficam sem origem manual.",
       "deleteFailed": "Falha ao excluir origem",
       "deleted": "Origem excluída"
+    },
+    "salesGoals": {
+      "title": "Meta de vendas",
+      "description": "Meta mensal de vendas, por conta e por usuário, em valor e/ou quantidade. Vazio desativa a meta.",
+      "account": {
+        "title": "Meta da conta",
+        "description": "Meta mensal única para toda a conta. Vazio desativa a meta.",
+        "valueGoal": {
+          "label": "Meta em valor",
+          "hint": "Soma do valor dos negócios ganhos no mês"
+        },
+        "countGoal": {
+          "label": "Meta em quantidade",
+          "hint": "Quantidade de negócios ganhos no mês"
+        },
+        "disabledPlaceholder": "Desativada",
+        "saveButton": "Salvar",
+        "saved": "Meta da conta atualizada",
+        "saveFailed": "Falha ao salvar a meta da conta",
+        "adminOnlyHint": "Somente administradores da conta podem editar a meta."
+      },
+      "perUser": {
+        "title": "Meta de {month}, por usuário",
+        "description": "Uma meta por membro da equipe, válida só para o mês corrente.",
+        "copyButton": "Copiar metas do mês anterior",
+        "copyEmpty": "Não há metas no mês anterior para copiar.",
+        "copyFailed": "Falha ao copiar as metas do mês anterior",
+        "copySuccess": "{count} meta(s) copiada(s) do mês anterior.",
+        "empty": "Nenhum membro na conta ainda.",
+        "unnamedMember": "Membro sem nome",
+        "valueGoalPlaceholder": "Valor",
+        "countGoalPlaceholder": "Qtd.",
+        "saveButton": "Salvar",
+        "saved": "Meta atualizada",
+        "saveFailed": "Falha ao salvar a meta"
+      }
     }
   },
   "reports": {
@@ -2634,6 +2672,13 @@
       "avgTimeToWin": "Tempo médio até ganhar",
       "avgTimeToWinTooltip": "Média de dias entre a abertura do atendimento que originou o negócio (último atendimento do contato antes da criação do deal, em até 30 dias) e o momento em que o negócio foi ganho. Negócios sem atendimento vinculado não entram na média."
     },
+    "salesGoalCard": {
+      "title": "Meta de {month}",
+      "notConfigured": "Meta de vendas não configurada para esta conta.",
+      "notConfiguredLink": "Configurar meta",
+      "valueGoalLabel": "Valor ganho",
+      "countGoalLabel": "Negócios ganhos"
+    },
     "qualityTab": {
       "loadFailed": "Falha ao consultar a Meta.",
       "numberQuality": "Qualidade do número",
@@ -2809,6 +2854,8 @@
       "colTransfers": "Transferências (feitas / recebidas)",
       "colNps": "NPS médio",
       "colDeals": "Deals ganhos (qtd / valor)",
+      "colSalesGoal": "Meta de vendas (mês)",
+      "salesGoalNotConfigured": "Sem meta",
       "empty": "Nenhum atendente com atividade no período selecionado.",
       "noAgent": "Sem atendente",
       "unknownAgent": "Atendente removido"

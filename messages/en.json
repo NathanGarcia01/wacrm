@@ -1730,7 +1730,8 @@
       "integrations": "Integrations",
       "attendance": "Departments, hours & SLA",
       "contactStatuses": "Customer status",
-      "leadOrigins": "Lead origins"
+      "leadOrigins": "Lead origins",
+      "salesGoals": "Sales goal"
     },
     "railGroups": {
       "account": "Account",
@@ -2393,7 +2394,8 @@
       "api": "Account REST API credentials",
       "integrations": "Connect external services to automate your workflow",
       "contactStatuses": "Configurable status list to classify contacts (New, Negotiating, Customer, Inactive...)",
-      "leadOrigins": "Catalog of lead origins the system can't detect automatically"
+      "leadOrigins": "Catalog of lead origins the system can't detect automatically",
+      "salesGoals": "Monthly sales goal per account and per user, in value and/or count"
     },
     "search": {
       "placeholder": "Search settings...",
@@ -2444,6 +2446,42 @@
       "deleteConfirm": "Delete origin \"{label}\"? Contacts with this origin will have no manual origin.",
       "deleteFailed": "Failed to delete origin",
       "deleted": "Origin deleted"
+    },
+    "salesGoals": {
+      "title": "Sales goal",
+      "description": "Monthly sales goal, per account and per user, in value and/or count. Empty disables the goal.",
+      "account": {
+        "title": "Account goal",
+        "description": "A single monthly goal for the whole account. Empty disables the goal.",
+        "valueGoal": {
+          "label": "Value goal",
+          "hint": "Total value of deals won in the month"
+        },
+        "countGoal": {
+          "label": "Count goal",
+          "hint": "Number of deals won in the month"
+        },
+        "disabledPlaceholder": "Disabled",
+        "saveButton": "Save",
+        "saved": "Account goal updated",
+        "saveFailed": "Failed to save the account goal",
+        "adminOnlyHint": "Only account admins can edit the goal."
+      },
+      "perUser": {
+        "title": "{month} goal, per user",
+        "description": "One goal per team member, valid only for the current month.",
+        "copyButton": "Copy previous month's goals",
+        "copyEmpty": "There are no goals in the previous month to copy.",
+        "copyFailed": "Failed to copy the previous month's goals",
+        "copySuccess": "{count} goal(s) copied from the previous month.",
+        "empty": "No members in the account yet.",
+        "unnamedMember": "Unnamed member",
+        "valueGoalPlaceholder": "Value",
+        "countGoalPlaceholder": "Count",
+        "saveButton": "Save",
+        "saved": "Goal updated",
+        "saveFailed": "Failed to save the goal"
+      }
     }
   },
   "reports": {
@@ -2634,6 +2672,13 @@
       "avgTimeToWin": "Avg time to win",
       "avgTimeToWinTooltip": "Average days between the opening of the ticket that originated the deal (the contact's most recent ticket before the deal was created, within 30 days) and the moment the deal was won. Deals with no linked ticket aren't included in the average."
     },
+    "salesGoalCard": {
+      "title": "{month} goal",
+      "notConfigured": "No sales goal configured for this account.",
+      "notConfiguredLink": "Configure goal",
+      "valueGoalLabel": "Value won",
+      "countGoalLabel": "Deals won"
+    },
     "qualityTab": {
       "loadFailed": "Failed to query Meta.",
       "numberQuality": "Number quality",
@@ -2809,6 +2854,8 @@
       "colTransfers": "Transfers (made / received)",
       "colNps": "Avg NPS",
       "colDeals": "Deals won (count / value)",
+      "colSalesGoal": "Sales goal (month)",
+      "salesGoalNotConfigured": "No goal",
       "empty": "No agent activity in the selected period.",
       "noAgent": "No agent",
       "unknownAgent": "Removed agent"

@@ -9,6 +9,7 @@ import type {
   PipelineFunnelStage,
   PipelineReportBundle,
   PipelineReportCards,
+  SalesGoal,
   SourceConversionRow,
 } from './types'
 
@@ -38,6 +39,7 @@ interface RpcResult {
   loss_by_reason: { label: string; count: number; value: number | null }[]
   conversion_by_source: { source: string | null; generated: number; won: number }[]
   conversion_by_campaign: { campaign_id: string; campaign_name: string; generated: number; won: number }[]
+  sales_goal: { month: string; value_goal: number | null; count_goal: number | null; value_actual: number; count_actual: number }
 }
 
 /** Aggregates (cards, funnel, commission, the 3 new sales-origin
@@ -116,6 +118,14 @@ export async function loadPipelineReport(
 
   const deals = await loadDealsTableRows(db, period)
 
+  const salesGoal: SalesGoal = {
+    month: result.sales_goal.month,
+    valueGoal: result.sales_goal.value_goal,
+    countGoal: result.sales_goal.count_goal,
+    valueActual: result.sales_goal.value_actual,
+    countActual: result.sales_goal.count_actual,
+  }
+
   return {
     cards,
     avgTimeToWinDays: result.avg_time_to_win_days,
@@ -126,6 +136,7 @@ export async function loadPipelineReport(
     lossByReason,
     conversionBySource,
     conversionByCampaign,
+    salesGoal,
   }
 }
 

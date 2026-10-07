@@ -23,12 +23,17 @@ interface RpcRow {
   nps_avg_rating: number | null
   deals_won: number
   deals_won_value: number
+  sales_goal_value: number | null
+  sales_goal_count: number | null
+  sales_actual_value_month: number
+  sales_actual_count_month: number
 }
 
 interface RpcResult {
   filters: {
     first_response_goal_minutes: number | null
     resolution_goal_minutes: number | null
+    sales_goal_month: string
   }
   rows: RpcRow[]
 }
@@ -72,11 +77,16 @@ export async function loadUserSummaryDashboard(
     npsAvgRating: r.nps_avg_rating,
     dealsWonCount: r.deals_won,
     dealsWonValue: r.deals_won_value,
+    salesGoalValue: r.sales_goal_value,
+    salesGoalCount: r.sales_goal_count,
+    salesActualValueMonth: r.sales_actual_value_month,
+    salesActualCountMonth: r.sales_actual_count_month,
   }))
 
   return {
     firstResponseGoalMinutes: result.filters.first_response_goal_minutes,
     resolutionGoalMinutes: result.filters.resolution_goal_minutes,
+    salesGoalMonth: result.filters.sales_goal_month,
     rows,
   }
 }

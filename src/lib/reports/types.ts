@@ -147,6 +147,21 @@ export interface CampaignConversionRow {
   won: number
 }
 
+/** Account-wide monthly sales goal + actuals, always for the CURRENT
+ *  calendar month in the account's timezone (migration 087) —
+ *  independent of whatever period is selected in the tab's filter, a
+ *  monthly goal being compared against an arbitrary date range
+ *  wouldn't mean anything. `valueGoal`/`countGoal` null = that
+ *  dimension's goal isn't configured (never a fake 0). */
+export interface SalesGoal {
+  /** YYYY-MM-01, account-tz current month. */
+  month: string
+  valueGoal: number | null
+  countGoal: number | null
+  valueActual: number
+  countActual: number
+}
+
 export interface PipelineReportBundle {
   cards: PipelineReportCards
   /** Average days from the attributed ticket's opened_at to won_at, over
@@ -161,6 +176,7 @@ export interface PipelineReportBundle {
   lossByReason: LossReasonPoint[]
   conversionBySource: SourceConversionRow[]
   conversionByCampaign: CampaignConversionRow[]
+  salesGoal: SalesGoal
 }
 
 // ------------------------------------------------------------
@@ -614,10 +630,20 @@ export interface UserSummaryRow {
   npsAvgRating: number | null
   dealsWonCount: number
   dealsWonValue: number
+  /** Monthly sales goal (migration 087), always for the CURRENT
+   *  calendar month — independent of the tab's selected period, same
+   *  rationale as PipelineReportBundle.salesGoal. Null = that
+   *  dimension isn't configured for this agent this month. */
+  salesGoalValue: number | null
+  salesGoalCount: number | null
+  salesActualValueMonth: number
+  salesActualCountMonth: number
 }
 
 export interface UserSummaryBundle {
   firstResponseGoalMinutes: number | null
   resolutionGoalMinutes: number | null
+  /** YYYY-MM-01, account-tz current month — same key `account_user_sales_goals` uses. */
+  salesGoalMonth: string
   rows: UserSummaryRow[]
 }

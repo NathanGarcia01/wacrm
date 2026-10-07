@@ -30,6 +30,7 @@ type SortKey =
   | "transfers"
   | "nps"
   | "deals"
+  | "salesGoal"
 
 /** One comparable value per sort key — null always sorts last
  *  regardless of direction (a missing metric isn't "the worst", it's
@@ -60,6 +61,8 @@ function sortValue(row: UserSummaryRow, name: string, key: SortKey): number | st
       return row.npsAvgRating
     case "deals":
       return row.dealsWonValue
+    case "salesGoal":
+      return row.salesGoalValue == null ? null : row.salesActualValueMonth / row.salesGoalValue
   }
 }
 
@@ -158,6 +161,7 @@ export function UserSummaryTable({
     { key: "transfers", label: t("colTransfers") },
     { key: "nps", label: t("colNps") },
     { key: "deals", label: t("colDeals") },
+    { key: "salesGoal", label: t("colSalesGoal") },
   ]
 
   return (
@@ -230,6 +234,24 @@ export function UserSummaryTable({
                 </TableCell>
                 <TableCell className="whitespace-nowrap font-mono tabular-nums">
                   {row.dealsWonCount.toLocaleString()} ({formatCurrency(row.dealsWonValue, currency)})
+                </TableCell>
+                <TableCell className="whitespace-nowrap font-mono tabular-nums">
+                  {row.salesGoalValue == null && row.salesGoalCount == null ? (
+                    <span className="text-muted-foreground">{t("salesGoalNotConfigured")}</span>
+                  ) : (
+                    <div className="flex flex-col gap-0.5 text-xs">
+                      {row.salesGoalValue != null && (
+                        <span>
+                          {formatCurrency(row.salesActualValueMonth, currency)} / {formatCurrency(row.salesGoalValue, currency)}
+                        </span>
+                      )}
+                      {row.salesGoalCount != null && (
+                        <span>
+                          {row.salesActualCountMonth.toLocaleString()} / {row.salesGoalCount.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))

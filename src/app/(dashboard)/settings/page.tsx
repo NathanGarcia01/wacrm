@@ -19,6 +19,7 @@ import { ContactStatusesSettings } from '@/components/settings/contact-statuses-
 import { LeadOriginsSettings } from '@/components/settings/lead-origins-settings';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductCatalogSettings } from '@/components/settings/product-catalog-settings';
+import { SalesGoalsPanel } from '@/components/settings/sales-goals-panel';
 import { QuickRepliesSettings } from '@/components/settings/quick-replies-settings';
 import { AttendanceSettings } from '@/components/settings/attendance-settings';
 import { NpsSettings } from '@/components/settings/nps-settings';
@@ -73,6 +74,7 @@ export default function SettingsPage() {
     leadOrigins: <LeadOriginsSettings />,
     deals: <DealsSettings />,
     products: <ProductCatalogSettings />,
+    salesGoals: <SalesGoalsPanel />,
     quickReplies: <QuickRepliesSettings />,
     attendance: <AttendanceSettings />,
     nps: <NpsSettings />,

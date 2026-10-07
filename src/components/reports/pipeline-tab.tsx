@@ -26,6 +26,7 @@ import { CommissionAgentRankingTable } from "@/components/reports/commission-age
 import { PipelineLossReasonChart } from "@/components/reports/pipeline-loss-reason-chart"
 import { TicketConversionBySourceTable } from "@/components/reports/ticket-conversion-by-source-table"
 import { TicketConversionByCampaignTable } from "@/components/reports/ticket-conversion-by-campaign-table"
+import { SalesGoalCard } from "@/components/reports/sales-goal-card"
 
 function fmtPct(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(0)}%`
@@ -123,6 +124,8 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
           </>
         )}
       </div>
+
+      {bundle && <SalesGoalCard salesGoal={bundle.salesGoal} currency={defaultCurrency} />}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <PipelineFunnelChart stages={bundle?.funnel ?? []} />

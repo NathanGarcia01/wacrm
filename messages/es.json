@@ -1730,7 +1730,8 @@
       "integrations": "Integraciones",
       "attendance": "Departamentos, horario y SLA",
       "contactStatuses": "Estado del cliente",
-      "leadOrigins": "Orígenes del lead"
+      "leadOrigins": "Orígenes del lead",
+      "salesGoals": "Meta de ventas"
     },
     "railGroups": {
       "account": "Cuenta",
@@ -2393,7 +2394,8 @@
       "api": "Credenciales de la API REST de la cuenta",
       "integrations": "Conectar servicios externos para automatizar el flujo de trabajo",
       "contactStatuses": "Lista de estados configurable para clasificar contactos (Nuevo, En negociación, Cliente, Inactivo...)",
-      "leadOrigins": "Catálogo de orígenes de lead que el sistema no detecta automáticamente"
+      "leadOrigins": "Catálogo de orígenes de lead que el sistema no detecta automáticamente",
+      "salesGoals": "Meta mensual de ventas por cuenta y por usuario, en valor y/o cantidad"
     },
     "search": {
       "placeholder": "Buscar en configuración...",
@@ -2444,6 +2446,42 @@
       "deleteConfirm": "¿Eliminar el origen \"{label}\"? Los contactos con este origen quedarán sin origen manual.",
       "deleteFailed": "Error al eliminar el origen",
       "deleted": "Origen eliminado"
+    },
+    "salesGoals": {
+      "title": "Meta de ventas",
+      "description": "Meta mensual de ventas, por cuenta y por usuario, en valor y/o cantidad. Vacío desactiva la meta.",
+      "account": {
+        "title": "Meta de la cuenta",
+        "description": "Una meta mensual única para toda la cuenta. Vacío desactiva la meta.",
+        "valueGoal": {
+          "label": "Meta en valor",
+          "hint": "Suma del valor de los negocios ganados en el mes"
+        },
+        "countGoal": {
+          "label": "Meta en cantidad",
+          "hint": "Cantidad de negocios ganados en el mes"
+        },
+        "disabledPlaceholder": "Desactivada",
+        "saveButton": "Guardar",
+        "saved": "Meta de la cuenta actualizada",
+        "saveFailed": "Error al guardar la meta de la cuenta",
+        "adminOnlyHint": "Solo los administradores de la cuenta pueden editar la meta."
+      },
+      "perUser": {
+        "title": "Meta de {month}, por usuario",
+        "description": "Una meta por miembro del equipo, válida solo para el mes corriente.",
+        "copyButton": "Copiar metas del mes anterior",
+        "copyEmpty": "No hay metas en el mes anterior para copiar.",
+        "copyFailed": "Error al copiar las metas del mes anterior",
+        "copySuccess": "{count} meta(s) copiada(s) del mes anterior.",
+        "empty": "Ningún miembro en la cuenta todavía.",
+        "unnamedMember": "Miembro sin nombre",
+        "valueGoalPlaceholder": "Valor",
+        "countGoalPlaceholder": "Cant.",
+        "saveButton": "Guardar",
+        "saved": "Meta actualizada",
+        "saveFailed": "Error al guardar la meta"
+      }
     }
   },
   "reports": {
@@ -2634,6 +2672,13 @@
       "avgTimeToWin": "Tiempo medio hasta ganar",
       "avgTimeToWinTooltip": "Promedio de días entre la apertura de la atención que originó el negocio (la atención más reciente del contacto antes de crear el negocio, dentro de 30 días) y el momento en que se ganó. Los negocios sin atención vinculada no entran en el promedio."
     },
+    "salesGoalCard": {
+      "title": "Meta de {month}",
+      "notConfigured": "No hay meta de ventas configurada para esta cuenta.",
+      "notConfiguredLink": "Configurar meta",
+      "valueGoalLabel": "Valor ganado",
+      "countGoalLabel": "Negocios ganados"
+    },
     "qualityTab": {
       "loadFailed": "Error al consultar a Meta.",
       "numberQuality": "Calidad del número",
@@ -2809,6 +2854,8 @@
       "colTransfers": "Transferencias (hechas / recibidas)",
       "colNps": "NPS promedio",
       "colDeals": "Negocios ganados (cant. / valor)",
+      "colSalesGoal": "Meta de ventas (mes)",
+      "salesGoalNotConfigured": "Sin meta",
       "empty": "Ninguna actividad de agentes en el período seleccionado.",
       "noAgent": "Sin agente",
       "unknownAgent": "Agente eliminado"
