@@ -1373,6 +1373,8 @@
       "batchOf": "Batch {current} of {total}",
       "noBroadcastsMatchFilter": "No broadcasts match this filter.",
       "filters": {
+        "searchLabel": "Name",
+        "searchPlaceholder": "Search by broadcast name...",
         "statusLabel": "Status",
         "statusAll": "All",
         "tagsLabel": "Audience tag",
@@ -1391,6 +1393,11 @@
         "periodHint": "Filters by scheduled date, or creation date if sent immediately.",
         "channelLabel": "Number",
         "channelAll": "All numbers",
+        "categoryLabel": "Type",
+        "categoryAll": "Any type",
+        "categoryMarketing": "Marketing",
+        "categoryUtility": "Utility",
+        "categoryAuthentication": "Authentication",
         "clearFilters": "Clear filters",
         "activeFilters": "{count, plural, one {# active filter} other {# active filters}}"
       },

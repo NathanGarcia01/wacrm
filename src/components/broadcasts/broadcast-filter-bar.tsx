@@ -25,6 +25,8 @@ export interface WhatsAppChannelOption {
   is_active: boolean;
 }
 
+export type BroadcastCategory = "marketing" | "utility" | "authentication";
+
 export interface BroadcastFilters {
   status: BroadcastStatus | "all";
   /** ANY-match against the broadcast's audience_filter.tagIds. */
@@ -35,6 +37,11 @@ export interface BroadcastFilters {
   customFrom?: string;
   customTo?: string;
   channelId: string; // "" = all
+  /** Template category at creation time (broadcasts.category,
+   *  migration 097). "all" = no restriction. */
+  category: BroadcastCategory | "all";
+  /** Case-insensitive substring match against the broadcast's name. */
+  search: string;
 }
 
 export const DEFAULT_BROADCAST_FILTERS: BroadcastFilters = {
@@ -42,6 +49,8 @@ export const DEFAULT_BROADCAST_FILTERS: BroadcastFilters = {
   tagIds: [],
   periodKey: "all",
   channelId: "",
+  category: "all",
+  search: "",
 };
 
 export function countActiveBroadcastFilters(filters: BroadcastFilters): number {
@@ -50,6 +59,8 @@ export function countActiveBroadcastFilters(filters: BroadcastFilters): number {
   if (filters.tagIds.length > 0) count += 1;
   if (filters.periodKey !== "all") count += 1;
   if (filters.channelId !== "") count += 1;
+  if (filters.category !== "all") count += 1;
+  if (filters.search.trim() !== "") count += 1;
   return count;
 }
 
@@ -109,9 +120,28 @@ export function BroadcastFilterBar({
     }
     return items;
   }, [t, channels]);
+  const categoryItems = useMemo(
+    () => ({
+      all: t("categoryAll"),
+      marketing: t("categoryMarketing"),
+      utility: t("categoryUtility"),
+      authentication: t("categoryAuthentication"),
+    }),
+    [t],
+  );
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card/60 p-3">
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground">{t("searchLabel")}</label>
+        <Input
+          value={filters.search}
+          onChange={(e) => onChange({ ...filters, search: e.target.value })}
+          placeholder={t("searchPlaceholder")}
+          className="h-9 w-48 bg-muted"
+        />
+      </div>
+
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-medium text-muted-foreground">{t("statusLabel")}</label>
         <Select
@@ -266,6 +296,25 @@ export function BroadcastFilterBar({
           </Select>
         </div>
       )}
+
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-medium text-muted-foreground">{t("categoryLabel")}</label>
+        <Select
+          items={categoryItems}
+          value={filters.category}
+          onValueChange={(v) => onChange({ ...filters, category: (v || "all") as BroadcastFilters["category"] })}
+        >
+          <SelectTrigger className="w-40 bg-muted">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("categoryAll")}</SelectItem>
+            <SelectItem value="marketing">{t("categoryMarketing")}</SelectItem>
+            <SelectItem value="utility">{t("categoryUtility")}</SelectItem>
+            <SelectItem value="authentication">{t("categoryAuthentication")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {activeCount > 0 && (
         <div className="ml-auto flex items-center gap-2 self-end">

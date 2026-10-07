@@ -404,6 +404,11 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           template_name: payload.template.name,
           template_language: payload.template.language ?? 'en_US',
           template_variables: payload.variables,
+          // Fase 5, Etapa 3 — straight from the template row already in
+          // hand, no extra query. Lowercased to match
+          // broadcasts.category's CHECK (migration 097); the source of
+          // truth (message_templates.category) keeps Meta's own casing.
+          category: payload.template.category.toLowerCase(),
           audience_filter: {
             type: payload.audience.type,
             tagIds: payload.audience.tagIds,

@@ -1373,6 +1373,8 @@
       "batchOf": "Lote {current} de {total}",
       "noBroadcastsMatchFilter": "Nenhuma transmissão corresponde a este filtro.",
       "filters": {
+        "searchLabel": "Nome",
+        "searchPlaceholder": "Buscar por nome da transmissão...",
         "statusLabel": "Status",
         "statusAll": "Todos",
         "tagsLabel": "Tag de audiência",
@@ -1391,6 +1393,11 @@
         "periodHint": "Filtra pela data de agendamento, ou de criação se enviada imediatamente.",
         "channelLabel": "Número",
         "channelAll": "Todos os números",
+        "categoryLabel": "Tipo",
+        "categoryAll": "Qualquer tipo",
+        "categoryMarketing": "Marketing",
+        "categoryUtility": "Utilidade",
+        "categoryAuthentication": "Autenticação",
         "clearFilters": "Limpar filtros",
         "activeFilters": "{count, plural, one {# filtro ativo} other {# filtros ativos}}"
       },

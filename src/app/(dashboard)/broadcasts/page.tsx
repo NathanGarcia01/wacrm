@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, Tag } from '@/types';
@@ -23,7 +23,6 @@ import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { resolvePeriod } from '@/lib/reports/period';
 import {
   BroadcastFilterBar,
-  DEFAULT_BROADCAST_FILTERS,
   type BroadcastFilters,
   type WhatsAppChannelOption,
 } from '@/components/broadcasts/broadcast-filter-bar';
@@ -66,10 +65,34 @@ function RateCell({
   );
 }
 
+const BROADCAST_STATUSES = ['draft', 'scheduled', 'sending', 'sent', 'failed', 'paused'] as const;
+const BROADCAST_CATEGORIES = ['marketing', 'utility', 'authentication'] as const;
+const PERIOD_KEYS = ['today', 'week', 'month', 'custom'] as const;
+
+/** Reconstructs BroadcastFilters from the URL on first render, so a
+ *  bookmarked/shared link or a back-navigation restores the exact
+ *  same filtered view — same convention as the Contacts page filters. */
+function filtersFromSearchParams(params: URLSearchParams): BroadcastFilters {
+  const status = params.get('status');
+  const period = params.get('period');
+  const category = params.get('category');
+  return {
+    status: status && (BROADCAST_STATUSES as readonly string[]).includes(status) ? (status as BroadcastFilters['status']) : 'all',
+    tagIds: params.get('tags') ? params.get('tags')!.split(',').filter(Boolean) : [],
+    periodKey: period && (PERIOD_KEYS as readonly string[]).includes(period) ? (period as BroadcastFilters['periodKey']) : 'all',
+    customFrom: params.get('from') ?? undefined,
+    customTo: params.get('to') ?? undefined,
+    channelId: params.get('channel') ?? '',
+    category: category && (BROADCAST_CATEGORIES as readonly string[]).includes(category) ? (category as BroadcastFilters['category']) : 'all',
+    search: params.get('search') ?? '',
+  };
+}
+
 export default function BroadcastsPage() {
   const t = useTranslations('broadcasts.list');
   const tStatus = useTranslations('broadcasts.status');
   const router = useRouter();
+  const searchParams = useSearchParams();
   const canCreate = useCan('send-messages');
   const { accountId } = useAuth();
   const { maxBroadcastsPerMonth } = usePlanFeatures();
@@ -78,7 +101,30 @@ export default function BroadcastsPage() {
   const [error, setError] = useState<string | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
-  const [filters, setFilters] = useState<BroadcastFilters>(DEFAULT_BROADCAST_FILTERS);
+  const [filters, setFilters] = useState<BroadcastFilters>(() => filtersFromSearchParams(searchParams));
+
+  // Mirrors every filter into the URL — same convention as the
+  // Contacts page. `tags`/`period`/`from`/`to`/`channel`/`category`/
+  // `search` all round-trip through filtersFromSearchParams above.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.status !== 'all') params.set('status', filters.status);
+    if (filters.tagIds.length > 0) params.set('tags', filters.tagIds.join(','));
+    if (filters.periodKey !== 'all') {
+      params.set('period', filters.periodKey);
+      if (filters.periodKey === 'custom') {
+        if (filters.customFrom) params.set('from', filters.customFrom);
+        if (filters.customTo) params.set('to', filters.customTo);
+      }
+    }
+    if (filters.channelId) params.set('channel', filters.channelId);
+    if (filters.category !== 'all') params.set('category', filters.category);
+    if (filters.search.trim()) params.set('search', filters.search.trim());
+
+    const qs = params.toString();
+    router.replace(qs ? `/broadcasts?${qs}` : '/broadcasts', { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   // Used to kick off polling only while something is actively sending.
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -159,9 +205,12 @@ export default function BroadcastsPage() {
   }, [broadcasts]);
 
   const filteredBroadcasts = useMemo(() => {
+    const search = filters.search.trim().toLowerCase();
     return broadcasts.filter((b) => {
       if (filters.status !== 'all' && b.status !== filters.status) return false;
       if (filters.channelId !== '' && b.channel_id !== filters.channelId) return false;
+      if (filters.category !== 'all' && b.category !== filters.category) return false;
+      if (search && !b.name.toLowerCase().includes(search)) return false;
       if (filters.tagIds.length > 0) {
         const audienceTagIds = (b.audience_filter?.tagIds as string[] | undefined) ?? [];
         if (!filters.tagIds.some((id) => audienceTagIds.includes(id))) return false;

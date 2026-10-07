@@ -757,6 +757,14 @@ export interface Broadcast {
    *  deals with this status in `stage_id`. Null = no status filter
    *  (all deals in the stage, any status). Migration 064. */
   deal_status_filter?: DealStatus | null;
+  /** Lowercased mirror of the template's category at the time this
+   *  broadcast was created (message_templates.category is
+   *  'Marketing'/'Utility'/'Authentication') — set at creation from
+   *  the template row already in hand; backfilled for pre-existing
+   *  rows via (account_id, template_name, template_language).
+   *  Migration 097. Nullable: a future broadcast could end up without
+   *  one if its template was deleted before creation. */
+  category?: 'marketing' | 'utility' | 'authentication' | null;
 }
 
 export interface BroadcastRecipient {
