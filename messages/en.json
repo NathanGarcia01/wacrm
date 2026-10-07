@@ -283,7 +283,11 @@
       "originAdName": "Ad",
       "originAdSetName": "Ad set",
       "originAdCampaignName": "Campaign",
-      "originAdResolving": "Resolving ad name..."
+      "originAdResolving": "Resolving ad name...",
+      "statusLabel": "Customer status",
+      "statusNone": "No status",
+      "leadOriginLabel": "Lead origin (manual)",
+      "leadOriginNone": "No origin"
     },
     "dealSheet": {
       "titleAndStageRequired": "Title and stage are required",
@@ -1724,7 +1728,9 @@
       "members": "Team members",
       "api": "API keys",
       "integrations": "Integrations",
-      "attendance": "Departments, hours & SLA"
+      "attendance": "Departments, hours & SLA",
+      "contactStatuses": "Customer status",
+      "leadOrigins": "Lead origins"
     },
     "railGroups": {
       "account": "Account",
@@ -2385,11 +2391,59 @@
       "nps": "Automatic post-service satisfaction survey over WhatsApp",
       "members": "Team member roster and roles",
       "api": "Account REST API credentials",
-      "integrations": "Connect external services to automate your workflow"
+      "integrations": "Connect external services to automate your workflow",
+      "contactStatuses": "Configurable status list to classify contacts (New, Negotiating, Customer, Inactive...)",
+      "leadOrigins": "Catalog of lead origins the system can't detect automatically"
     },
     "search": {
       "placeholder": "Search settings...",
       "noResults": "No results for \"{query}\""
+    },
+    "contactStatuses": {
+      "pageTitle": "Customer status",
+      "pageDescription": "Configurable statuses to classify contacts — shown in the contact sidebar.",
+      "title": "Statuses",
+      "description": "Each contact can have one status. Removing a status in use just clears it from those contacts — history isn't affected.",
+      "newItem": "New status",
+      "labelColumn": "Status",
+      "labelPlaceholder": "e.g. Negotiating",
+      "empty": "No statuses yet.",
+      "editAria": "Edit status \"{label}\"",
+      "deleteAria": "Delete status \"{label}\"",
+      "adminOnlyHint": "Only account admins can edit statuses.",
+      "editTitle": "Edit status",
+      "newTitle": "New status",
+      "changeColorAria": "Change color",
+      "saveFailed": "Failed to save status",
+      "createFailed": "Failed to create status",
+      "saved": "Status updated",
+      "created": "Status created",
+      "deleteConfirm": "Delete status \"{label}\"? Contacts with this status will have no status.",
+      "deleteFailed": "Failed to delete status",
+      "deleted": "Status deleted"
+    },
+    "leadOrigins": {
+      "pageTitle": "Lead origins",
+      "pageDescription": "Manual origin catalog — for leads the automatic ad-capture (Meta ads) doesn't cover.",
+      "title": "Origins",
+      "description": "Coexists with the automatic ad-referral origin shown in the contact sidebar — this is a separate, manual classification.",
+      "newItem": "New origin",
+      "labelColumn": "Origin",
+      "labelPlaceholder": "e.g. Referral",
+      "empty": "No origins yet.",
+      "editAria": "Edit origin \"{label}\"",
+      "deleteAria": "Delete origin \"{label}\"",
+      "adminOnlyHint": "Only account admins can edit origins.",
+      "editTitle": "Edit origin",
+      "newTitle": "New origin",
+      "changeColorAria": "Change color",
+      "saveFailed": "Failed to save origin",
+      "createFailed": "Failed to create origin",
+      "saved": "Origin updated",
+      "created": "Origin created",
+      "deleteConfirm": "Delete origin \"{label}\"? Contacts with this origin will have no manual origin.",
+      "deleteFailed": "Failed to delete origin",
+      "deleted": "Origin deleted"
     }
   },
   "reports": {

@@ -283,7 +283,11 @@
       "originAdName": "Anuncio",
       "originAdSetName": "Conjunto de anuncios",
       "originAdCampaignName": "Campaña",
-      "originAdResolving": "Resolviendo nombre del anuncio..."
+      "originAdResolving": "Resolviendo nombre del anuncio...",
+      "statusLabel": "Estado del cliente",
+      "statusNone": "Sin estado",
+      "leadOriginLabel": "Origen del lead (manual)",
+      "leadOriginNone": "Sin origen"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título y etapa son obligatorios",
@@ -1724,7 +1728,9 @@
       "members": "Miembros del equipo",
       "api": "Claves de API",
       "integrations": "Integraciones",
-      "attendance": "Departamentos, horario y SLA"
+      "attendance": "Departamentos, horario y SLA",
+      "contactStatuses": "Estado del cliente",
+      "leadOrigins": "Orígenes del lead"
     },
     "railGroups": {
       "account": "Cuenta",
@@ -2385,11 +2391,59 @@
       "nps": "Encuesta automática de satisfacción por WhatsApp después de la atención",
       "members": "Lista de miembros del equipo y sus roles",
       "api": "Credenciales de la API REST de la cuenta",
-      "integrations": "Conectar servicios externos para automatizar el flujo de trabajo"
+      "integrations": "Conectar servicios externos para automatizar el flujo de trabajo",
+      "contactStatuses": "Lista de estados configurable para clasificar contactos (Nuevo, En negociación, Cliente, Inactivo...)",
+      "leadOrigins": "Catálogo de orígenes de lead que el sistema no detecta automáticamente"
     },
     "search": {
       "placeholder": "Buscar en configuración...",
       "noResults": "Ningún resultado para \"{query}\""
+    },
+    "contactStatuses": {
+      "pageTitle": "Estado del cliente",
+      "pageDescription": "Estados configurables para clasificar contactos — se muestra en la barra lateral del contacto.",
+      "title": "Estados",
+      "description": "Cada contacto puede tener un estado. Eliminar un estado en uso solo lo quita de esos contactos — no afecta el historial.",
+      "newItem": "Nuevo estado",
+      "labelColumn": "Estado",
+      "labelPlaceholder": "Ej: En negociación",
+      "empty": "Ningún estado creado todavía.",
+      "editAria": "Editar estado \"{label}\"",
+      "deleteAria": "Eliminar estado \"{label}\"",
+      "adminOnlyHint": "Solo los administradores de la cuenta pueden editar los estados.",
+      "editTitle": "Editar estado",
+      "newTitle": "Nuevo estado",
+      "changeColorAria": "Cambiar color",
+      "saveFailed": "Error al guardar el estado",
+      "createFailed": "Error al crear el estado",
+      "saved": "Estado actualizado",
+      "created": "Estado creado",
+      "deleteConfirm": "¿Eliminar el estado \"{label}\"? Los contactos con este estado quedarán sin estado.",
+      "deleteFailed": "Error al eliminar el estado",
+      "deleted": "Estado eliminado"
+    },
+    "leadOrigins": {
+      "pageTitle": "Orígenes del lead",
+      "pageDescription": "Catálogo manual de orígenes — para leads que la captura automática (anuncios Meta) no cubre.",
+      "title": "Orígenes",
+      "description": "Convive con el origen automático por anuncio mostrado en la barra lateral — esta es una clasificación manual separada.",
+      "newItem": "Nuevo origen",
+      "labelColumn": "Origen",
+      "labelPlaceholder": "Ej: Referido",
+      "empty": "Ningún origen creado todavía.",
+      "editAria": "Editar origen \"{label}\"",
+      "deleteAria": "Eliminar origen \"{label}\"",
+      "adminOnlyHint": "Solo los administradores de la cuenta pueden editar los orígenes.",
+      "editTitle": "Editar origen",
+      "newTitle": "Nuevo origen",
+      "changeColorAria": "Cambiar color",
+      "saveFailed": "Error al guardar el origen",
+      "createFailed": "Error al crear el origen",
+      "saved": "Origen actualizado",
+      "created": "Origen creado",
+      "deleteConfirm": "¿Eliminar el origen \"{label}\"? Los contactos con este origen quedarán sin origen manual.",
+      "deleteFailed": "Error al eliminar el origen",
+      "deleted": "Origen eliminado"
     }
   },
   "reports": {

@@ -15,6 +15,8 @@ import { PreferencesPanel } from '@/components/settings/preferences-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
+import { ContactStatusesSettings } from '@/components/settings/contact-statuses-settings';
+import { LeadOriginsSettings } from '@/components/settings/lead-origins-settings';
 import { DealsSettings } from '@/components/settings/deals-settings';
 import { ProductCatalogSettings } from '@/components/settings/product-catalog-settings';
 import { QuickRepliesSettings } from '@/components/settings/quick-replies-settings';
@@ -67,6 +69,8 @@ export default function SettingsPage() {
     whatsapp: <WhatsAppConfig />,
     templates: <TemplateManager />,
     fields: <FieldsAndTagsPanel />,
+    contactStatuses: <ContactStatusesSettings />,
+    leadOrigins: <LeadOriginsSettings />,
     deals: <DealsSettings />,
     products: <ProductCatalogSettings />,
     quickReplies: <QuickRepliesSettings />,

@@ -283,7 +283,11 @@
       "originAdName": "Anúncio",
       "originAdSetName": "Conjunto de anúncios",
       "originAdCampaignName": "Campanha",
-      "originAdResolving": "Resolvendo nome do anúncio..."
+      "originAdResolving": "Resolvendo nome do anúncio...",
+      "statusLabel": "Status do cliente",
+      "statusNone": "Sem status",
+      "leadOriginLabel": "Origem do lead (manual)",
+      "leadOriginNone": "Sem origem"
     },
     "dealSheet": {
       "titleAndStageRequired": "Título e etapa são obrigatórios",
@@ -1724,7 +1728,9 @@
       "members": "Membros da equipe",
       "api": "Chaves de API",
       "integrations": "Integrações",
-      "attendance": "Departamentos, horário e SLA"
+      "attendance": "Departamentos, horário e SLA",
+      "contactStatuses": "Status do cliente",
+      "leadOrigins": "Origens do lead"
     },
     "railGroups": {
       "account": "Conta",
@@ -2385,11 +2391,59 @@
       "nps": "Pesquisa automática de satisfação por WhatsApp após o atendimento",
       "members": "Lista de membros da equipe e seus papéis",
       "api": "Credenciais da API REST da conta",
-      "integrations": "Conectar serviços externos pra automatizar o fluxo de trabalho"
+      "integrations": "Conectar serviços externos pra automatizar o fluxo de trabalho",
+      "contactStatuses": "Lista de status configurável pra classificar contatos (Novo, Em negociação, Cliente, Inativo...)",
+      "leadOrigins": "Catálogo de origens de lead que o sistema não detecta automaticamente"
     },
     "search": {
       "placeholder": "Buscar em configurações...",
       "noResults": "Nenhum resultado para \"{query}\""
+    },
+    "contactStatuses": {
+      "pageTitle": "Status do cliente",
+      "pageDescription": "Status configuráveis pra classificar contatos — aplicável no painel lateral do contato.",
+      "title": "Status cadastrados",
+      "description": "Cada contato pode ter um status. Remover um status em uso só limpa esse campo dos contatos — não afeta o histórico.",
+      "newItem": "Novo status",
+      "labelColumn": "Status",
+      "labelPlaceholder": "Ex: Em negociação",
+      "empty": "Nenhum status cadastrado ainda.",
+      "editAria": "Editar status \"{label}\"",
+      "deleteAria": "Excluir status \"{label}\"",
+      "adminOnlyHint": "Somente administradores da conta podem editar os status.",
+      "editTitle": "Editar status",
+      "newTitle": "Novo status",
+      "changeColorAria": "Alterar cor",
+      "saveFailed": "Falha ao salvar status",
+      "createFailed": "Falha ao criar status",
+      "saved": "Status atualizado",
+      "created": "Status criado",
+      "deleteConfirm": "Excluir o status \"{label}\"? Contatos com esse status ficam sem status.",
+      "deleteFailed": "Falha ao excluir status",
+      "deleted": "Status excluído"
+    },
+    "leadOrigins": {
+      "pageTitle": "Origens do lead",
+      "pageDescription": "Catálogo manual de origens — pra classificar leads que a captura automática (anúncio Meta) não cobre.",
+      "title": "Origens cadastradas",
+      "description": "Convive com a origem automática por anúncio (exibida no painel lateral) — esta é uma classificação manual separada.",
+      "newItem": "Nova origem",
+      "labelColumn": "Origem",
+      "labelPlaceholder": "Ex: Indicação",
+      "empty": "Nenhuma origem cadastrada ainda.",
+      "editAria": "Editar origem \"{label}\"",
+      "deleteAria": "Excluir origem \"{label}\"",
+      "adminOnlyHint": "Somente administradores da conta podem editar as origens.",
+      "editTitle": "Editar origem",
+      "newTitle": "Nova origem",
+      "changeColorAria": "Alterar cor",
+      "saveFailed": "Falha ao salvar origem",
+      "createFailed": "Falha ao criar origem",
+      "saved": "Origem atualizada",
+      "created": "Origem criada",
+      "deleteConfirm": "Excluir a origem \"{label}\"? Contatos com essa origem ficam sem origem manual.",
+      "deleteFailed": "Falha ao excluir origem",
+      "deleted": "Origem excluída"
     }
   },
   "reports": {

@@ -121,6 +121,45 @@ export interface Contact {
   ad_name?: string | null;
   ad_set_name?: string | null;
   ad_campaign_name?: string | null;
+  /** Manual classification catalogs (migration 086) — separate from the
+   *  automatic Meta-ad fields above, which stay untouched. Null = no
+   *  status/origin picked yet, not "none" as a catalog entry. */
+  status_id?: string | null;
+  lead_origin_id?: string | null;
+  /** Present only when explicitly embedded. */
+  status?: ContactStatus | null;
+  lead_origin?: LeadOrigin | null;
+}
+
+/** Account-configurable "Status do cliente" catalog (migration 086) —
+ *  e.g. Novo, Em negociação, Cliente, Inativo. `contacts.status_id` has
+ *  `ON DELETE SET NULL`: unlike deal_loss_reasons/closing_reasons, a
+ *  status is a label for *now*, not a historical event, so deleting one
+ *  in use just clears it from those contacts instead of being blocked. */
+export interface ContactStatus {
+  id: string;
+  account_id: string;
+  label: string;
+  color: string;
+  position: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+/** Account-configurable "Origens do lead" catalog (migration 086) — for
+ *  origins the system can't detect on its own (indicação, feira, site,
+ *  prospecção fria...). Coexists with, doesn't replace, the automatic
+ *  Meta-ad referral fields on Contact (ad_source_id & co.) or the
+ *  informal auto-tag convention ("Ativo"/"Receptivo"/"Orgânico"/"Via
+ *  Anúncio Meta") — same ON DELETE SET NULL rationale as ContactStatus. */
+export interface LeadOrigin {
+  id: string;
+  account_id: string;
+  label: string;
+  color: string;
+  position: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface Tag {

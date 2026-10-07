@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
@@ -9,9 +9,11 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type {
   Contact,
+  ContactStatus,
   Deal,
   DealStatus,
   ContactNote,
+  LeadOrigin,
   Tag,
   CustomField,
   NpsSurvey,
@@ -35,8 +37,17 @@ import {
   Send,
   Workflow,
   Megaphone,
+  UserCircle2,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import Link from "next/link";
@@ -139,14 +150,35 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   const [flowRunsLoading, setFlowRunsLoading] = useState(false);
   const [flowRunningBadge, setFlowRunningBadge] = useState(false);
   const flowBadgeTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Account-wide catalogs (migration 086), not contact-scoped — loaded
+  // once per account the same way, just without a .eq("contact_id", ...).
+  const [statuses, setStatuses] = useState<ContactStatus[]>([]);
+  const [leadOrigins, setLeadOrigins] = useState<LeadOrigin[]>([]);
+
+  // Base UI's <Select> only resolves the trigger's displayed label from
+  // its `items` map (or from the popup's <SelectItem> children once the
+  // popup has actually been opened) — without `items`, a contact that
+  // already has a status/origin would show the raw uuid in the trigger
+  // until the user opened the dropdown once. Same fix as period-filter.tsx.
+  const statusItems = useMemo(() => {
+    const items: Record<string, string> = { __none__: t("statusNone") };
+    for (const s of statuses) items[s.id] = s.label;
+    return items;
+  }, [statuses, t]);
+  const leadOriginItems = useMemo(() => {
+    const items: Record<string, string> = { __none__: t("leadOriginNone") };
+    for (const o of leadOrigins) items[o.id] = o.label;
+    return items;
+  }, [leadOrigins, t]);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
 
     const supabase = createClient();
 
-    // Fetch deals, notes, tags, and custom fields/values in parallel
-    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes] = await Promise.all([
+    // Fetch deals, notes, tags, custom fields/values, and the two
+    // status/origin catalogs in parallel.
+    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes, statusesRes, originsRes] = await Promise.all([
       supabase
         .from("deals")
         .select(
@@ -168,10 +200,14 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         .from("contact_custom_values")
         .select("*")
         .eq("contact_id", contact.id),
+      supabase.from("contact_statuses").select("*").order("position"),
+      supabase.from("lead_origins").select("*").order("position"),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
+    if (statusesRes.data) setStatuses(statusesRes.data as ContactStatus[]);
+    if (originsRes.data) setLeadOrigins(originsRes.data as LeadOrigin[]);
     if (tagsRes.data) {
       const mapped = tagsRes.data
         .filter((ct: Record<string, unknown>) => ct.tags)
@@ -218,6 +254,36 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
       if (error) {
         toast.error(t("updateFailed"));
         throw error;
+      }
+      onContactUpdated?.({ ...contact, ...payload } as Contact);
+    },
+    [contact, onContactUpdated, t],
+  );
+
+  const handleUpdateStatus = useCallback(
+    async (statusId: string | null) => {
+      if (!contact) return;
+      const supabase = createClient();
+      const payload = { status_id: statusId };
+      const { error } = await supabase.from("contacts").update(payload).eq("id", contact.id);
+      if (error) {
+        toast.error(t("updateFailed"));
+        return;
+      }
+      onContactUpdated?.({ ...contact, ...payload } as Contact);
+    },
+    [contact, onContactUpdated, t],
+  );
+
+  const handleUpdateLeadOrigin = useCallback(
+    async (leadOriginId: string | null) => {
+      if (!contact) return;
+      const supabase = createClient();
+      const payload = { lead_origin_id: leadOriginId };
+      const { error } = await supabase.from("contacts").update(payload).eq("id", contact.id);
+      if (error) {
+        toast.error(t("updateFailed"));
+        return;
       }
       onContactUpdated?.({ ...contact, ...payload } as Contact);
     },
@@ -539,6 +605,73 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                 existingTagIds={tags.map((t) => t.id)}
                 onChanged={fetchContactData}
               />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Status do cliente — manual catalog, migration 086 */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <UserCircle2 className="h-3 w-3" />
+              {t("statusLabel")}
+            </div>
+            <div className="mt-2">
+              <Select
+                items={statusItems}
+                value={contact.status_id ?? "__none__"}
+                onValueChange={(v) => handleUpdateStatus(v === "__none__" ? null : v)}
+              >
+                <SelectTrigger className="h-8 w-full bg-muted text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{t("statusNone")}</SelectItem>
+                  {statuses.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                        {s.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Origem do lead — catálogo manual (migration 086), separado
+              da origem automática por anúncio exibida a seguir. */}
+          <div>
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <Compass className="h-3 w-3" />
+              {t("leadOriginLabel")}
+            </div>
+            <div className="mt-2">
+              <Select
+                items={leadOriginItems}
+                value={contact.lead_origin_id ?? "__none__"}
+                onValueChange={(v) => handleUpdateLeadOrigin(v === "__none__" ? null : v)}
+              >
+                <SelectTrigger className="h-8 w-full bg-muted text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{t("leadOriginNone")}</SelectItem>
+                  {leadOrigins.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: o.color }} />
+                        {o.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

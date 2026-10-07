@@ -1,5 +1,6 @@
 import {
   Coins,
+  Compass,
   FileText,
   Headset,
   KeyRound,
@@ -14,6 +15,7 @@ import {
   Star,
   Tags,
   User,
+  UserCircle2,
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +37,8 @@ export const SETTINGS_SECTIONS = [
   'whatsapp',
   'templates',
   'fields',
+  'contactStatuses',
+  'leadOrigins',
   'deals',
   'products',
   'quickReplies',
@@ -70,6 +74,8 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   appearance: { id: 'appearance', icon: Palette, group: 'account' },
   preferences: { id: 'preferences', icon: Languages, group: 'account' },
   fields: { id: 'fields', icon: Tags, group: 'cadastros' },
+  contactStatuses: { id: 'contactStatuses', icon: UserCircle2, group: 'cadastros' },
+  leadOrigins: { id: 'leadOrigins', icon: Compass, group: 'cadastros' },
   whatsapp: { id: 'whatsapp', icon: PlugZap, group: 'atendimento' },
   templates: { id: 'templates', icon: FileText, group: 'atendimento' },
   quickReplies: {
