@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, Tag } from '@/types';
@@ -14,18 +15,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Radio, Plus, Loader2 } from 'lucide-react';
+import { Radio, Plus, Loader2, Send, CalendarClock, Pause, MessageSquareText, Ban } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { usePlanFeatures } from '@/hooks/use-feature-gate';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { resolvePeriod } from '@/lib/reports/period';
+import { MetricCard } from '@/components/dashboard/metric-card';
 import {
   BroadcastFilterBar,
   type BroadcastFilters,
   type WhatsAppChannelOption,
 } from '@/components/broadcasts/broadcast-filter-bar';
+
+interface BroadcastsSummary {
+  sending_count: number;
+  scheduled_count: number;
+  paused_count: number;
+  sent_this_month_count: number;
+  blocked_phones_count: number;
+}
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -102,6 +112,28 @@ export default function BroadcastsPage() {
   const [tags, setTags] = useState<Tag[]>([]);
   const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
   const [filters, setFilters] = useState<BroadcastFilters>(() => filtersFromSearchParams(searchParams));
+  const [summary, setSummary] = useState<BroadcastsSummary | null>(null);
+
+  // Fase 5, Etapa 4 — current-state summary cards (sending/scheduled/
+  // paused counts + this-month sent count + active opt-out blocks),
+  // computed in the database (get_broadcasts_summary, migration 098)
+  // rather than derived from the already-loaded broadcasts list —
+  // that list is itself filtered/paginated by the UI and would never
+  // reliably reflect "right now" totals.
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data, error: rpcError } = await supabase.rpc('get_broadcasts_summary', {
+        p_account_id: accountId,
+      });
+      if (!cancelled && !rpcError) setSummary(data as BroadcastsSummary);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
 
   // Mirrors every filter into the URL — same convention as the
   // Contacts page. `tags`/`period`/`from`/`to`/`channel`/`category`/
@@ -330,6 +362,27 @@ export default function BroadcastsPage() {
           <Plus className="h-4 w-4" />
           {t('newBroadcast')}
         </GatedButton>
+      </div>
+
+      {/* Fase 5, Etapa 4 — current-state cards, independent of any
+          filter/period below. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <MetricCard title={t('summarySending')} value={String(summary?.sending_count ?? 0)} icon={Send} />
+        <MetricCard title={t('summaryScheduled')} value={String(summary?.scheduled_count ?? 0)} icon={CalendarClock} />
+        <MetricCard title={t('summaryPaused')} value={String(summary?.paused_count ?? 0)} icon={Pause} />
+        <MetricCard
+          title={t('summarySentThisMonth')}
+          value={String(summary?.sent_this_month_count ?? 0)}
+          icon={MessageSquareText}
+        />
+        <Link href="/settings?tab=optOut" className="block rounded-xl transition-opacity hover:opacity-80">
+          <MetricCard
+            title={t('summaryBlockedOptOut')}
+            value={String(summary?.blocked_phones_count ?? 0)}
+            icon={Ban}
+            subtitle={t('summaryBlockedOptOutLink')}
+          />
+        </Link>
       </div>
 
       {Number.isFinite(maxBroadcastsPerMonth) && (

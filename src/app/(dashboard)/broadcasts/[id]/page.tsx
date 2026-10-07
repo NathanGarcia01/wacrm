@@ -37,6 +37,7 @@ import {
   Pause,
   Play,
   Ban,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -458,6 +459,7 @@ export default function BroadcastDetailPage() {
   const optOutSkippedCount = recipients.filter(
     (r) => r.status === 'skipped' && r.error_message?.startsWith('Excluded — phone opted out'),
   ).length;
+  const pendingCount = recipients.filter((r) => r.status === 'pending').length;
 
   const funnelSteps: FunnelStep[] = [
     { label: t('funnelSent'), value: broadcast.sent_count, color: 'bg-primary' },
@@ -575,13 +577,20 @@ export default function BroadcastDetailPage() {
         <BatchProgress broadcast={broadcast} />
       )}
 
-      {/* Stats — 7 cards: Total / Sent / Delivered / Read / Replied / Failed / Opt-out skipped */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
+      {/* Stats — 8 cards: Total / Pending / Sent / Delivered / Read / Replied / Failed / Opt-out skipped */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-8">
         <StatCard
           label={t('statTotalRecipients')}
           value={broadcast.total_recipients}
           total={broadcast.total_recipients}
           icon={<Users className="h-4 w-4" />}
+          color="bg-muted text-muted-foreground"
+        />
+        <StatCard
+          label={t('statPending')}
+          value={pendingCount}
+          total={broadcast.total_recipients}
+          icon={<Clock className="h-4 w-4" />}
           color="bg-muted text-muted-foreground"
         />
         <StatCard
