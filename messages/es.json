@@ -923,7 +923,10 @@
       "tabTasks": "Tareas",
       "tabFiles": "Archivos",
       "tabEvents": "Historial",
-      "conversationComingSoon": "La conversación integrada llega en la próxima etapa.",
+      "noConversationYet": "Este contacto todavía no tiene conversación.",
+      "startConversation": "Iniciar conversación",
+      "startConversationFailed": "Error al iniciar la conversación",
+      "channelBadge": "Canal: {name}",
       "tasksComingSoon": "Tareas aún no implementadas.",
       "filesComingSoon": "Archivos aún no implementados.",
       "eventsEmpty": "Ningún registro todavía."

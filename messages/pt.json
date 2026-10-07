@@ -923,7 +923,10 @@
       "tabTasks": "Tarefas",
       "tabFiles": "Arquivos",
       "tabEvents": "Registros",
-      "conversationComingSoon": "A conversa embutida chega na próxima etapa.",
+      "noConversationYet": "Este contato ainda não tem conversa.",
+      "startConversation": "Iniciar conversa",
+      "startConversationFailed": "Falha ao iniciar a conversa",
+      "channelBadge": "Canal: {name}",
       "tasksComingSoon": "Tarefas ainda não implementadas.",
       "filesComingSoon": "Arquivos ainda não implementados.",
       "eventsEmpty": "Nenhum registro ainda."

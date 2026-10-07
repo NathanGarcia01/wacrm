@@ -923,7 +923,10 @@
       "tabTasks": "Tasks",
       "tabFiles": "Files",
       "tabEvents": "History",
-      "conversationComingSoon": "The embedded conversation arrives in the next step.",
+      "noConversationYet": "This contact doesn't have a conversation yet.",
+      "startConversation": "Start conversation",
+      "startConversationFailed": "Failed to start the conversation",
+      "channelBadge": "Channel: {name}",
       "tasksComingSoon": "Tasks not implemented yet.",
       "filesComingSoon": "Files not implemented yet.",
       "eventsEmpty": "No history yet."

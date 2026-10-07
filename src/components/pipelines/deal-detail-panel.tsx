@@ -39,6 +39,7 @@ import {
 import { DealStageBar } from "./deal-stage-bar";
 import { DealProductsEditor } from "./deal-products-editor";
 import { DealWinLossActions } from "./deal-win-loss-actions";
+import { DealConversationTab } from "./deal-conversation-tab";
 
 type RightTab = "conversation" | "tasks" | "files" | "events";
 
@@ -338,26 +339,34 @@ export function DealDetailPanel({
               ))}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {rightTab === "conversation" && (
-                <p className="text-sm text-muted-foreground">{t("conversationComingSoon")}</p>
-              )}
-              {rightTab === "tasks" && <p className="text-sm text-muted-foreground">{t("tasksComingSoon")}</p>}
-              {rightTab === "files" && <p className="text-sm text-muted-foreground">{t("filesComingSoon")}</p>}
-              {rightTab === "events" && (
-                events.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t("eventsEmpty")}</p>
-                ) : (
-                  <ul className="space-y-2 text-xs text-muted-foreground">
-                    {events.map((e) => (
-                      <li key={e.id} className="border-b border-border/50 pb-2">
-                        {formatDate(e.created_at)} — {e.event_type}
-                      </li>
-                    ))}
-                  </ul>
-                )
-              )}
-            </div>
+            {/* Conversa — sem padding/scroll próprio: MessageThread já
+                gerencia seu próprio layout e rolagem internamente
+                (ScrollArea da lista de mensagens + composer fixo). */}
+            {rightTab === "conversation" && (
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <DealConversationTab contact={contact} />
+              </div>
+            )}
+
+            {rightTab !== "conversation" && (
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {rightTab === "tasks" && <p className="text-sm text-muted-foreground">{t("tasksComingSoon")}</p>}
+                {rightTab === "files" && <p className="text-sm text-muted-foreground">{t("filesComingSoon")}</p>}
+                {rightTab === "events" && (
+                  events.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{t("eventsEmpty")}</p>
+                  ) : (
+                    <ul className="space-y-2 text-xs text-muted-foreground">
+                      {events.map((e) => (
+                        <li key={e.id} className="border-b border-border/50 pb-2">
+                          {formatDate(e.created_at)} — {e.event_type}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                )}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
