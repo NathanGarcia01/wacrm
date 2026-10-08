@@ -37,6 +37,10 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
           .from('message_templates')
           .select('*')
           .eq('status', 'APPROVED')
+          // Not in any currently-connected WABA (migration 105) — a
+          // broadcast picking it would fail the same way a deleted
+          // template would.
+          .eq('orphaned', false)
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;

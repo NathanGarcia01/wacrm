@@ -405,6 +405,14 @@ export interface MessageTemplate {
   sample_values?: TemplateSampleValues;
   status?: MessageTemplateStatus;
   meta_template_id?: string;
+  /** WABA this template was last seen in during a sync (migration
+   *  105) — null for locally-created templates not yet submitted. */
+  waba_id?: string | null;
+  /** True when this template's WABA is no longer any of the account's
+   *  currently active channels (migration 105) — hidden from the
+   *  default list/picker, never deleted (old campaigns may reference
+   *  it by name). */
+  orphaned?: boolean;
   rejection_reason?: string;
   quality_score?: 'GREEN' | 'YELLOW' | 'RED';
   submission_error?: string;

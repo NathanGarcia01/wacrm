@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { resolveDefaultChannel } from '@/lib/whatsapp/channels'
+import { decrypt } from '@/lib/whatsapp/encryption'
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
 import type { TemplateButton, TemplateSampleValues } from '@/types'
 
@@ -15,6 +15,14 @@ import type { TemplateButton, TemplateSampleValues } from '@/types'
  *
  * Locally-created templates (no Meta counterpart) are NOT deleted —
  * they remain visible so the user can notice drift and clean up.
+ *
+ * Syncs EVERY active Cloud API channel's WABA, not just the account's
+ * default one (migration 105) — an account can have several numbers
+ * on different WABAs (confirmed: one real account has 3), and only
+ * the default's templates were ever pulled before, silently missing
+ * the rest. Any template that was synced before but no longer appears
+ * in ANY currently-connected WABA on this run gets flagged `orphaned`
+ * (never deleted — old broadcasts may still reference it by name).
  */
 
 const META_API_VERSION = 'v21.0'
@@ -150,60 +158,87 @@ export async function POST() {
       )
     }
 
-    const config = await resolveDefaultChannel(supabase, accountId)
+    // Every active Cloud API channel's WABA — not just the default
+    // one (migration 105). Evolution channels have no Meta-hosted
+    // templates, so they're excluded; dedupe by waba_id since more
+    // than one connected number could in principle share a WABA
+    // (keep the first channel's token found for a given WABA).
+    const { data: channelRows, error: channelsErr } = await supabase
+      .from('whatsapp_channels')
+      .select('id, waba_id, access_token_encrypted')
+      .eq('account_id', accountId)
+      .eq('is_active', true)
+      .eq('channel_type', 'cloud_api')
+      .not('waba_id', 'is', null)
+      .order('created_at', { ascending: true })
 
-    if (!config) {
+    if (channelsErr) {
+      return NextResponse.json({ error: channelsErr.message }, { status: 500 })
+    }
+
+    const wabasByToken = new Map<string, string>() // wabaId -> decrypted access token
+    for (const row of channelRows ?? []) {
+      const wabaId = row.waba_id as string
+      if (!wabasByToken.has(wabaId)) {
+        wabasByToken.set(wabaId, decrypt(row.access_token_encrypted as string))
+      }
+    }
+
+    if (wabasByToken.size === 0) {
       return NextResponse.json(
         {
           error:
-            'WhatsApp not configured. Connect your WhatsApp Business account in Settings first.',
+            'No connected WhatsApp Cloud API channel with a WABA found. Connect a number in Settings first.',
         },
         { status: 400 },
       )
     }
 
-    if (!config.wabaId) {
-      return NextResponse.json(
-        {
-          error:
-            'WABA (WhatsApp Business Account) ID missing. Re-connect your account in Settings.',
-        },
-        { status: 400 },
-      )
-    }
-
-    const accessToken = config.accessToken
-
-    const metaTemplates: MetaTemplate[] = []
-    let nextUrl:
-      | string
-      | null = `${META_API_BASE}/${config.wabaId}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score`
+    const metaTemplates: (MetaTemplate & { wabaId: string })[] = []
+    const wabaErrors: { wabaId: string; message: string }[] = []
+    const truncatedWabaIds: string[] = []
     const PAGE_CAP = 20
-    let pageCount = 0
 
-    while (nextUrl && pageCount < PAGE_CAP) {
-      pageCount++
-      const metaRes: Response = await fetch(nextUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+    for (const [wabaId, accessToken] of wabasByToken) {
+      let nextUrl:
+        | string
+        | null = `${META_API_BASE}/${wabaId}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score`
+      let pageCount = 0
 
-      if (!metaRes.ok) {
-        let metaErr = `Meta API error: ${metaRes.status}`
-        try {
-          const body = await metaRes.json()
-          if (body?.error?.message) metaErr = body.error.message
-        } catch {
-          // response wasn't JSON — keep the fallback
+      // A stale/expired token on ONE secondary channel's WABA must not
+      // block syncing the others — `break` out of this WABA's pages
+      // on error and move on to the next entry in the outer loop.
+      while (nextUrl && pageCount < PAGE_CAP) {
+        pageCount++
+        const metaRes: Response = await fetch(nextUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+
+        if (!metaRes.ok) {
+          let metaErr = `Meta API error: ${metaRes.status}`
+          try {
+            const body = await metaRes.json()
+            if (body?.error?.message) metaErr = body.error.message
+          } catch {
+            // response wasn't JSON — keep the fallback
+          }
+          wabaErrors.push({ wabaId, message: metaErr })
+          break
         }
-        return NextResponse.json({ error: metaErr }, { status: 502 })
+
+        const metaBody: {
+          data?: MetaTemplate[]
+          paging?: { next?: string }
+        } = await metaRes.json()
+        if (metaBody.data) {
+          metaTemplates.push(...metaBody.data.map((t) => ({ ...t, wabaId })))
+        }
+        nextUrl = metaBody.paging?.next ?? null
       }
 
-      const metaBody: {
-        data?: MetaTemplate[]
-        paging?: { next?: string }
-      } = await metaRes.json()
-      if (metaBody.data) metaTemplates.push(...metaBody.data)
-      nextUrl = metaBody.paging?.next ?? null
+      if (pageCount >= PAGE_CAP && nextUrl !== null) {
+        truncatedWabaIds.push(wabaId)
+      }
     }
 
     let inserted = 0
@@ -246,6 +281,8 @@ export async function POST() {
         sample_values: sampleValues,
         status: normalizeStatus(t.status),
         meta_template_id: t.id,
+        waba_id: t.wabaId,
+        orphaned: false,
         quality_score: normalizeQualityScore(t.quality_score),
         updated_at: new Date().toISOString(),
       }
@@ -297,13 +334,45 @@ export async function POST() {
       }
     }
 
+    // Orphan marking — any template with a Meta counterpart that did
+    // NOT show up in any of this run's WABAs no longer belongs to a
+    // connected channel (reconnected number, or deleted on Meta's
+    // side). Never deletes — just hides from the default list/picker
+    // (template-manager.tsx / template-picker.tsx both filter on this
+    // going forward). Skipped entirely when a WABA errored out above:
+    // a partial/failed fetch must never cause real templates from
+    // that WABA to be wrongly marked orphaned.
+    let orphaned = 0
+    if (wabaErrors.length === 0) {
+      const seenIds = metaTemplates.map((t) => t.id)
+      const orphanQuery = supabase
+        .from('message_templates')
+        .update({ orphaned: true })
+        .eq('account_id', accountId)
+        .eq('orphaned', false)
+        .not('meta_template_id', 'is', null)
+      const { data: orphanedRows, error: orphanErr } =
+        seenIds.length > 0
+          ? await orphanQuery.not('meta_template_id', 'in', `(${seenIds.join(',')})`).select('id')
+          : await orphanQuery.select('id')
+      if (orphanErr) {
+        errors.push({ name: '(orphan marking)', language: '', message: orphanErr.message })
+      } else {
+        orphaned = orphanedRows?.length ?? 0
+      }
+    }
+
     return NextResponse.json({
-      success: errors.length === 0,
+      success: errors.length === 0 && wabaErrors.length === 0,
+      wabasSynced: wabasByToken.size - wabaErrors.length,
+      wabasTotal: wabasByToken.size,
       total: metaTemplates.length,
       inserted,
       updated,
+      orphaned,
       errors,
-      truncated: pageCount >= PAGE_CAP && nextUrl !== null,
+      wabaErrors,
+      truncated: truncatedWabaIds.length > 0,
     })
   } catch (error) {
     console.error('Error syncing WhatsApp templates:', error)

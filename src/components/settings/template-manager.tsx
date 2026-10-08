@@ -224,6 +224,10 @@ export function TemplateManager() {
         .from('message_templates')
         .select('*')
         .eq('user_id', userId)
+        // Templates no longer in any currently-connected WABA (migration
+        // 105) stay in the table for old campaigns to reference by
+        // name, but drop out of the default management list.
+        .eq('orphaned', false)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setTemplates(data || []);

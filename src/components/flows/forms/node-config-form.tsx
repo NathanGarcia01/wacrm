@@ -2219,6 +2219,7 @@ function useApprovedTemplates(): ApprovedTemplate[] {
         .from("message_templates")
         .select("id, name, language, body_text")
         .eq("status", "APPROVED")
+        .eq("orphaned", false)
         .order("name");
       if (!cancelled) setTemplates((data as ApprovedTemplate[] | null) ?? []);
     })();

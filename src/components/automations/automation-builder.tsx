@@ -284,6 +284,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
             .from("message_templates")
             .select("*")
             .eq("status", "APPROVED")
+            .eq("orphaned", false)
             .order("name"),
           supabase.from("custom_fields").select("*").order("field_name"),
           supabase.from("pipelines").select("*").order("name"),

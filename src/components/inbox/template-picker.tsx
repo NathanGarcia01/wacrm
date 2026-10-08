@@ -112,6 +112,9 @@ export function TemplatePicker({
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "APPROVED")
+        // Templates no longer in any currently-connected WABA
+        // (migration 105) must never be offered for a new send.
+        .eq("orphaned", false)
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
