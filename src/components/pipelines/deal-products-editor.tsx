@@ -240,12 +240,13 @@ export function DealProductsEditor({
             <Table>
               <TableHeader>
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">{t("productNameLabel")}</TableHead>
-                  <TableHead className="text-muted-foreground">{t("productValueLabel")}</TableHead>
-                  <TableHead className="text-muted-foreground">{t("productQuantityLabel")}</TableHead>
-                  <TableHead className="text-muted-foreground">{t("productCommissionRateLabel")}</TableHead>
-                  <TableHead className="text-muted-foreground">{t("productTotalLabel")}</TableHead>
-                  <TableHead className="w-16 text-muted-foreground" />
+                  <TableHead className="px-1.5 py-1.5 text-muted-foreground">{t("productNameLabel")}</TableHead>
+                  <TableHead colSpan={2} className="px-1.5 py-1.5 text-muted-foreground">
+                    {t("productValueLabel")}
+                  </TableHead>
+                  <TableHead className="px-1.5 py-1.5 text-muted-foreground">{t("productCommissionRateLabel")}</TableHead>
+                  <TableHead className="px-1.5 py-1.5 text-muted-foreground">{t("productTotalLabel")}</TableHead>
+                  <TableHead className="w-12 px-1.5 py-1.5 text-muted-foreground" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -318,18 +319,25 @@ export function DealProductsEditor({
                     </TableRow>
                   ) : (
                     <TableRow key={product.id} className="group border-border">
-                      <TableCell className="text-xs text-foreground">{product.name}</TableCell>
-                      <TableCell className="font-mono text-xs text-foreground">
-                        {formatCurrency(product.value, currency)}
+                      <TableCell className="max-w-[64px] truncate px-1.5 py-1.5 text-xs text-foreground" title={product.name}>
+                        {product.name}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-foreground">{product.quantity}</TableCell>
-                      <TableCell className="font-mono text-xs text-foreground">
+                      {/* Qtd + Valor combinados numa célula só (colspan 2) —
+                          reduz a tabela pra 5 colunas visuais em vez de 6,
+                          sem quebrar o alinhamento com as linhas de edição/
+                          adição, que continuam com Valor e Qtd separados. */}
+                      <TableCell colSpan={2} className="whitespace-nowrap px-1.5 py-1.5 font-mono text-xs text-foreground">
+                        {product.quantity > 1
+                          ? `${product.quantity} × ${formatCurrency(product.value, currency)}`
+                          : formatCurrency(product.value, currency)}
+                      </TableCell>
+                      <TableCell className="px-1.5 py-1.5 font-mono text-xs text-foreground">
                         {product.commission_rate ? `${product.commission_rate}%` : "—"}
                       </TableCell>
-                      <TableCell className="font-mono text-xs text-foreground">
+                      <TableCell className="px-1.5 py-1.5 font-mono text-xs text-foreground">
                         {formatCurrency(product.value * product.quantity, currency)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-1.5 py-1.5">
                         <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
                             type="button"

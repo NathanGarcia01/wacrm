@@ -128,12 +128,12 @@ export function DealWinLossActions({
 
   return (
     <>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
           onClick={handleMarkWon}
           disabled={statusSaving !== null}
-          className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
+          className="min-w-[140px] flex-1 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           {statusSaving === "won" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
           {t("markAsWon")}
@@ -143,7 +143,7 @@ export function DealWinLossActions({
           variant="outline"
           onClick={() => setLostDialogOpen(true)}
           disabled={statusSaving !== null}
-          className="flex-1 border-destructive/40 text-destructive hover:bg-destructive/10"
+          className="min-w-[140px] flex-1 border-destructive/40 text-destructive hover:bg-destructive/10"
         >
           <X className="h-3.5 w-3.5" />
           {t("markAsLost")}

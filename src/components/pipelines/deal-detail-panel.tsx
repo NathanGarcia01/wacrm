@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 import type {
@@ -31,6 +32,7 @@ import {
   Pencil,
   UserCircle2,
   Compass,
+  Info,
   MessageCircle,
   CheckSquare,
   FileText,
@@ -44,7 +46,7 @@ import { DealTasksTab } from "./deal-tasks-tab";
 import { DealFilesTab } from "./deal-files-tab";
 import { DealEventsTab } from "./deal-events-tab";
 
-type RightTab = "conversation" | "tasks" | "files" | "events";
+type PanelTab = "data" | "conversation" | "tasks" | "files" | "events";
 
 function daysSince(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
@@ -101,7 +103,7 @@ export function DealDetailPanel({
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [events, setEvents] = useState<DealEvent[]>([]);
   const [movingStageId, setMovingStageId] = useState<string | null>(null);
-  const [rightTab, setRightTab] = useState<RightTab>("conversation");
+  const [activeTab, setActiveTab] = useState<PanelTab>("conversation");
 
   const contact = deal?.contact ?? null;
 
@@ -111,6 +113,7 @@ export function DealDetailPanel({
       setTags([]);
       setCustomValues({});
       setEvents([]);
+      setActiveTab("conversation");
       return;
     }
     let cancelled = false;
@@ -182,7 +185,21 @@ export function DealDetailPanel({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[88vh] w-full max-w-5xl flex-col gap-0 overflow-hidden border-border bg-popover p-0 text-popover-foreground">
+      <DialogContent
+        className={cn(
+          "flex flex-col gap-0 overflow-hidden border-border bg-popover p-0 text-popover-foreground",
+          // Mobile: ficha em tela cheia (decisão 5) — sobrescreve o
+          // posicionamento centralizado padrão do DialogContent.
+          "top-0 left-0 h-screen w-screen max-w-none translate-x-0 translate-y-0 rounded-none",
+          // Desktop (sm+): modal centralizado largo. Precisa repetir o
+          // prefixo sm: em CADA utilitário que colide com o default do
+          // DialogContent (sm:max-w-sm, top-1/2, left-1/2, etc.) — o
+          // twMerge só dedupe classes com o MESMO prefixo de variante,
+          // então um max-w-5xl sem prefixo nunca vence um sm:max-w-sm
+          // do componente base (bug original: painel abria a ~360px).
+          "sm:top-1/2 sm:left-1/2 sm:h-[90vh] sm:w-[95vw] sm:max-w-[1400px] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl",
+        )}
+      >
         {/* Topo — nome + barra de etapas */}
         <div className="border-b border-border/50 p-4">
           <div className="flex items-center justify-between gap-3">
@@ -204,13 +221,23 @@ export function DealDetailPanel({
               events={events}
               onMoveStage={handleMoveStage}
               moving={movingStageId}
+              open={open}
             />
           </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
-          {/* Esquerda — dados do lead e do negócio */}
-          <div className="w-full shrink-0 overflow-y-auto border-b border-border/50 p-4 lg:w-80 lg:border-b-0 lg:border-r">
+          {/* Esquerda — dados do lead e do negócio. Sempre visível em
+              lg+; em telas menores vira a própria aba "Dados" (decisão
+              5: celular em tela cheia com abas Dados/Conversa/Tarefas/
+              Arquivos/Registros), escondida com `hidden` quando outra
+              aba está ativa. */}
+          <div
+            className={cn(
+              "w-full shrink-0 overflow-y-auto border-b border-border/50 p-4 lg:block lg:w-[380px] lg:border-b-0 lg:border-r",
+              activeTab === "data" ? "block" : "hidden lg:block",
+            )}
+          >
             <div className="space-y-4">
               <div>
                 <p className="text-sm font-medium text-foreground">{contact?.name || contact?.phone || t("noContact")}</p>
@@ -317,24 +344,30 @@ export function DealDetailPanel({
             </div>
           </div>
 
-          {/* Direita — abas */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* Direita — abas. Em celular, "Dados" entra como 5ª aba
+              (só visível <lg, decisão 5); em desktop a coluna da
+              esquerda já está sempre visível, então o botão "Dados"
+              fica escondido e nunca chega a ser clicado. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:min-w-0">
             <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 px-3 pt-2">
               {([
-                { key: "conversation", label: t("tabConversation"), icon: MessageCircle },
-                { key: "tasks", label: t("tabTasks"), icon: CheckSquare },
-                { key: "files", label: t("tabFiles"), icon: FileText },
-                { key: "events", label: t("tabEvents"), icon: History },
-              ] as const).map(({ key, label, icon: Icon }) => (
+                { key: "data", label: t("tabData"), icon: Info, mobileOnly: true },
+                { key: "conversation", label: t("tabConversation"), icon: MessageCircle, mobileOnly: false },
+                { key: "tasks", label: t("tabTasks"), icon: CheckSquare, mobileOnly: false },
+                { key: "files", label: t("tabFiles"), icon: FileText, mobileOnly: false },
+                { key: "events", label: t("tabEvents"), icon: History, mobileOnly: false },
+              ] as const).map(({ key, label, icon: Icon, mobileOnly }) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setRightTab(key)}
-                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-t-lg border-b-2 px-3 py-2 text-xs font-medium transition-colors ${
-                    rightTab === key
+                  onClick={() => setActiveTab(key)}
+                  className={cn(
+                    "flex items-center gap-1.5 whitespace-nowrap rounded-t-lg border-b-2 px-3 py-2 text-xs font-medium transition-colors",
+                    mobileOnly && "lg:hidden",
+                    activeTab === key
                       ? "border-primary text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {label}
@@ -345,17 +378,17 @@ export function DealDetailPanel({
             {/* Conversa — sem padding/scroll próprio: MessageThread já
                 gerencia seu próprio layout e rolagem internamente
                 (ScrollArea da lista de mensagens + composer fixo). */}
-            {rightTab === "conversation" && (
+            {activeTab === "conversation" && (
               <div className="min-h-0 flex-1 overflow-hidden">
                 <DealConversationTab contact={contact} />
               </div>
             )}
 
-            {rightTab !== "conversation" && (
+            {activeTab !== "conversation" && activeTab !== "data" && (
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {rightTab === "tasks" && <DealTasksTab dealId={deal.id} profiles={profiles} />}
-                {rightTab === "files" && <DealFilesTab contact={contact} />}
-                {rightTab === "events" && (
+                {activeTab === "tasks" && <DealTasksTab dealId={deal.id} profiles={profiles} />}
+                {activeTab === "files" && <DealFilesTab contact={contact} />}
+                {activeTab === "events" && (
                   <DealEventsTab events={events} stages={stages} profiles={profiles} currency={currency} />
                 )}
               </div>

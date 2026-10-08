@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Deal, DealEvent, PipelineStage } from "@/types";
@@ -22,6 +22,7 @@ export function DealStageBar({
   events,
   onMoveStage,
   moving,
+  open,
 }: {
   deal: Deal;
   stages: PipelineStage[];
@@ -30,8 +31,22 @@ export function DealStageBar({
   /** Stage id currently being persisted — disables all pills so a
    *  double-click can't fire two moves in a row. */
   moving: string | null;
+  /** Whether the parent panel/dialog is open — drives the
+   *  scroll-into-view below, since the panel can stay mounted with
+   *  `open=false` between deals instead of unmounting. */
+  open: boolean;
 }) {
   const orderedStages = useMemo(() => [...stages].sort((a, b) => a.position - b.position), [stages]);
+  const currentStageRef = useRef<HTMLButtonElement>(null);
+
+  // Garante que a etapa atual esteja visível ao abrir o painel, mesmo
+  // quando a barra tem mais etapas do que cabem e precisa rolar
+  // horizontalmente (scroll começa do zero por padrão).
+  useEffect(() => {
+    if (open) {
+      currentStageRef.current?.scrollIntoView({ inline: "center", block: "nearest" });
+    }
+  }, [open, deal.stage_id]);
 
   const visitedStageIds = useMemo(() => {
     const stageEvents = events.filter((e) => e.event_type === "created" || e.event_type === "stage_changed");
@@ -62,6 +77,7 @@ export function DealStageBar({
         return (
           <div key={stage.id} className="flex items-center gap-1">
             <button
+              ref={isCurrent ? currentStageRef : undefined}
               type="button"
               disabled={closed || moving !== null || isCurrent}
               onClick={() => onMoveStage(stage.id)}
