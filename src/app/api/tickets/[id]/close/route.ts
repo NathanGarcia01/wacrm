@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { closeTicket, TicketClosedError, TicketNotFoundError } from "@/lib/tickets/lifecycle";
+import { sendNpsSurvey } from "@/lib/nps/send-survey";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -66,6 +67,21 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const updated = await closeTicket(id, closingReasonId, userId, note);
+
+    // Mirrors the automations/flows close_conversation step (engine.ts)
+    // — this mandatory-reason dialog is the PRIMARY manual-close path
+    // since Fase 1 Etapa 6, and never got this call when it replaced
+    // the old UI, silently breaking NPS for every agent-initiated
+    // close. Best-effort: sendNpsSurvey() already no-ops on its own
+    // (disabled / already sent today) and a failure here must not
+    // fail the close itself.
+    sendNpsSurvey({
+      accountId,
+      userId,
+      conversationId: updated.conversation_id,
+      triggerType: "manual_close",
+    }).catch((err) => console.error("[tickets/close] nps auto-send failed:", err));
+
     return NextResponse.json({ ticket: updated });
   } catch (err) {
     if (err instanceof TicketNotFoundError) {

@@ -9,6 +9,7 @@ import {
   TicketClosedError,
   TicketNotFoundError,
 } from "@/lib/tickets/lifecycle";
+import { sendNpsSurvey } from "@/lib/nps/send-survey";
 import type { Ticket } from "@/types";
 
 const MAX_BATCH = 200;
@@ -187,6 +188,16 @@ export async function POST(request: Request) {
             } else {
               await closeTicketWithoutReason(conversationId, userId);
             }
+            // Same gap as the single-ticket close route — bulk close
+            // never got the NPS auto-send either. Best-effort,
+            // per-conversation; one failure here must not fail the
+            // close or the rest of the batch.
+            sendNpsSurvey({
+              accountId,
+              userId,
+              conversationId,
+              triggerType: "manual_close",
+            }).catch((err) => console.error("[tickets/bulk-action] nps auto-send failed:", err));
             break;
         }
         results.push({ conversationId, status: "success" });
