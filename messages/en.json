@@ -941,7 +941,6 @@
       "startConversation": "Start conversation",
       "startConversationFailed": "Failed to start the conversation",
       "channelBadge": "Channel: {name}",
-      "filesComingSoon": "Files not implemented yet.",
       "eventsEmpty": "No history yet.",
       "openInInbox": "Open in Inbox",
       "tasksLabel": "Tasks",
@@ -950,7 +949,14 @@
       "tasksNoAssignee": "Unassigned",
       "tasksEmpty": "No tasks yet.",
       "tasksSaveFailed": "Failed to save the task",
-      "tasksDeleteFailed": "Failed to delete the task"
+      "tasksDeleteFailed": "Failed to delete the task",
+      "filesEmpty": "No files yet.",
+      "fileType": {
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio",
+        "document": "Document"
+      }
     }
   },
   "automations": {

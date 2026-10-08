@@ -941,7 +941,6 @@
       "startConversation": "Iniciar conversa",
       "startConversationFailed": "Falha ao iniciar a conversa",
       "channelBadge": "Canal: {name}",
-      "filesComingSoon": "Arquivos ainda não implementados.",
       "eventsEmpty": "Nenhum registro ainda.",
       "openInInbox": "Abrir na Caixa de Entrada",
       "tasksLabel": "Tarefas",
@@ -950,7 +949,14 @@
       "tasksNoAssignee": "Sem responsável",
       "tasksEmpty": "Nenhuma tarefa ainda.",
       "tasksSaveFailed": "Falha ao salvar a tarefa",
-      "tasksDeleteFailed": "Falha ao excluir a tarefa"
+      "tasksDeleteFailed": "Falha ao excluir a tarefa",
+      "filesEmpty": "Nenhum arquivo ainda.",
+      "fileType": {
+        "image": "Imagem",
+        "video": "Vídeo",
+        "audio": "Áudio",
+        "document": "Documento"
+      }
     }
   },
   "automations": {
