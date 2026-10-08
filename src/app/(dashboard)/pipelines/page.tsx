@@ -162,6 +162,7 @@ export default function PipelinesPage() {
           ticketStatus: row.ticket_status,
           outside24h: row.outside_24h,
           optedOut: row.opted_out,
+          overdueTasksCount: row.overdue_tasks_count,
         };
       }
       return map;

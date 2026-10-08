@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import type { Deal, DealIndicators, PipelineStage } from "@/types";
-import { Calendar, Check, Clock, MessageCircle, ShieldOff, X } from "lucide-react";
+import { AlertTriangle, Calendar, Check, Clock, MessageCircle, ShieldOff, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 
 interface DealCardProps {
@@ -90,7 +90,8 @@ export function DealCard({ deal, stage, indicators, onEdit, isOverlay }: DealCar
         (indicators.unreadCount > 0 ||
           indicators.ticketStatus ||
           indicators.outside24h ||
-          indicators.optedOut) && (
+          indicators.optedOut ||
+          indicators.overdueTasksCount > 0) && (
           <div className="mt-2 flex items-center gap-1.5">
             {indicators.unreadCount > 0 && (
               <span
@@ -121,6 +122,15 @@ export function DealCard({ deal, stage, indicators, onEdit, isOverlay }: DealCar
             {indicators.optedOut && (
               <span title={t("optedOutTooltip")}>
                 <ShieldOff className="h-3.5 w-3.5 text-destructive" />
+              </span>
+            )}
+            {indicators.overdueTasksCount > 0 && (
+              <span
+                title={t("overdueTasksTooltip", { count: indicators.overdueTasksCount })}
+                className="flex items-center gap-0.5 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                {indicators.overdueTasksCount}
               </span>
             )}
           </div>

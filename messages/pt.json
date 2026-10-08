@@ -826,7 +826,8 @@
         "in_progress": "Em atendimento"
       },
       "outside24hTooltip": "Fora da janela de 24h",
-      "optedOutTooltip": "Pediu para sair dos disparos"
+      "optedOutTooltip": "Pediu para sair dos disparos",
+      "overdueTasksTooltip": "{count, plural, one {# tarefa atrasada} other {# tarefas atrasadas}}"
     },
     "settings": {
       "managePipeline": "Gerenciar Pipeline",
@@ -940,10 +941,16 @@
       "startConversation": "Iniciar conversa",
       "startConversationFailed": "Falha ao iniciar a conversa",
       "channelBadge": "Canal: {name}",
-      "tasksComingSoon": "Tarefas ainda não implementadas.",
       "filesComingSoon": "Arquivos ainda não implementados.",
       "eventsEmpty": "Nenhum registro ainda.",
-      "openInInbox": "Abrir na Caixa de Entrada"
+      "openInInbox": "Abrir na Caixa de Entrada",
+      "tasksLabel": "Tarefas",
+      "tasksAdd": "Adicionar tarefa",
+      "tasksTitlePlaceholder": "O que precisa ser feito?",
+      "tasksNoAssignee": "Sem responsável",
+      "tasksEmpty": "Nenhuma tarefa ainda.",
+      "tasksSaveFailed": "Falha ao salvar a tarefa",
+      "tasksDeleteFailed": "Falha ao excluir a tarefa"
     }
   },
   "automations": {

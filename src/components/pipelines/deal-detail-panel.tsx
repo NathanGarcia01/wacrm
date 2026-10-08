@@ -40,6 +40,7 @@ import { DealStageBar } from "./deal-stage-bar";
 import { DealProductsEditor } from "./deal-products-editor";
 import { DealWinLossActions } from "./deal-win-loss-actions";
 import { DealConversationTab } from "./deal-conversation-tab";
+import { DealTasksTab } from "./deal-tasks-tab";
 
 type RightTab = "conversation" | "tasks" | "files" | "events";
 
@@ -350,7 +351,7 @@ export function DealDetailPanel({
 
             {rightTab !== "conversation" && (
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                {rightTab === "tasks" && <p className="text-sm text-muted-foreground">{t("tasksComingSoon")}</p>}
+                {rightTab === "tasks" && <DealTasksTab dealId={deal.id} profiles={profiles} />}
                 {rightTab === "files" && <p className="text-sm text-muted-foreground">{t("filesComingSoon")}</p>}
                 {rightTab === "events" && (
                   events.length === 0 ? (

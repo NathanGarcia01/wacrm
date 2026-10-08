@@ -826,7 +826,8 @@
         "in_progress": "In progress"
       },
       "outside24hTooltip": "Outside the 24h window",
-      "optedOutTooltip": "Opted out of marketing"
+      "optedOutTooltip": "Opted out of marketing",
+      "overdueTasksTooltip": "{count, plural, one {# overdue task} other {# overdue tasks}}"
     },
     "settings": {
       "managePipeline": "Manage Pipeline",
@@ -940,10 +941,16 @@
       "startConversation": "Start conversation",
       "startConversationFailed": "Failed to start the conversation",
       "channelBadge": "Channel: {name}",
-      "tasksComingSoon": "Tasks not implemented yet.",
       "filesComingSoon": "Files not implemented yet.",
       "eventsEmpty": "No history yet.",
-      "openInInbox": "Open in Inbox"
+      "openInInbox": "Open in Inbox",
+      "tasksLabel": "Tasks",
+      "tasksAdd": "Add task",
+      "tasksTitlePlaceholder": "What needs to be done?",
+      "tasksNoAssignee": "Unassigned",
+      "tasksEmpty": "No tasks yet.",
+      "tasksSaveFailed": "Failed to save the task",
+      "tasksDeleteFailed": "Failed to delete the task"
     }
   },
   "automations": {

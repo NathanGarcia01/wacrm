@@ -476,6 +476,20 @@ export interface DealIndicators {
   ticketStatus: 'pending' | 'in_progress' | null;
   outside24h: boolean;
   optedOut: boolean;
+  overdueTasksCount: number;
+}
+
+/** Fase 6 — aba Tarefas do painel de negócio (migration 103). */
+export interface DealTask {
+  id: string;
+  account_id: string;
+  deal_id: string;
+  title: string;
+  due_at?: string | null;
+  assigned_to?: string | null;
+  completed_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
 }
 
 export type DealEventType = 'created' | 'stage_changed' | 'won' | 'lost' | 'assignee_changed' | 'value_changed';
