@@ -169,12 +169,11 @@ export function BulkActionDialog({
     }
   }
 
+  // "close" needs no gate here — picking a reason is optional (the
+  // server falls back to the system placeholder when none is sent),
+  // same relaxation as the single-ticket close dialog.
   const canConfirmConfigure =
-    action === "transfer"
-      ? (transferTarget === "agent" ? !!transferAgentId : !!departmentId)
-      : action === "close"
-        ? !!closingReasonId
-        : true;
+    action === "transfer" ? (transferTarget === "agent" ? !!transferAgentId : !!departmentId) : true;
 
   return (
     <Dialog open={open} onOpenChange={(v) => step !== "running" && onOpenChange(v)}>

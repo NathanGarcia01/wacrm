@@ -26,12 +26,18 @@ import {
 } from "@/components/ui/select";
 
 /**
- * Fase 1 (atendimento), Etapa 6 — the mandatory-reason close dialog.
- * Only ever lists `is_system = false` closing reasons: the two
- * system placeholders ("Encerrado por inatividade", "Encerrado (sem
- * motivo informado)") exist for the automated/legacy close paths,
- * not for an agent closing from here — POST /api/tickets/[id]/close
- * rejects them server-side too, this is UX, not the real guard.
+ * Fase 1 (atendimento), Etapa 6 — the close dialog. Picking a reason
+ * is OPTIONAL: Confirm works either way — with a reason picked, same
+ * as before; with none, the server falls back to the seeded
+ * 'no_reason_informed' placeholder (closeTicketWithoutReason), still
+ * attributed to this agent (closed_by='agent') and still firing NPS.
+ *
+ * Only ever lists `is_system = false` closing reasons: the two system
+ * placeholders ("Encerrado por inatividade", "Encerrado (sem motivo
+ * informado)") exist for the automated/no-reason close paths, never
+ * for an agent to hand-pick here — POST /api/tickets/[id]/close
+ * rejects them server-side too if somehow sent, this is UX, not the
+ * real guard.
  */
 export function CloseTicketDialog({
   open,
@@ -70,12 +76,11 @@ export function CloseTicketDialog({
   }, [open]);
 
   async function handleConfirm() {
-    if (!reasonId) return;
     setSaving(true);
     const res = await fetch(`/api/tickets/${ticket.id}/close`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ closingReasonId: reasonId, note: note.trim() || undefined }),
+      body: JSON.stringify({ closingReasonId: reasonId || undefined, note: note.trim() || undefined }),
     });
     setSaving(false);
     if (!res.ok) {
@@ -142,7 +147,7 @@ export function CloseTicketDialog({
           <Button
             type="button"
             onClick={handleConfirm}
-            disabled={saving || !reasonId}
+            disabled={saving}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : t("confirm")}

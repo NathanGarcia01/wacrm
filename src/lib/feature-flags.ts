@@ -20,3 +20,18 @@
  * data are untouched — this is a pure UI toggle.
  */
 export const CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED = false;
+
+/**
+ * Ticket protocol number ("#1234"). Hides it from:
+ *   - The inbox conversation list row (conversation-list.tsx).
+ *   - The chat header badge (ticket-header-actions.tsx — shared by the
+ *     standalone inbox AND the pipeline/deal panel's embedded
+ *     Conversa tab, since both render the same MessageThread).
+ *
+ * Does NOT touch: protocol generation itself (next_ticket_protocol
+ * RPC, account_ticket_counters) — every ticket still gets one, it's
+ * just not displayed. The "at-risk tickets" report
+ * (at-risk-tickets-list.tsx) is a report, explicitly out of scope,
+ * left untouched.
+ */
+export const TICKET_PROTOCOL_UI_ENABLED = false;

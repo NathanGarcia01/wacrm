@@ -31,7 +31,10 @@ vi.mock("@/lib/nps/send-survey", () => ({
   sendNpsSurvey: sendNpsSurveyMock,
 }));
 
-function supabaseStub(openTickets: { id: string; conversation_id: string }[]) {
+function supabaseStub(
+  openTickets: { id: string; conversation_id: string }[],
+  closingReason: { id: string; is_system: boolean } | null = null,
+) {
   return {
     from: (table: string) => {
       if (table === "conversations") {
@@ -47,6 +50,17 @@ function supabaseStub(openTickets: { id: string; conversation_id: string }[]) {
           select: () => ({
             in: () => ({
               neq: () => Promise.resolve({ data: openTickets, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === "closing_reasons") {
+        return {
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                maybeSingle: () => Promise.resolve({ data: closingReason, error: null }),
+              }),
             }),
           }),
         };
@@ -79,7 +93,49 @@ describe("POST /api/tickets/bulk-action — NPS auto-send on close", () => {
     const body = await response.json();
     expect(body.results).toEqual([{ conversationId: "conversation-1", status: "success" }]);
 
-    expect(closeTicketWithoutReasonMock).toHaveBeenCalledWith("conversation-1", "user-1");
+    expect(closeTicketWithoutReasonMock).toHaveBeenCalledWith("conversation-1", "user-1", undefined);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sendNpsSurveyMock).toHaveBeenCalledWith({
+      accountId: "account-1",
+      userId: "user-1",
+      conversationId: "conversation-1",
+      triggerType: "manual_close",
+    });
+  });
+
+  it("fires sendNpsSurvey per conversation after a successful closeTicket WITH a reason", async () => {
+    requireRoleMock.mockResolvedValue({
+      supabase: supabaseStub(
+        [{ id: "ticket-1", conversation_id: "conversation-1" }],
+        { id: "reason-1", is_system: false },
+      ),
+      accountId: "account-1",
+      userId: "user-1",
+    });
+    closeTicketMock.mockResolvedValue({ id: "ticket-1", status: "closed" });
+    sendNpsSurveyMock.mockResolvedValue({ sent: true });
+    closeTicketWithoutReasonMock.mockClear();
+
+    const { POST } = await import("./route");
+
+    const request = new Request("http://localhost/api/tickets/bulk-action", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "close",
+        conversationIds: ["conversation-1"],
+        payload: { closingReasonId: "reason-1" },
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.results).toEqual([{ conversationId: "conversation-1", status: "success" }]);
+
+    expect(closeTicketMock).toHaveBeenCalledWith("ticket-1", "reason-1", "user-1", undefined);
+    expect(closeTicketWithoutReasonMock).not.toHaveBeenCalled();
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(sendNpsSurveyMock).toHaveBeenCalledWith({

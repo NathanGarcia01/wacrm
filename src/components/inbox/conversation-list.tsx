@@ -10,6 +10,7 @@ import { useInboxTabCounts } from "@/hooks/use-inbox-tab-counts";
 import { resolveAllTabConversationIds } from "@/lib/inbox/resolve-tab-conversation-ids";
 import type { BulkAction } from "@/lib/inbox/bulk-action-client";
 import { cn } from "@/lib/utils";
+import { TICKET_PROTOCOL_UI_ENABLED } from "@/lib/feature-flags";
 import type {
   Contact,
   Conversation,
@@ -923,7 +924,7 @@ function ConversationItem({
           >
             {displayName}
           </span>
-          {conversation.ticket && (
+          {TICKET_PROTOCOL_UI_ENABLED && conversation.ticket && (
             <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
               #{conversation.ticket.protocol_number}
             </span>

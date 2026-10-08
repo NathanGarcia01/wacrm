@@ -601,26 +601,27 @@ async function getSystemClosingReasonId(
 }
 
 /**
- * Transition-period close (Fase 1, Etapa 4 rule 5): every place that
- * closes a conversation today (manual UI, automations' and flows'
- * close_conversation step) does so with no reason at all — the DB
- * CHECK on tickets requires one. Closes with the seeded
- * 'no_reason_informed' system reason as a placeholder so those call
- * sites don't need a UI/config change yet.
+ * Close with no real reason: the seeded 'no_reason_informed' system
+ * reason stands in, since the DB CHECK on tickets requires some
+ * non-null closing_reason_id whenever status='closed'. Used by every
+ * automated close (automations'/flows' close_conversation step) AND,
+ * since the closing-reason dialog made picking a reason optional
+ * (agent can close in one click), by a human agent who closed without
+ * choosing one — `actorId` still being a real user id is what keeps
+ * `closed_by='agent'` honest in that case (see closeTicket below).
  *
- * Etapa 6 replaces this: the "fechar com motivo obrigatório" dialog
- * calls closeTicket directly with the agent-picked real reason instead
- * of calling this function. No data migration needed when that
- * lands — old tickets just keep their honest "no reason was given at
- * the time" placeholder.
+ * `note` is optional and forwarded as-is — a one-click close has none,
+ * but the dialog still lets an agent type a note without picking a
+ * reason chip.
  *
  * No-ops (returns null) when there's no open ticket for the
- * conversation — same "nothing to mirror" case as every other Etapa 4
- * call site.
+ * conversation — same "nothing to mirror" case as every other
+ * automated call site.
  */
 export async function closeTicketWithoutReason(
   conversationId: string,
   actorId: string | null,
+  note?: string,
 ): Promise<Ticket | null> {
   const admin = supabaseAdmin()
   const ticket = await findOpenTicket(conversationId)
@@ -632,5 +633,5 @@ export async function closeTicketWithoutReason(
       `No 'no_reason_informed' system closing reason for account ${ticket.account_id} — did migration 071 run?`,
     )
   }
-  return closeTicket(ticket.id, reasonId, actorId)
+  return closeTicket(ticket.id, reasonId, actorId, note)
 }

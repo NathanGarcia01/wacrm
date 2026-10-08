@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TICKET_PROTOCOL_UI_ENABLED } from "@/lib/feature-flags";
 import type { Profile, Ticket, TicketStatus } from "@/types";
 import {
   DropdownMenu,
@@ -127,7 +128,7 @@ export function TicketHeaderActions({
 
   return (
     <div className="flex items-center gap-2">
-      {ticket && (
+      {TICKET_PROTOCOL_UI_ENABLED && ticket && (
         <Badge variant="outline" className="gap-1 font-mono text-[10px]">
           #{ticket.protocol_number}
         </Badge>

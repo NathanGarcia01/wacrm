@@ -186,7 +186,7 @@ export async function POST(request: Request) {
             if (closingReasonId) {
               await closeTicket(ticket.id, closingReasonId, userId, payload.note as string | undefined);
             } else {
-              await closeTicketWithoutReason(conversationId, userId);
+              await closeTicketWithoutReason(conversationId, userId, payload.note as string | undefined);
             }
             // Same gap as the single-ticket close route — bulk close
             // never got the NPS auto-send either. Best-effort,
