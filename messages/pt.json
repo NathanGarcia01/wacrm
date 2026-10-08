@@ -956,7 +956,17 @@
         "video": "Vídeo",
         "audio": "Áudio",
         "document": "Documento"
-      }
+      },
+      "eventCreated": "Negócio criado",
+      "eventStageChanged": "Movido de {from} para {to}",
+      "eventWon": "Marcado como Ganho",
+      "eventLost": "Marcado como Perdido",
+      "eventLostWithReason": "Marcado como Perdido — {reason}",
+      "eventAssigneeChanged": "Responsável alterado de {from} para {to}",
+      "eventValueChanged": "Valor alterado de {from} para {to}",
+      "eventActorSystem": "Automação/Sistema",
+      "eventActorUnknown": "Desconhecido",
+      "eventAssigneeNone": "Sem responsável"
     }
   },
   "automations": {

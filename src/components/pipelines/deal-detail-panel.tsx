@@ -42,6 +42,7 @@ import { DealWinLossActions } from "./deal-win-loss-actions";
 import { DealConversationTab } from "./deal-conversation-tab";
 import { DealTasksTab } from "./deal-tasks-tab";
 import { DealFilesTab } from "./deal-files-tab";
+import { DealEventsTab } from "./deal-events-tab";
 
 type RightTab = "conversation" | "tasks" | "files" | "events";
 
@@ -355,17 +356,7 @@ export function DealDetailPanel({
                 {rightTab === "tasks" && <DealTasksTab dealId={deal.id} profiles={profiles} />}
                 {rightTab === "files" && <DealFilesTab contact={contact} />}
                 {rightTab === "events" && (
-                  events.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t("eventsEmpty")}</p>
-                  ) : (
-                    <ul className="space-y-2 text-xs text-muted-foreground">
-                      {events.map((e) => (
-                        <li key={e.id} className="border-b border-border/50 pb-2">
-                          {formatDate(e.created_at)} — {e.event_type}
-                        </li>
-                      ))}
-                    </ul>
-                  )
+                  <DealEventsTab events={events} stages={stages} profiles={profiles} currency={currency} />
                 )}
               </div>
             )}

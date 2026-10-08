@@ -956,7 +956,17 @@
         "video": "Video",
         "audio": "Audio",
         "document": "Document"
-      }
+      },
+      "eventCreated": "Deal created",
+      "eventStageChanged": "Moved from {from} to {to}",
+      "eventWon": "Marked as Won",
+      "eventLost": "Marked as Lost",
+      "eventLostWithReason": "Marked as Lost — {reason}",
+      "eventAssigneeChanged": "Assignee changed from {from} to {to}",
+      "eventValueChanged": "Value changed from {from} to {to}",
+      "eventActorSystem": "Automation/System",
+      "eventActorUnknown": "Unknown",
+      "eventAssigneeNone": "Unassigned"
     }
   },
   "automations": {
