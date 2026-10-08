@@ -929,8 +929,6 @@
       "editFields": "Edit fields",
       "noContact": "No contact",
       "forecast": "Forecast",
-      "daysInStage": "{count, plural, =0 {Today} one {# day in this stage} other {# days in this stage}}",
-      "daysOpen": "{count, plural, =0 {Today} one {# day open} other {# days open}}",
       "createdOn": "Created on {date}",
       "moveStageFailed": "Failed to change stage",
       "tabConversation": "Conversation",
@@ -967,7 +965,11 @@
       "eventActorSystem": "Automation/System",
       "eventActorUnknown": "Unknown",
       "eventAssigneeNone": "Unassigned",
-      "tabData": "Data"
+      "tabData": "Data",
+      "stageTimeLabel": "In stage:",
+      "openTimeLabel": "Open for:",
+      "daysCount": "{count, plural, =0 {Today} one {# day} other {# days}}",
+      "updateAssigneeFailed": "Failed to change the assignee"
     }
   },
   "automations": {

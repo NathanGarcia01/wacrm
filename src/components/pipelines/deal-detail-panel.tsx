@@ -48,8 +48,23 @@ import { DealEventsTab } from "./deal-events-tab";
 
 type PanelTab = "data" | "conversation" | "tasks" | "files" | "events";
 
-function daysSince(iso: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+function ymdInTimezone(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    date,
+  );
+}
+
+/**
+ * Diferença em DIAS DE CALENDÁRIO no fuso da conta, não em blocos de
+ * 24h — um negócio criado ontem às 23h mostra "1 dia", não "0 dias"
+ * só porque ainda não completou 24h corridas.
+ */
+function calendarDaysSince(iso: string, timezone: string, now: Date = new Date()): number {
+  const [y1, m1, d1] = ymdInTimezone(new Date(iso), timezone).split("-").map(Number);
+  const [y2, m2, d2] = ymdInTimezone(now, timezone).split("-").map(Number);
+  const startUtc = Date.UTC(y1, m1 - 1, d1);
+  const nowUtc = Date.UTC(y2, m2 - 1, d2);
+  return Math.max(0, Math.round((nowUtc - startUtc) / 86_400_000));
 }
 
 function formatDate(iso: string): string {
@@ -94,7 +109,8 @@ export function DealDetailPanel({
   const t = useTranslations("pipelines.dealDetail");
   const tForm = useTranslations("pipelines.dealForm");
   const supabase = createClient();
-  const { defaultCurrency } = useAuth();
+  const { defaultCurrency, account } = useAuth();
+  const timezone = account?.timezone ?? "America/Sao_Paulo";
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [statuses, setStatuses] = useState<ContactStatus[]>([]);
@@ -103,6 +119,7 @@ export function DealDetailPanel({
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [events, setEvents] = useState<DealEvent[]>([]);
   const [movingStageId, setMovingStageId] = useState<string | null>(null);
+  const [updatingAssignee, setUpdatingAssignee] = useState(false);
   const [activeTab, setActiveTab] = useState<PanelTab>("conversation");
 
   const contact = deal?.contact ?? null;
@@ -178,10 +195,24 @@ export function DealDetailPanel({
     onSaved();
   }
 
+  // deal_events (migration 101) já loga 'assignee_changed' sozinho —
+  // o trigger log_deal_event() dispara em QUALQUER UPDATE de deals
+  // onde assigned_to mude, sem precisar de insert manual aqui.
+  async function handleUpdateAssignee(profileId: string | null) {
+    if (!deal) return;
+    setUpdatingAssignee(true);
+    const { error } = await supabase.from("deals").update({ assigned_to: profileId }).eq("id", deal.id);
+    setUpdatingAssignee(false);
+    if (error) {
+      toast.error(t("updateAssigneeFailed"));
+      return;
+    }
+    onSaved();
+  }
+
   if (!deal) return null;
 
   const currency = deal.currency || defaultCurrency;
-  const assignee = profiles.find((p) => p.id === deal.assigned_to);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -295,18 +326,32 @@ export function DealDetailPanel({
                   </div>
                 )}
                 <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <User className="h-3.5 w-3.5" />
-                  {assignee?.full_name || assignee?.email || tForm("unassigned")}
+                  <User className="h-3.5 w-3.5 shrink-0" />
+                  <select
+                    value={deal.assigned_to ?? ""}
+                    onChange={(e) => handleUpdateAssignee(e.target.value || null)}
+                    disabled={updatingAssignee}
+                    className="cursor-pointer border-none bg-transparent text-xs text-muted-foreground outline-none disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <option value="">{tForm("unassigned")}</option>
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.full_name || p.email}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {deal.stage_changed_at && (
                   <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="h-3.5 w-3.5" />
-                    {t("daysInStage", { count: daysSince(deal.stage_changed_at) })}
+                    {t("stageTimeLabel")}{" "}
+                    {t("daysCount", { count: calendarDaysSince(deal.stage_changed_at, timezone) })}
                   </div>
                 )}
                 <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Clock className="h-3.5 w-3.5" />
-                  {t("daysOpen", { count: daysSince(deal.created_at) })}
+                  {t("openTimeLabel")}{" "}
+                  {t("daysCount", { count: calendarDaysSince(deal.created_at, timezone) })}
                 </div>
               </div>
 

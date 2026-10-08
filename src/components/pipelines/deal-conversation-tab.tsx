@@ -161,7 +161,14 @@ export function DealConversationTab({ contact }: { contact: Contact | null }) {
           <OptOutBanner phone={contact.phone} />
         </div>
       )}
-      <div className="min-h-0 flex-1">
+      {/* `flex` aqui é obrigatório, não só `flex-1` — sem display:flex
+          neste wrapper, o flex-1/flex-col do próprio MessageThread não
+          tem contexto de stretch pra herdar uma altura real (mesmo
+          padrão do wrapper "inbox-thread" em inbox/page.tsx), e a
+          lista de mensagens cresce pelo conteúdo em vez de rolar
+          internamente — empurrando o composer pra fora da área
+          visível em vez de fixo embaixo. */}
+      <div className="flex h-full min-h-0 flex-1">
         <MessageThread
           conversation={conversation}
           contact={contact}

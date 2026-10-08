@@ -929,8 +929,6 @@
       "editFields": "Editar campos",
       "noContact": "Sin contacto",
       "forecast": "Previsión",
-      "daysInStage": "{count, plural, =0 {Hoy} one {# día en esta etapa} other {# días en esta etapa}}",
-      "daysOpen": "{count, plural, =0 {Hoy} one {# día abierto} other {# días abierto}}",
       "createdOn": "Creado el {date}",
       "moveStageFailed": "Error al cambiar de etapa",
       "tabConversation": "Conversación",
@@ -967,7 +965,11 @@
       "eventActorSystem": "Automatización/Sistema",
       "eventActorUnknown": "Desconocido",
       "eventAssigneeNone": "Sin responsable",
-      "tabData": "Datos"
+      "tabData": "Datos",
+      "stageTimeLabel": "En la etapa:",
+      "openTimeLabel": "Abierto hace:",
+      "daysCount": "{count, plural, =0 {Hoy} one {# día} other {# días}}",
+      "updateAssigneeFailed": "Error al cambiar el responsable"
     }
   },
   "automations": {

@@ -467,7 +467,22 @@ export function MessageThread({
         onMessagesLoadedRef.current(data ?? []);
       }
 
-      if (!cancelled && isNewConversation) setLoading(false);
+      // Deliberately NOT gated on `isNewConversation` — only on
+      // `cancelled`. Gating on isNewConversation too used to leave the
+      // spinner stuck forever whenever this effect fired twice for the
+      // SAME conversationId (React StrictMode's dev double-invoke is
+      // the common trigger, but any rapid double-fire has the same
+      // race): the first run sets isNewConversation=true and flips
+      // loading on, but its fetch gets cancelled by the second run
+      // before resolving; the second run computes isNewConversation
+      // =false (prevConversationIdRef was already updated by the
+      // first run) and is the one that actually finishes uncancelled —
+      // so neither run ever turned loading back off. `cancelled` alone
+      // is already the correct "is this the authoritative, most recent
+      // fetch for this effect instance" signal; whichever run survives
+      // uncancelled should always settle loading to false, whether or
+      // not IT was the one that flipped it on.
+      if (!cancelled) setLoading(false);
     })();
 
     return () => {
