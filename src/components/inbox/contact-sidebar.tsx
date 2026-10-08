@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { OptOutBanner } from "@/components/shared/opt-out-banner";
+import { CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED } from "@/lib/feature-flags";
 import type {
   Contact,
   ContactStatus,
@@ -618,117 +619,126 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
-          {/* Status do cliente — manual catalog, migration 086 */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <UserCircle2 className="h-3 w-3" />
-              {t("statusLabel")}
-            </div>
-            <div className="mt-2">
-              <Select
-                items={statusItems}
-                value={contact.status_id ?? "__none__"}
-                onValueChange={(v) => handleUpdateStatus(v === "__none__" ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-full bg-muted text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t("statusNone")}</SelectItem>
-                  {statuses.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                        {s.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Origem do lead — catálogo manual (migration 086), separado
-              da origem automática por anúncio exibida a seguir. */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <Compass className="h-3 w-3" />
-              {t("leadOriginLabel")}
-            </div>
-            <div className="mt-2">
-              <Select
-                items={leadOriginItems}
-                value={contact.lead_origin_id ?? "__none__"}
-                onValueChange={(v) => handleUpdateLeadOrigin(v === "__none__" ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-full bg-muted text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t("leadOriginNone")}</SelectItem>
-                  {leadOrigins.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: o.color }} />
-                        {o.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Contact Origin — Meta Ads referral vs organic (migration 067) */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <Megaphone className="h-3 w-3" />
-              {t("origin")}
-            </div>
-            <div className="mt-2 rounded-lg bg-muted px-3 py-2">
-              {contact.ad_source_id ? (
-                <div className="space-y-1">
-                  <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                    {t("originAd")}
-                  </span>
-                  <dl className="space-y-0.5 text-xs text-muted-foreground">
-                    {contact.ad_name ? (
-                      <div className="flex gap-1">
-                        <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
-                        <dd className="truncate">{contact.ad_name}</dd>
-                      </div>
-                    ) : null}
-                    {contact.ad_set_name ? (
-                      <div className="flex gap-1">
-                        <dt className="shrink-0 text-foreground/70">{t("originAdSetName")}:</dt>
-                        <dd className="truncate">{contact.ad_set_name}</dd>
-                      </div>
-                    ) : null}
-                    {contact.ad_campaign_name ? (
-                      <div className="flex gap-1">
-                        <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
-                        <dd className="truncate">{contact.ad_campaign_name}</dd>
-                      </div>
-                    ) : null}
-                    {!contact.ad_name && !contact.ad_set_name && !contact.ad_campaign_name ? (
-                      <p className="italic">{t("originAdResolving")}</p>
-                    ) : null}
-                  </dl>
+          {/* Status do cliente / Origem do lead (manual) / Origem do
+              Contato (automática) — escondidos atrás de uma flag
+              (src/lib/feature-flags.ts), sem apagar tabelas/colunas/
+              dados; a captura automática por anúncio (webhook) e os
+              relatórios continuam intactos. */}
+          {CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED && (
+            <>
+              {/* Status do cliente — manual catalog, migration 086 */}
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <UserCircle2 className="h-3 w-3" />
+                  {t("statusLabel")}
                 </div>
-              ) : (
-                <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
-              )}
-            </div>
-          </div>
+                <div className="mt-2">
+                  <Select
+                    items={statusItems}
+                    value={contact.status_id ?? "__none__"}
+                    onValueChange={(v) => handleUpdateStatus(v === "__none__" ? null : v)}
+                  >
+                    <SelectTrigger className="h-8 w-full bg-muted text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t("statusNone")}</SelectItem>
+                      {statuses.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                            {s.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+
+              {/* Origem do lead — catálogo manual (migration 086), separado
+                  da origem automática por anúncio exibida a seguir. */}
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Compass className="h-3 w-3" />
+                  {t("leadOriginLabel")}
+                </div>
+                <div className="mt-2">
+                  <Select
+                    items={leadOriginItems}
+                    value={contact.lead_origin_id ?? "__none__"}
+                    onValueChange={(v) => handleUpdateLeadOrigin(v === "__none__" ? null : v)}
+                  >
+                    <SelectTrigger className="h-8 w-full bg-muted text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">{t("leadOriginNone")}</SelectItem>
+                      {leadOrigins.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: o.color }} />
+                            {o.label}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+
+              {/* Contact Origin — Meta Ads referral vs organic (migration 067) */}
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Megaphone className="h-3 w-3" />
+                  {t("origin")}
+                </div>
+                <div className="mt-2 rounded-lg bg-muted px-3 py-2">
+                  {contact.ad_source_id ? (
+                    <div className="space-y-1">
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                        {t("originAd")}
+                      </span>
+                      <dl className="space-y-0.5 text-xs text-muted-foreground">
+                        {contact.ad_name ? (
+                          <div className="flex gap-1">
+                            <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
+                            <dd className="truncate">{contact.ad_name}</dd>
+                          </div>
+                        ) : null}
+                        {contact.ad_set_name ? (
+                          <div className="flex gap-1">
+                            <dt className="shrink-0 text-foreground/70">{t("originAdSetName")}:</dt>
+                            <dd className="truncate">{contact.ad_set_name}</dd>
+                          </div>
+                        ) : null}
+                        {contact.ad_campaign_name ? (
+                          <div className="flex gap-1">
+                            <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
+                            <dd className="truncate">{contact.ad_campaign_name}</dd>
+                          </div>
+                        ) : null}
+                        {!contact.ad_name && !contact.ad_set_name && !contact.ad_campaign_name ? (
+                          <p className="italic">{t("originAdResolving")}</p>
+                        ) : null}
+                      </dl>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Active Deals */}
           <div>

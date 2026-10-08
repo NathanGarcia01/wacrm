@@ -58,6 +58,7 @@ import { ImportModal } from '@/components/contacts/import-modal';
 import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager';
 import { BulkAddTagButton, BulkRemoveTagButton } from '@/components/contacts/bulk-tag-actions';
 import { useCan } from '@/hooks/use-can';
+import { CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED } from '@/lib/feature-flags';
 import { GatedButton } from '@/components/ui/gated-button';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -1108,43 +1109,48 @@ function ContactsPageInner() {
                   />
                 </div>
 
-                {/* Status do cliente — manual catalog, migration 086 */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {t('filterStatus')}
-                  </label>
-                  <select
-                    value={statusId ?? ''}
-                    onChange={(e) => updateStatusId(e.target.value || null)}
-                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="">{t('filterStatusAny')}</option>
-                    {contactStatuses.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Status do cliente / Origem do lead — manual catalogs
+                    (migration 086), escondidos atrás de uma flag
+                    (src/lib/feature-flags.ts) sem apagar dados/lógica. */}
+                {CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED && (
+                  <>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {t('filterStatus')}
+                      </label>
+                      <select
+                        value={statusId ?? ''}
+                        onChange={(e) => updateStatusId(e.target.value || null)}
+                        className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="">{t('filterStatusAny')}</option>
+                        {contactStatuses.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Origem do lead — manual catalog, migration 086 */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {t('filterLeadOrigin')}
-                  </label>
-                  <select
-                    value={leadOriginId ?? ''}
-                    onChange={(e) => updateLeadOriginId(e.target.value || null)}
-                    className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                  >
-                    <option value="">{t('filterLeadOriginAny')}</option>
-                    {leadOrigins.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {t('filterLeadOrigin')}
+                      </label>
+                      <select
+                        value={leadOriginId ?? ''}
+                        onChange={(e) => updateLeadOriginId(e.target.value || null)}
+                        className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="">{t('filterLeadOriginAny')}</option>
+                        {leadOrigins.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
 
                 {/* Pediu para sair dos disparos — blocked_phones ativo,
                     migration 091/100 */}

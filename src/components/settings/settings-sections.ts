@@ -21,6 +21,7 @@ import {
   UsersRound,
   type LucideIcon,
 } from 'lucide-react';
+import { CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED } from '@/lib/feature-flags';
 
 /**
  * Settings information architecture for the redesigned page.
@@ -56,6 +57,22 @@ export const SETTINGS_SECTIONS = [
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 export const DEFAULT_SECTION: SettingsSection = 'overview';
+
+/** Sections hidden from the rail/search while
+ *  CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED is false — the panels
+ *  themselves still exist and `?tab=` still resolves to them directly,
+ *  only navigation entry points go away. */
+const SECTIONS_HIDDEN_BY_FLAG: readonly SettingsSection[] = CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED
+  ? []
+  : ['contactStatuses', 'leadOrigins'];
+
+/** What the rail/search should actually render — use this instead of
+ *  `SETTINGS_SECTIONS` for anything user-facing; keep using the raw
+ *  list for validity checks (`resolveSection` below) so an existing
+ *  `?tab=` deep link never breaks. */
+export const VISIBLE_SETTINGS_SECTIONS: readonly SettingsSection[] = SETTINGS_SECTIONS.filter(
+  (s) => !SECTIONS_HIDDEN_BY_FLAG.includes(s),
+);
 
 /**
  * Rail grouping. `adminOnly` items are hidden for non-admins.

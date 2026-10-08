@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatCurrency } from "@/lib/currency";
 import { cn } from "@/lib/utils";
+import { CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED } from "@/lib/feature-flags";
 import { toast } from "sonner";
 import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 import type {
@@ -299,14 +300,14 @@ export function DealDetailPanel({
                 )}
               </div>
 
-              {statusLabel && (
+              {CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED && statusLabel && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <UserCircle2 className="h-3.5 w-3.5" />
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: statusColor ?? undefined }} />
                   {statusLabel}
                 </div>
               )}
-              {leadOriginLabel && (
+              {CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED && leadOriginLabel && (
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Compass className="h-3.5 w-3.5" />
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: leadOriginColor ?? undefined }} />

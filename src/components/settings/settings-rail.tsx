@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import {
   RAIL_GROUPS,
   SECTION_META,
-  SETTINGS_SECTIONS,
+  VISIBLE_SETTINGS_SECTIONS,
   type SettingsSection,
 } from './settings-sections';
 
@@ -58,7 +58,7 @@ export function SettingsRail({
   const normalizedQuery = query.trim().toLowerCase();
   const searchResults = useMemo(() => {
     if (!normalizedQuery) return null;
-    return SETTINGS_SECTIONS.filter((s) => {
+    return VISIBLE_SETTINGS_SECTIONS.filter((s) => {
       const haystack = `${tSections(s)} ${tDescriptions(s)}`.toLowerCase();
       return haystack.includes(normalizedQuery);
     });
@@ -131,7 +131,7 @@ export function SettingsRail({
           )}
         >
           {RAIL_GROUPS.map(({ groupKey, group }) => {
-            const items = SETTINGS_SECTIONS.filter(
+            const items = VISIBLE_SETTINGS_SECTIONS.filter(
               (s) => SECTION_META[s].group === group,
             );
             return (
