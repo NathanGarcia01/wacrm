@@ -17,6 +17,10 @@ interface BroadcastRoiFunnelChartProps {
   stages: FunnelStage[] | null
   loading: boolean
   title: string
+  /** One-line conclusion under the title (e.g. "12% dos leads geraram
+   *  negócio") — computed by the caller so it can use that report's
+   *  own wording/translations. Omitted while loading or with no data. */
+  insight?: string
 }
 
 /**
@@ -26,7 +30,12 @@ interface BroadcastRoiFunnelChartProps {
  * normalized against the busiest stage, primary fill throughout, gold
  * reserved for the final/most-valuable stage.
  */
-export function BroadcastRoiFunnelChart({ stages: stagesProp, loading, title }: BroadcastRoiFunnelChartProps) {
+export function BroadcastRoiFunnelChart({
+  stages: stagesProp,
+  loading,
+  title,
+  insight,
+}: BroadcastRoiFunnelChartProps) {
   const stages = stagesProp ?? []
   const baseline = Math.max(1, ...stages.map((s) => s.value))
   const lastIndex = stages.length - 1
@@ -35,6 +44,7 @@ export function BroadcastRoiFunnelChart({ stages: stagesProp, loading, title }: 
     <section className="rounded-xl border border-border bg-card">
       <header className="border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {insight && <p className="mt-0.5 text-xs text-muted-foreground">{insight}</p>}
       </header>
       <div className="p-5">
         {loading || !stagesProp ? (

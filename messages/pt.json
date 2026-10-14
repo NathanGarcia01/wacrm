@@ -2678,7 +2678,12 @@
       "funnelSent": "Enviadas",
       "funnelReplied": "Responderam",
       "funnelDealsCreated": "Deals criados",
-      "funnelDealsWon": "Ganhos"
+      "funnelDealsWon": "Ganhos",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Novo no período",
+      "flatVsPreviousPeriod": "Sem variação",
+      "otherIndicators": "Outros indicadores",
+      "funnelInsight": "{pct}% das mensagens enviadas viraram negócio ganho"
     },
     "broadcastsTable": {
       "title": "Transmissões do período",

@@ -2678,7 +2678,12 @@
       "funnelSent": "Sent",
       "funnelReplied": "Replied",
       "funnelDealsCreated": "Deals created",
-      "funnelDealsWon": "Deals won"
+      "funnelDealsWon": "Deals won",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change",
+      "otherIndicators": "Other indicators",
+      "funnelInsight": "{pct}% of messages sent turned into a won deal"
     },
     "broadcastsTable": {
       "title": "Broadcasts this period",
