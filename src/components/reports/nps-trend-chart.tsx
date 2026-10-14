@@ -22,10 +22,19 @@ export function NpsTrendChart({ data }: { data: NpsTrendPoint[] }) {
   const locale = useLocale() as Locale
   const points = data.map((d) => ({ ...d, label: fmtDate(d.date, locale) }))
   const hasAnySample = data.some((d) => d.avgRating != null)
+  const best = points
+    .filter((p) => p.avgRating != null)
+    .sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0))[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      {hasAnySample && best && (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t("insightBest", { date: best.label, value: (best.avgRating ?? 0).toFixed(1) })}
+        </p>
+      )}
+      <div className="mt-4">
       {!hasAnySample ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {t("empty")}
@@ -77,6 +86,7 @@ export function NpsTrendChart({ data }: { data: NpsTrendPoint[] }) {
           </ResponsiveContainer>
         </div>
       )}
+      </div>
     </div>
   )
 }

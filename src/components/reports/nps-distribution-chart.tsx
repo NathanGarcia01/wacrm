@@ -19,10 +19,17 @@ export function NpsDistributionChart({ data }: { data: NpsRatingDistributionPoin
   const t = useTranslations("reports.npsDistributionChart")
   const total = data.reduce((sum, d) => sum + d.count, 0)
   const points = data.map((d) => ({ ...d, label: `${d.rating} ★` }))
+  const top = [...data].sort((a, b) => b.count - a.count)[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      {total > 0 && top && (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t("insightTop", { pct: Math.round((top.count / total) * 100), rating: top.rating })}
+        </p>
+      )}
+      <div className="mt-4">
       {total === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           {t("empty")}
@@ -69,6 +76,7 @@ export function NpsDistributionChart({ data }: { data: NpsRatingDistributionPoin
           </ResponsiveContainer>
         </div>
       )}
+      </div>
     </div>
   )
 }

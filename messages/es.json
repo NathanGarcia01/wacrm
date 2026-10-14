@@ -2826,17 +2826,22 @@
       "avgRating": "Promedio general",
       "surveysSent": "Encuestas enviadas",
       "surveysResponded": "Encuestas respondidas",
-      "responseRate": "Tasa de respuesta"
+      "responseRate": "Tasa de respuesta",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Nuevo en el período",
+      "flatVsPreviousPeriod": "Sin variación"
     },
     "npsDistributionChart": {
       "title": "Distribución de calificaciones",
       "empty": "No se recibieron calificaciones en el período.",
-      "tooltipReviews": "Calificaciones"
+      "tooltipReviews": "Calificaciones",
+      "insightTop": "{pct}% de las notas son {rating}★"
     },
     "npsTrendChart": {
       "title": "Evolución del promedio",
       "empty": "No se recibieron calificaciones en el período.",
-      "tooltipAverage": "Promedio"
+      "tooltipAverage": "Promedio",
+      "insightBest": "Mejor día: {date} ({value})"
     },
     "pipelineFunnelChart": {
       "title": "Embudo por etapa",

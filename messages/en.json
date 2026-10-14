@@ -2826,17 +2826,22 @@
       "avgRating": "Overall average",
       "surveysSent": "Surveys sent",
       "surveysResponded": "Surveys answered",
-      "responseRate": "Response rate"
+      "responseRate": "Response rate",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change"
     },
     "npsDistributionChart": {
       "title": "Rating distribution",
       "empty": "No reviews received in this period.",
-      "tooltipReviews": "Reviews"
+      "tooltipReviews": "Reviews",
+      "insightTop": "{pct}% of ratings are {rating}★"
     },
     "npsTrendChart": {
       "title": "Average trend",
       "empty": "No reviews received in this period.",
-      "tooltipAverage": "Average"
+      "tooltipAverage": "Average",
+      "insightBest": "Best day: {date} ({value})"
     },
     "pipelineFunnelChart": {
       "title": "Funnel by stage",

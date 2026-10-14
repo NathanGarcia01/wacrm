@@ -5,7 +5,9 @@ import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { MessageCircleHeart, Percent, Send, Star } from "lucide-react"
 import { loadNpsReport } from "@/lib/reports/nps-queries"
-import type { NpsReportBundle, PeriodRange } from "@/lib/reports/types"
+import { previousPeriod } from "@/lib/reports/period"
+import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import type { NpsReportBundle, NpsReportCards, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
 import { NpsDistributionChart } from "@/components/reports/nps-distribution-chart"
@@ -24,8 +26,14 @@ function fmtPct(v: number | null): string {
 export function NpsTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.npsTab")
   const [bundle, setBundle] = useState<NpsReportBundle | null>(null)
+  const [previousCards, setPreviousCards] = useState<NpsReportCards | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const deltaLabels: DeltaLabels = {
+    vsPrevious: t("vsPreviousPeriod"),
+    new: t("newVsPreviousPeriod"),
+    flat: t("flatVsPreviousPeriod"),
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -33,9 +41,14 @@ export function NpsTab({ period }: { period: PeriodRange }) {
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadNpsReport(db, period)
-      .then((b) => {
-        if (!cancelled) setBundle(b)
+    Promise.all([
+      loadNpsReport(db, period),
+      loadNpsReport(db, { ...period, ...previousPeriod(period) }),
+    ])
+      .then(([b, prev]) => {
+        if (cancelled) return
+        setBundle(b)
+        setPreviousCards(prev.cards)
       })
       .catch((err) => {
         console.error("[reports] nps load failed:", err)
@@ -62,17 +75,33 @@ export function NpsTab({ period }: { period: PeriodRange }) {
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
-            <MetricCard title={t("avgRating")} value={fmtRating(bundle.cards.avgRating)} icon={Star} />
-            <MetricCard title={t("surveysSent")} value={bundle.cards.totalSent.toLocaleString()} icon={Send} />
+            <MetricCard
+              title={t("avgRating")}
+              value={fmtRating(bundle.cards.avgRating)}
+              icon={Star}
+              delta={relativeDelta(bundle.cards.avgRating, previousCards?.avgRating ?? null, deltaLabels)}
+            />
+            <MetricCard
+              title={t("surveysSent")}
+              value={bundle.cards.totalSent.toLocaleString()}
+              icon={Send}
+              delta={relativeDelta(bundle.cards.totalSent, previousCards?.totalSent ?? null, deltaLabels)}
+            />
             <MetricCard
               title={t("surveysResponded")}
               value={bundle.cards.totalResponded.toLocaleString()}
               icon={MessageCircleHeart}
+              delta={relativeDelta(
+                bundle.cards.totalResponded,
+                previousCards?.totalResponded ?? null,
+                deltaLabels,
+              )}
             />
             <MetricCard
               title={t("responseRate")}
               value={fmtPct(bundle.cards.responseRatePct)}
               icon={Percent}
+              delta={pointsDelta(bundle.cards.responseRatePct, previousCards?.responseRatePct ?? null, deltaLabels)}
             />
           </>
         )}
