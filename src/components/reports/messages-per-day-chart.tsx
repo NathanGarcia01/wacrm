@@ -20,12 +20,16 @@ function fmtDate(iso: string, locale: Locale): string {
 export function MessagesPerDayChart({ data }: { data: MessagesPerDayPoint[] }) {
   const t = useTranslations("reports.messagesPerDayChart")
   const locale = useLocale() as Locale
-  const points = data.map((d) => ({ ...d, label: fmtDate(d.date, locale) }))
+  const points = data.map((d) => ({ ...d, label: fmtDate(d.date, locale), total: d.sent + d.received }))
+  const peak = [...points].sort((a, b) => b.total - a.total)[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
-      <div className="h-64 w-full">
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {peak && peak.total > 0 ? t("insightPeak", { count: peak.total, date: peak.label }) : t("insightNone")}
+      </p>
+      <div className="mt-4 h-64 w-full">
         <ResponsiveContainer>
           <LineChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid className="stroke-border" strokeDasharray="3 3" vertical={false} />

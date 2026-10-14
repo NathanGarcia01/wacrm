@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { loadPipelineCards, loadPipelineReport } from "@/lib/reports/pipeline-queries"
 import { previousPeriod } from "@/lib/reports/period"
+import { pointsDelta, relativeDelta, type DeltaLabels } from "@/lib/reports/delta"
 import type { PeriodRange, PipelineReportBundle, PipelineReportCards } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -37,41 +38,13 @@ function fmtDays(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(1)}d`
 }
 
-type Delta = { sign: number; label: string } | undefined
-
-/** Relative % change, for metrics where "previous = 0" is a real
- *  baseline (counts, money) rather than a sentinel. */
-function relativeDelta(
-  current: number | null,
-  previous: number | null,
-  t: ReturnType<typeof useTranslations>,
-): Delta {
-  if (current == null || previous == null) return undefined
-  if (previous === 0) {
-    if (current === 0) return { sign: 0, label: t("flatVsPreviousPeriod") }
-    return { sign: 1, label: t("newVsPreviousPeriod") }
-  }
-  const pct = ((current - previous) / previous) * 100
-  const sign = pct > 0 ? 1 : pct < 0 ? -1 : 0
-  return { sign, label: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}% ${t("vsPreviousPeriod")}` }
-}
-
-/** Point-difference change for metrics that are ALREADY a 0-100 rate
- *  — a relative "% of %" change reads as meaningless/alarmist (e.g.
- *  0%→5% isn't a "+∞%"), so this compares in percentage points instead. */
-function pointsDelta(
-  current: number | null,
-  previous: number | null,
-  t: ReturnType<typeof useTranslations>,
-): Delta {
-  if (current == null || previous == null) return undefined
-  const diff = current - previous
-  const sign = diff > 0 ? 1 : diff < 0 ? -1 : 0
-  return { sign, label: `${diff > 0 ? "+" : ""}${diff.toFixed(0)} p.p. ${t("vsPreviousPeriod")}` }
-}
-
 export function PipelineTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.pipelineTab")
+  const deltaLabels: DeltaLabels = {
+    vsPrevious: t("vsPreviousPeriod"),
+    new: t("newVsPreviousPeriod"),
+    flat: t("flatVsPreviousPeriod"),
+  }
   const { account, defaultCurrency } = useAuth()
   const accountId = account?.id ?? null
   const timezone = account?.timezone ?? "America/Sao_Paulo"
@@ -130,31 +103,31 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
               title={t("valueWon")}
               value={formatCurrency(cards.valueWon, defaultCurrency)}
               icon={DollarSign}
-              delta={relativeDelta(cards.valueWon, previousCards?.valueWon ?? null, t)}
+              delta={relativeDelta(cards.valueWon, previousCards?.valueWon ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("dealsWon")}
               value={cards.dealsWon.toLocaleString()}
               icon={CheckCircle2}
-              delta={relativeDelta(cards.dealsWon, previousCards?.dealsWon ?? null, t)}
+              delta={relativeDelta(cards.dealsWon, previousCards?.dealsWon ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("conversionRate")}
               value={fmtPct(cards.conversionRatePct)}
               icon={Percent}
-              delta={pointsDelta(cards.conversionRatePct, previousCards?.conversionRatePct ?? null, t)}
+              delta={pointsDelta(cards.conversionRatePct, previousCards?.conversionRatePct ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("periodCommission")}
               value={formatCurrency(cards.commissionWon, defaultCurrency)}
               icon={Coins}
-              delta={relativeDelta(cards.commissionWon, previousCards?.commissionWon ?? null, t)}
+              delta={relativeDelta(cards.commissionWon, previousCards?.commissionWon ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("avgTicket")}
               value={cards.avgTicket == null ? "—" : formatCurrency(cards.avgTicket, defaultCurrency)}
               icon={DollarSign}
-              delta={relativeDelta(cards.avgTicket, previousCards?.avgTicket ?? null, t)}
+              delta={relativeDelta(cards.avgTicket, previousCards?.avgTicket ?? null, deltaLabels)}
             />
           </>
         )}

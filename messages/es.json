@@ -2784,7 +2784,9 @@
     "messagesPerDayChart": {
       "title": "Mensajes por día",
       "seriesSent": "Enviados",
-      "seriesReceived": "Recibidos"
+      "seriesReceived": "Recibidos",
+      "insightPeak": "Pico de {count} mensajes el {date}",
+      "insightNone": "Ningún mensaje en el período seleccionado."
     },
     "npsAgentRankingTable": {
       "title": "Ranking de agentes por calificación",

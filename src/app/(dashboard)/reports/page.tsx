@@ -2,35 +2,14 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
-import { formatCurrency } from "@/lib/currency"
-import {
-  Clock,
-  DollarSign,
-  Headset,
-  MessageSquare,
-  MessageSquareReply,
-  Percent,
-  Radio,
-  RefreshCw,
-  ShieldCheck,
-  TrendingUp,
-  Trophy,
-  Users,
-  type LucideIcon,
-} from "lucide-react"
+import { Headset, Radio, RefreshCw, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react"
 
-import { loadReportsBundle } from "@/lib/reports/queries"
 import { resolvePeriod } from "@/lib/reports/period"
-import { formatResponseTime } from "@/lib/reports/format"
-import type { PeriodKey, ReportsBundle } from "@/lib/reports/types"
+import type { PeriodKey } from "@/lib/reports/types"
 
-import { MetricCard } from "@/components/dashboard/metric-card"
-import { SkeletonCard } from "@/components/dashboard/skeleton"
 import { PeriodFilter } from "@/components/reports/period-filter"
-import { UserRankingTable } from "@/components/reports/user-ranking-table"
-import { MessagesPerDayChart } from "@/components/reports/messages-per-day-chart"
+import { OverviewTab } from "@/components/reports/overview-tab"
 import { PipelineTab } from "@/components/reports/pipeline-tab"
 import { BroadcastsTab } from "@/components/reports/broadcasts-tab"
 import { BroadcastRoiTab } from "@/components/reports/broadcast-roi-tab"
@@ -151,7 +130,7 @@ export default function ReportsPage() {
 function ReportsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { defaultCurrency, ticketsUiEnabled } = useAuth()
+  const { ticketsUiEnabled } = useAuth()
 
   const tabParam = searchParams.get("tab")
   // "attendance" is gated behind the tickets rollout flag — a stale
@@ -177,14 +156,10 @@ function ReportsPageInner() {
     [periodKey, fromParam, toParam],
   )
 
-  const [bundle, setBundle] = useState<ReportsBundle | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Bumped by the header's refresh button — included in every tab's
-  // fetch dependency (below for Overview, as a remount `key` for the
-  // other 9) so "Atualizar" re-runs whichever report is on screen
-  // without each tab needing its own refresh plumbing.
+  // Bumped by the header's refresh button — passed as a remount `key`
+  // to whichever tab is on screen (including Overview) so "Atualizar"
+  // re-runs that report's fetch without each tab needing its own
+  // refresh plumbing.
   const [refreshNonce, setRefreshNonce] = useState(0)
   // Derived, not stateful — a fresh fetch is triggered by tab/period/
   // refreshNonce changing, so "when was that" is just "now" at the
@@ -192,32 +167,6 @@ function ReportsPageInner() {
   // chased with a second effect.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastRefreshedAt = useMemo(() => Date.now(), [tab, period, refreshNonce])
-
-  // Re-fetch whenever the resolved period changes. Resetting
-  // loading/error synchronously here (rather than only inside the
-  // promise callbacks below) is what makes switching periods show a
-  // fresh skeleton instead of stale data while the new query runs.
-  useEffect(() => {
-    let cancelled = false
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
-    setError(null)
-    const db = createClient()
-    loadReportsBundle(db, period)
-      .then((b) => {
-        if (!cancelled) setBundle(b)
-      })
-      .catch((err) => {
-        console.error("[reports] load failed:", err)
-        if (!cancelled) setError("Não foi possível carregar os relatórios.")
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [period, refreshNonce])
 
   function buildParams(next: { tab?: ReportTab; period: PeriodKey; from?: string; to?: string }) {
     const params = new URLSearchParams()
@@ -322,68 +271,7 @@ function ReportsPageInner() {
         </div>
       </div>
 
-      {tab === "overview" && (
-        <div className="space-y-5">
-          {error && (
-            <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {loading || !bundle ? (
-              Array.from({ length: 7 }).map((_, i) => <SkeletonCard key={i} />)
-            ) : (
-              <>
-                <MetricCard
-                  title="Mensagens enviadas"
-                  value={bundle.cards.messagesSent.toLocaleString()}
-                  icon={MessageSquare}
-                />
-                <MetricCard
-                  title="Mensagens recebidas"
-                  value={bundle.cards.messagesReceived.toLocaleString()}
-                  icon={MessageSquareReply}
-                />
-                <MetricCard
-                  title="Conversas atendidas"
-                  value={bundle.cards.conversationsHandled.toLocaleString()}
-                  icon={Users}
-                />
-                <MetricCard
-                  title="Taxa de resposta"
-                  value={bundle.cards.responseRatePct == null ? "—" : `${bundle.cards.responseRatePct.toFixed(0)}%`}
-                  icon={Percent}
-                />
-                <MetricCard
-                  title="Deals ganhos"
-                  value={bundle.cards.dealsWon.toLocaleString()}
-                  icon={Trophy}
-                />
-                <MetricCard
-                  title="Valor vendido"
-                  value={formatCurrency(bundle.cards.valueWon, defaultCurrency)}
-                  icon={DollarSign}
-                />
-                <MetricCard
-                  title="Tempo médio de resposta"
-                  value={formatResponseTime(bundle.cards.avgResponseMinutes)}
-                  icon={Clock}
-                />
-              </>
-            )}
-          </div>
-
-          <MessagesPerDayChart data={bundle?.messagesPerDay ?? []} />
-
-          <UserRankingTable
-            rows={bundle?.users ?? []}
-            loading={loading}
-            currency={defaultCurrency}
-          />
-        </div>
-      )}
-
+      {tab === "overview" && <OverviewTab key={refreshNonce} period={period} />}
       {tab === "pipeline" && <PipelineTab key={refreshNonce} period={period} />}
       {tab === "commissions" && <CommissionsTab key={refreshNonce} period={period} />}
       {tab === "broadcasts" && <BroadcastsTab key={refreshNonce} period={period} />}

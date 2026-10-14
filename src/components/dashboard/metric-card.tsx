@@ -17,10 +17,17 @@ interface MetricCardProps {
    * doesn't have a sensible comparison (e.g. total pipeline value).
    */
   delta?: {
-    /** Positive / negative / zero drives arrow + color. */
+    /** Positive / negative / zero drives the color (green/red/muted). */
     sign: number
     /** Pre-formatted delta, e.g. "+3 vs yesterday". */
     label: string
+    /**
+     * Positive / negative / zero drives the arrow, when it needs to
+     * differ from `sign` — e.g. a response time that got FASTER is
+     * good news (`sign` > 0, green) but the raw number went DOWN (the
+     * arrow should still point down). Defaults to `sign`.
+     */
+    arrowSign?: number
   }
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string
@@ -52,21 +59,23 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, tooltip 
       <p className="mt-3 font-mono text-[28px] leading-none font-bold tabular-nums text-foreground">
         {value}
       </p>
-      {delta ? <DeltaRow sign={delta.sign} label={delta.label} /> : subtitle ? (
+      {delta ? (
+        <DeltaRow sign={delta.sign} arrowSign={delta.arrowSign ?? delta.sign} label={delta.label} />
+      ) : subtitle ? (
         <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
       ) : null}
     </div>
   )
 }
 
-function DeltaRow({ sign, label }: { sign: number; label: string }) {
+function DeltaRow({ sign, arrowSign, label }: { sign: number; arrowSign: number; label: string }) {
   const tone =
     sign > 0
       ? 'text-primary'
       : sign < 0
       ? 'text-destructive'
       : 'text-muted-foreground'
-  const Arrow = sign > 0 ? ArrowUp : sign < 0 ? ArrowDown : Minus
+  const Arrow = arrowSign > 0 ? ArrowUp : arrowSign < 0 ? ArrowDown : Minus
   return (
     <div className={cn('mt-2 flex items-center gap-1 text-sm', tone)}>
       <Arrow className="h-4 w-4" aria-hidden />
