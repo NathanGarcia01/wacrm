@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/reports/paginate'
 import type { PeriodRange } from '@/lib/reports/types'
 
 type DB = SupabaseClient
@@ -102,17 +103,29 @@ export async function loadLossesReport(
   if (assignedTo === 'unassigned') leadsQuery = leadsQuery.is('assigned_to', null)
   else if (assignedTo !== '') leadsQuery = leadsQuery.eq('assigned_to', assignedTo)
 
-  let lostQuery = db.from('deals').select(selectCols).eq('pipeline_id', pipelineId).eq('status', 'lost')
-  if (period) lostQuery = lostQuery.gte('lost_at', period.startISO).lt('lost_at', period.endISO)
-  if (assignedTo === 'unassigned') lostQuery = lostQuery.is('assigned_to', null)
-  else if (assignedTo !== '') lostQuery = lostQuery.eq('assigned_to', assignedTo)
-  // Stage/tags mirror the board's filter bar (pipeline-filter-bar.tsx),
-  // which is also shown while viewing this tab — those controls were
-  // silently ignored here before. Tag ANY-match needs the contact's
-  // full tag list client-side (same join shape used by the board's
-  // filteredDeals), so it's applied after the fetch below rather than
-  // as a query predicate.
-  if (stageId !== '') lostQuery = lostQuery.eq('stage_id', stageId)
+  // Paginated — a plain unbounded fetch silently stopped at
+  // PostgREST's implicit 1000-row cap for "Todo o período" (1188 lost
+  // deals on this account's main pipeline), undercounting totalLost,
+  // lossRatePct, and the byReason breakdown, the same bug class found
+  // on the board's loadDeals. leadsQuery/wonQuery above are unaffected
+  // — those are `head: true` count-only queries, no rows to cap.
+  const buildLostQuery = (from: number, to: number) => {
+    let q = db.from('deals').select(selectCols).eq('pipeline_id', pipelineId).eq('status', 'lost')
+    if (period) q = q.gte('lost_at', period.startISO).lt('lost_at', period.endISO)
+    if (assignedTo === 'unassigned') q = q.is('assigned_to', null)
+    else if (assignedTo !== '') q = q.eq('assigned_to', assignedTo)
+    // Stage/tags mirror the board's filter bar (pipeline-filter-bar.tsx),
+    // which is also shown while viewing this tab — those controls were
+    // silently ignored here before. Tag ANY-match needs the contact's
+    // full tag list client-side (same join shape used by the board's
+    // filteredDeals), so it's applied after the fetch below rather than
+    // as a query predicate.
+    if (stageId !== '') q = q.eq('stage_id', stageId)
+    return q.order('lost_at', { ascending: false }).order('id', { ascending: false }).range(from, to) as unknown as PromiseLike<{
+      data: DealRow[] | null
+      error: unknown
+    }>
+  }
 
   let wonQuery = db
     .from('deals')
@@ -123,9 +136,12 @@ export async function loadLossesReport(
   if (assignedTo === 'unassigned') wonQuery = wonQuery.is('assigned_to', null)
   else if (assignedTo !== '') wonQuery = wonQuery.eq('assigned_to', assignedTo)
 
-  const [leadsRes, lostRes, wonRes] = await Promise.all([leadsQuery, lostQuery, wonQuery])
+  const [leadsRes, allLostRows, wonRes] = await Promise.all([
+    leadsQuery,
+    fetchAllRows<DealRow>(buildLostQuery),
+    wonQuery,
+  ])
 
-  const allLostRows = (lostRes.data ?? []) as unknown as DealRow[]
   const lostRows =
     tagIds.length === 0
       ? allLostRows

@@ -37,7 +37,8 @@ import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
 import { GatedButton } from "@/components/ui/gated-button";
 import { LossesPanel } from "@/components/pipelines/losses-panel";
-import { resolvePeriod } from "@/lib/reports/period";
+import { resolveAccountPeriod } from "@/lib/reports/period";
+import { fetchAllRows } from "@/lib/reports/paginate";
 import { exportDealsToCsv } from "@/lib/pipelines/export-csv";
 import { fireAutomationTrigger } from "@/lib/automations/client-dispatch";
 import { Download, LayoutGrid, TrendingDown } from "lucide-react";
@@ -71,7 +72,8 @@ export default function PipelinesPage() {
   const supabase = createClient();
   const canEditSettings = useCan("edit-settings");
   const canCreateDeals = useCan("send-messages");
-  const { accountId, defaultCurrency } = useAuth();
+  const { account, accountId, defaultCurrency } = useAuth();
+  const timezone = account?.timezone ?? "America/Sao_Paulo";
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>("");
@@ -138,14 +140,25 @@ export default function PipelinesPage() {
 
   const loadDeals = useCallback(
     async (pipelineId: string) => {
-      const { data } = await supabase
-        .from("deals")
-        .select(
-          "*, contact:contacts(*, contact_tags(tag_id)), assignee:profiles!deals_assigned_to_fkey(*), products:deal_products(id, commission_value)",
-        )
-        .eq("pipeline_id", pipelineId)
-        .order("created_at", { ascending: false });
-      return (data ?? []) as Deal[];
+      // Paginated — a plain unbounded fetch silently stopped at
+      // PostgREST's implicit 1000-row cap, confirmed live on this
+      // account's main pipeline (1256 deals, 256 silently invisible
+      // to the board — including 20 "Ganho" deals the Status filter
+      // could never show). `.order("id")` as a tiebreaker makes the
+      // pagination deterministic across pages even when several
+      // deals share the same created_at.
+      const rows = await fetchAllRows<Deal>((from, to) =>
+        supabase
+          .from("deals")
+          .select(
+            "*, contact:contacts(*, contact_tags(tag_id)), assignee:profiles!deals_assigned_to_fkey(*), products:deal_products(id, commission_value)",
+          )
+          .eq("pipeline_id", pipelineId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to) as unknown as PromiseLike<{ data: Deal[] | null; error: unknown }>,
+      );
+      return rows;
     },
     [supabase],
   );
@@ -456,16 +469,21 @@ export default function PipelinesPage() {
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
 
-  // "all" means no date restriction; otherwise resolve the same way
-  // Reports/Dashboard do. Each deal is checked against its own
+  // "all" means no date restriction; otherwise anchored to the
+  // ACCOUNT's timezone (resolveAccountPeriod), not the viewer's
+  // browser clock — a browser set to a different timezone than the
+  // account's used to disagree with "hoje"/"esta semana"/"este mês"
+  // for a good chunk of every day (confirmed live: a UTC browser
+  // showed 0 deals "Ganhos hoje" when the account's own São Paulo
+  // calendar day already had 2). Each deal is checked against its own
   // "effective date" (see filteredDeals below) rather than a single
   // column, since won_at/lost_at only exist once a deal has closed.
   const period = useMemo(
     () =>
       filters.periodKey === "all"
         ? null
-        : resolvePeriod(filters.periodKey, filters.customFrom, filters.customTo),
-    [filters.periodKey, filters.customFrom, filters.customTo],
+        : resolveAccountPeriod(filters.periodKey, timezone, filters.customFrom, filters.customTo),
+    [filters.periodKey, filters.customFrom, filters.customTo, timezone],
   );
 
   const filteredDeals = useMemo(() => {

@@ -4,6 +4,15 @@
 // calendar day, not UTC's.
 
 import { mondayIndex, startOfLocalDay } from "@/lib/dashboard/date-utils"
+import {
+  addDaysYMD,
+  mondayIndexYMD,
+  parseDateKey as parseYmdKey,
+  toDateKey as ymdToDateKey,
+  zonedMidnightToUtcISO,
+  zonedToday,
+  type YMD,
+} from "./timezone"
 import type { PeriodKey, PeriodRange } from "./types"
 
 function toDateKey(d: Date): string {
@@ -91,6 +100,78 @@ export function resolvePeriod(
     endISO: end.toISOString(),
     fromDate: toDateKey(today),
     toDate: toDateKey(today),
+  }
+}
+
+/**
+ * Same key vocabulary and semantics as resolvePeriod (today/week/
+ * month/custom), but anchored to `timeZone` — the ACCOUNT's
+ * configured timezone — instead of the viewer's browser clock.
+ *
+ * resolvePeriod's browser-local "today" is wrong for anything a
+ * second party might look at outside the account's own timezone: a
+ * browser set to UTC viewing an América/São_Paulo (UTC-3) account
+ * disagrees with "today" for 21 of every 24 hours (00:00-21:00 local
+ * time is still "yesterday" in UTC) — confirmed live on the Pipelines
+ * board's "Ganhos" filter, which used resolvePeriod directly. Use
+ * this instead anywhere a period boundary needs to mean the same
+ * calendar day/week/month for every viewer of the same account,
+ * regardless of where they are.
+ */
+export function resolveAccountPeriod(
+  key: PeriodKey,
+  timeZone: string,
+  customFrom?: string | null,
+  customTo?: string | null,
+): PeriodRange {
+  const today = zonedToday(timeZone)
+
+  if (key === "week") {
+    const start = addDaysYMD(today, -mondayIndexYMD(today))
+    const end = addDaysYMD(today, 1)
+    return {
+      key,
+      startISO: zonedMidnightToUtcISO(start, timeZone),
+      endISO: zonedMidnightToUtcISO(end, timeZone),
+      fromDate: ymdToDateKey(start),
+      toDate: ymdToDateKey(today),
+    }
+  }
+
+  if (key === "month") {
+    const start: YMD = { y: today.y, m: today.m, d: 1 }
+    const end = addDaysYMD(today, 1)
+    return {
+      key,
+      startISO: zonedMidnightToUtcISO(start, timeZone),
+      endISO: zonedMidnightToUtcISO(end, timeZone),
+      fromDate: ymdToDateKey(start),
+      toDate: ymdToDateKey(today),
+    }
+  }
+
+  if (key === "custom" && customFrom && customTo) {
+    const from = parseYmdKey(customFrom)
+    const to = parseYmdKey(customTo)
+    if (from && to) {
+      const end = addDaysYMD(to, 1)
+      return {
+        key,
+        startISO: zonedMidnightToUtcISO(from, timeZone),
+        endISO: zonedMidnightToUtcISO(end, timeZone),
+        fromDate: customFrom,
+        toDate: customTo,
+      }
+    }
+  }
+
+  const end = addDaysYMD(today, 1)
+  return {
+    key: "today",
+    startISO: zonedMidnightToUtcISO(today, timeZone),
+    endISO: zonedMidnightToUtcISO(end, timeZone),
+    fromDate: ymdToDateKey(today),
+    toDate: ymdToDateKey(today),
   }
 }
 
