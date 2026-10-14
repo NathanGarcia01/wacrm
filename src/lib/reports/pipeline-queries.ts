@@ -140,6 +140,36 @@ export async function loadPipelineReport(
   }
 }
 
+/** Cards-only call for the headline metrics' "vs. período anterior"
+ *  comparison — skips the deals-table fetch (loadDealsTableRows) and
+ *  every other field this RPC returns, since the trend row only needs
+ *  five numbers from `cards`. */
+export async function loadPipelineCards(
+  db: DB,
+  range: { startISO: string; endISO: string },
+  accountId: string,
+): Promise<PipelineReportCards> {
+  const { data, error } = await db.rpc('get_pipeline_dashboard', {
+    p_account_id: accountId,
+    p_start: range.startISO,
+    p_end: range.endISO,
+  })
+  if (error) throw error
+  const cards = (data as RpcResult).cards
+  return {
+    dealsCreated: cards.deals_created,
+    dealsWon: cards.deals_won,
+    dealsLost: cards.deals_lost,
+    conversionRatePct:
+      cards.deals_won + cards.deals_lost === 0 ? null : (cards.deals_won / (cards.deals_won + cards.deals_lost)) * 100,
+    valueWon: cards.value_won ?? 0,
+    avgTicket: cards.avg_ticket,
+    avgCloseDays: cards.avg_close_days,
+    commissionWon: cards.commission_won ?? 0,
+    commissionProjected: cards.commission_projected ?? 0,
+  }
+}
+
 /** YYYY-MM-DD for `epochMs` as observed in `timeZone` — must match the
  *  RPC's own `(won_at at time zone v_tz)::date` bucketing exactly. */
 function accountDayKey(epochMs: number, timeZone: string): string {

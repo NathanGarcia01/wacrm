@@ -2765,7 +2765,9 @@
     },
     "dealsPerDayChart": {
       "title": "Deals ganhos por dia",
-      "seriesWon": "Ganhos"
+      "seriesWon": "Ganhos",
+      "insightPeak": "Pico de {count} {count, plural, one {ganho} other {ganhos}} em {date}",
+      "insightNone": "Nenhum deal ganho no período selecionado."
     },
     "dealsTable": {
       "title": "Deals do período",
@@ -2821,7 +2823,8 @@
     "pipelineFunnelChart": {
       "title": "Funil por etapa",
       "empty": "Nenhum deal em aberto no funil.",
-      "tooltipOpenDeals": "Deals em aberto"
+      "tooltipOpenDeals": "Deals em aberto",
+      "insightTopStage": "Maior volume em \"{stage}\" ({count} {count, plural, one {deal} other {deals}})"
     },
     "pipelineTab": {
       "loadFailed": "Não foi possível carregar os dados de pipeline.",
@@ -2836,7 +2839,11 @@
       "projectedCommission": "Comissão prevista",
       "openDealsSubtitle": "Deals em aberto",
       "avgTimeToWin": "Tempo médio até ganhar",
-      "avgTimeToWinTooltip": "Média de dias entre a abertura do atendimento que originou o negócio (último atendimento do contato antes da criação do deal, em até 30 dias) e o momento em que o negócio foi ganho. Negócios sem atendimento vinculado não entram na média."
+      "avgTimeToWinTooltip": "Média de dias entre a abertura do atendimento que originou o negócio (último atendimento do contato antes da criação do deal, em até 30 dias) e o momento em que o negócio foi ganho. Negócios sem atendimento vinculado não entram na média.",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Novo no período",
+      "flatVsPreviousPeriod": "Sem variação",
+      "otherIndicators": "Outros indicadores"
     },
     "salesGoalCard": {
       "title": "Meta de {month}",
@@ -3030,7 +3037,9 @@
       "title": "Perdidos por motivo",
       "empty": "Nenhum deal perdido no período selecionado.",
       "noReason": "Sem motivo",
-      "seriesCount": "Deals perdidos"
+      "seriesCount": "Deals perdidos",
+      "insightTop": "\"{label}\" responde por {pct}% das perdas",
+      "seriesValue": "Valor perdido"
     },
     "ticketConversionBySourceTable": {
       "title": "Conversão por origem do atendimento",

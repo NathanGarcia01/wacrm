@@ -15,8 +15,9 @@ import {
   Ticket,
   XCircle,
 } from "lucide-react"
-import { loadPipelineReport } from "@/lib/reports/pipeline-queries"
-import type { PeriodRange, PipelineReportBundle } from "@/lib/reports/types"
+import { loadPipelineCards, loadPipelineReport } from "@/lib/reports/pipeline-queries"
+import { previousPeriod } from "@/lib/reports/period"
+import type { PeriodRange, PipelineReportBundle, PipelineReportCards } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
 import { PipelineFunnelChart } from "@/components/reports/pipeline-funnel-chart"
@@ -36,12 +37,46 @@ function fmtDays(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(1)}d`
 }
 
+type Delta = { sign: number; label: string } | undefined
+
+/** Relative % change, for metrics where "previous = 0" is a real
+ *  baseline (counts, money) rather than a sentinel. */
+function relativeDelta(
+  current: number | null,
+  previous: number | null,
+  t: ReturnType<typeof useTranslations>,
+): Delta {
+  if (current == null || previous == null) return undefined
+  if (previous === 0) {
+    if (current === 0) return { sign: 0, label: t("flatVsPreviousPeriod") }
+    return { sign: 1, label: t("newVsPreviousPeriod") }
+  }
+  const pct = ((current - previous) / previous) * 100
+  const sign = pct > 0 ? 1 : pct < 0 ? -1 : 0
+  return { sign, label: `${pct > 0 ? "+" : ""}${pct.toFixed(0)}% ${t("vsPreviousPeriod")}` }
+}
+
+/** Point-difference change for metrics that are ALREADY a 0-100 rate
+ *  — a relative "% of %" change reads as meaningless/alarmist (e.g.
+ *  0%→5% isn't a "+∞%"), so this compares in percentage points instead. */
+function pointsDelta(
+  current: number | null,
+  previous: number | null,
+  t: ReturnType<typeof useTranslations>,
+): Delta {
+  if (current == null || previous == null) return undefined
+  const diff = current - previous
+  const sign = diff > 0 ? 1 : diff < 0 ? -1 : 0
+  return { sign, label: `${diff > 0 ? "+" : ""}${diff.toFixed(0)} p.p. ${t("vsPreviousPeriod")}` }
+}
+
 export function PipelineTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.pipelineTab")
   const { account, defaultCurrency } = useAuth()
   const accountId = account?.id ?? null
   const timezone = account?.timezone ?? "America/Sao_Paulo"
   const [bundle, setBundle] = useState<PipelineReportBundle | null>(null)
+  const [previousCards, setPreviousCards] = useState<PipelineReportCards | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -52,9 +87,14 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadPipelineReport(db, period, accountId, timezone)
-      .then((b) => {
-        if (!cancelled) setBundle(b)
+    Promise.all([
+      loadPipelineReport(db, period, accountId, timezone),
+      loadPipelineCards(db, previousPeriod(period), accountId),
+    ])
+      .then(([b, prevCards]) => {
+        if (cancelled) return
+        setBundle(b)
+        setPreviousCards(prevCards)
       })
       .catch((err) => {
         console.error("[reports] pipeline load failed:", err)
@@ -68,6 +108,8 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
     }
   }, [period, accountId, timezone, t])
 
+  const cards = bundle?.cards ?? null
+
   return (
     <div className="space-y-5">
       {error && (
@@ -76,52 +118,76 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {loading || !bundle ? (
-          Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
+      {/* Headline — the 5 numbers that answer "how did sales go", each
+          with a trend vs. the immediately preceding period of the same
+          length, instead of 10 visually-identical cards. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {loading || !cards ? (
+          Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
-            <MetricCard title={t("dealsCreated")} value={bundle.cards.dealsCreated.toLocaleString()} icon={Ticket} />
-            <MetricCard title={t("dealsWon")} value={bundle.cards.dealsWon.toLocaleString()} icon={CheckCircle2} />
-            <MetricCard title={t("dealsLost")} value={bundle.cards.dealsLost.toLocaleString()} icon={XCircle} />
-            <MetricCard title={t("conversionRate")} value={fmtPct(bundle.cards.conversionRatePct)} icon={Percent} />
             <MetricCard
               title={t("valueWon")}
-              value={formatCurrency(bundle.cards.valueWon, defaultCurrency)}
+              value={formatCurrency(cards.valueWon, defaultCurrency)}
               icon={DollarSign}
+              delta={relativeDelta(cards.valueWon, previousCards?.valueWon ?? null, t)}
             />
             <MetricCard
-              title={t("avgTicket")}
-              value={
-                bundle.cards.avgTicket == null
-                  ? "—"
-                  : formatCurrency(bundle.cards.avgTicket, defaultCurrency)
-              }
-              icon={DollarSign}
+              title={t("dealsWon")}
+              value={cards.dealsWon.toLocaleString()}
+              icon={CheckCircle2}
+              delta={relativeDelta(cards.dealsWon, previousCards?.dealsWon ?? null, t)}
             />
             <MetricCard
-              title={t("avgCloseTime")}
-              value={fmtDays(bundle.cards.avgCloseDays)}
-              icon={CalendarClock}
+              title={t("conversionRate")}
+              value={fmtPct(cards.conversionRatePct)}
+              icon={Percent}
+              delta={pointsDelta(cards.conversionRatePct, previousCards?.conversionRatePct ?? null, t)}
             />
             <MetricCard
               title={t("periodCommission")}
-              value={formatCurrency(bundle.cards.commissionWon, defaultCurrency)}
+              value={formatCurrency(cards.commissionWon, defaultCurrency)}
               icon={Coins}
+              delta={relativeDelta(cards.commissionWon, previousCards?.commissionWon ?? null, t)}
             />
             <MetricCard
-              title={t("projectedCommission")}
-              value={formatCurrency(bundle.cards.commissionProjected, defaultCurrency)}
-              icon={Coins}
-              subtitle={t("openDealsSubtitle")}
-            />
-            <MetricCard
-              title={t("avgTimeToWin")}
-              value={fmtDays(bundle.avgTimeToWinDays)}
-              icon={Hourglass}
-              tooltip={t("avgTimeToWinTooltip")}
+              title={t("avgTicket")}
+              value={cards.avgTicket == null ? "—" : formatCurrency(cards.avgTicket, defaultCurrency)}
+              icon={DollarSign}
+              delta={relativeDelta(cards.avgTicket, previousCards?.avgTicket ?? null, t)}
             />
           </>
+        )}
+      </div>
+
+      {/* Secondary — context numbers that don't need their own
+          full-size card: pipeline volume, operational pace, forecast. */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="mb-3 text-xs font-medium text-muted-foreground">{t("otherIndicators")}</p>
+        {loading || !cards ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <CompactStat icon={Ticket} label={t("dealsCreated")} value={cards.dealsCreated.toLocaleString()} />
+            <CompactStat icon={XCircle} label={t("dealsLost")} value={cards.dealsLost.toLocaleString()} />
+            <CompactStat icon={CalendarClock} label={t("avgCloseTime")} value={fmtDays(cards.avgCloseDays)} />
+            <CompactStat
+              icon={Coins}
+              label={t("projectedCommission")}
+              value={formatCurrency(cards.commissionProjected, defaultCurrency)}
+              hint={t("openDealsSubtitle")}
+            />
+            <CompactStat
+              icon={Hourglass}
+              label={t("avgTimeToWin")}
+              value={fmtDays(bundle?.avgTimeToWinDays ?? null)}
+              hint={t("avgTimeToWinTooltip")}
+            />
+          </div>
         )}
       </div>
 
@@ -132,7 +198,7 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
         <DealsPerDayChart data={bundle?.dealsPerDay ?? []} />
       </div>
 
-      <PipelineLossReasonChart data={bundle?.lossByReason ?? []} />
+      <PipelineLossReasonChart data={bundle?.lossByReason ?? []} currency={defaultCurrency} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <TicketConversionBySourceTable rows={bundle?.conversionBySource ?? []} loading={loading} />
@@ -146,6 +212,30 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
       />
 
       <DealsTable deals={bundle?.deals ?? []} loading={loading} />
+    </div>
+  )
+}
+
+function CompactStat({
+  icon: Icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  value: string
+  hint?: string
+}) {
+  return (
+    <div className="flex items-start gap-2" title={hint}>
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <p className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</p>
+      </div>
     </div>
   )
 }

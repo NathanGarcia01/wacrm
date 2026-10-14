@@ -14,8 +14,7 @@ export async function fetchAllRows<T>(
 ): Promise<T[]> {
   const rows: T[] = []
   let from = 0
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (;;) {
     const { data, error } = await queryFactory(from, from + PAGE_SIZE - 1)
     if (error) throw error
     const page = data ?? []

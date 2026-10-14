@@ -2765,7 +2765,9 @@
     },
     "dealsPerDayChart": {
       "title": "Negocios ganados por día",
-      "seriesWon": "Ganados"
+      "seriesWon": "Ganados",
+      "insightPeak": "Pico de {count} {count, plural, one {ganado} other {ganados}} el {date}",
+      "insightNone": "Ningún negocio ganado en el período seleccionado."
     },
     "dealsTable": {
       "title": "Negocios del período",
@@ -2821,7 +2823,8 @@
     "pipelineFunnelChart": {
       "title": "Embudo por etapa",
       "empty": "No hay negocios abiertos en el embudo.",
-      "tooltipOpenDeals": "Negocios abiertos"
+      "tooltipOpenDeals": "Negocios abiertos",
+      "insightTopStage": "Mayor volumen en \"{stage}\" ({count} {count, plural, one {negocio} other {negocios}})"
     },
     "pipelineTab": {
       "loadFailed": "No se pudieron cargar los datos de pipeline.",
@@ -2836,7 +2839,11 @@
       "projectedCommission": "Comisión proyectada",
       "openDealsSubtitle": "Negocios abiertos",
       "avgTimeToWin": "Tiempo medio hasta ganar",
-      "avgTimeToWinTooltip": "Promedio de días entre la apertura de la atención que originó el negocio (la atención más reciente del contacto antes de crear el negocio, dentro de 30 días) y el momento en que se ganó. Los negocios sin atención vinculada no entran en el promedio."
+      "avgTimeToWinTooltip": "Promedio de días entre la apertura de la atención que originó el negocio (la atención más reciente del contacto antes de crear el negocio, dentro de 30 días) y el momento en que se ganó. Los negocios sin atención vinculada no entran en el promedio.",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Nuevo en el período",
+      "flatVsPreviousPeriod": "Sin variación",
+      "otherIndicators": "Otros indicadores"
     },
     "salesGoalCard": {
       "title": "Meta de {month}",
@@ -3030,7 +3037,9 @@
       "title": "Perdidos por motivo",
       "empty": "Ningún negocio perdido en el período seleccionado.",
       "noReason": "Sin motivo",
-      "seriesCount": "Negocios perdidos"
+      "seriesCount": "Negocios perdidos",
+      "insightTop": "\"{label}\" representa el {pct}% de las pérdidas",
+      "seriesValue": "Valor perdido"
     },
     "ticketConversionBySourceTable": {
       "title": "Conversión por origen de la atención",

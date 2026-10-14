@@ -21,11 +21,17 @@ export function DealsPerDayChart({ data }: { data: DealsPerDayPoint[] }) {
   const t = useTranslations("reports.dealsPerDayChart")
   const locale = useLocale() as Locale
   const points = data.map((d) => ({ ...d, label: fmtDate(d.date, locale) }))
+  const peak = [...data].sort((a, b) => b.won - a.won)[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
-      <div className="h-64 w-full">
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {peak && peak.won > 0
+          ? t("insightPeak", { count: peak.won, date: fmtDate(peak.date, locale) })
+          : t("insightNone")}
+      </p>
+      <div className="mt-4 h-64 w-full">
         <ResponsiveContainer>
           <LineChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid className="stroke-border" strokeDasharray="3 3" vertical={false} />
@@ -55,6 +61,7 @@ export function DealsPerDayChart({ data }: { data: DealsPerDayPoint[] }) {
               }}
               labelStyle={{ color: "var(--muted-foreground)" }}
               itemStyle={{ color: "var(--popover-foreground)" }}
+              formatter={(value) => [String(value ?? 0), t("seriesWon")]}
             />
             <Line
               type="monotone"

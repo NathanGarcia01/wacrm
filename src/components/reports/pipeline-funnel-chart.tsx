@@ -19,11 +19,17 @@ export function PipelineFunnelChart({ stages }: { stages: PipelineFunnelStage[] 
   }
 
   const height = Math.max(160, stages.length * 44)
+  const topStage = [...stages].sort((a, b) => b.count - a.count)[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
-      <div className="w-full" style={{ height }}>
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      {topStage && topStage.count > 0 && (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t("insightTopStage", { stage: topStage.name, count: topStage.count })}
+        </p>
+      )}
+      <div className="mt-4 w-full" style={{ height }}>
         <ResponsiveContainer>
           <BarChart data={stages} layout="vertical" margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
             <XAxis type="number" hide allowDecimals={false} />

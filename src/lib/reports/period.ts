@@ -93,3 +93,20 @@ export function resolvePeriod(
     toDate: toDateKey(today),
   }
 }
+
+/**
+ * The immediately-preceding window of the SAME duration as `period`
+ * — not "the calendar month/week before", which would compare a
+ * partial current period (e.g. the first 14 days of October) against
+ * a full previous one and make the trend look worse than it is.
+ * Used for the headline cards' "vs. período anterior" deltas.
+ */
+export function previousPeriod(period: PeriodRange): { startISO: string; endISO: string } {
+  const start = new Date(period.startISO).getTime()
+  const end = new Date(period.endISO).getTime()
+  const duration = end - start
+  return {
+    startISO: new Date(start - duration).toISOString(),
+    endISO: period.startISO,
+  }
+}

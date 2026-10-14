@@ -2765,7 +2765,9 @@
     },
     "dealsPerDayChart": {
       "title": "Deals won per day",
-      "seriesWon": "Won"
+      "seriesWon": "Won",
+      "insightPeak": "Peak of {count} {count, plural, one {win} other {wins}} on {date}",
+      "insightNone": "No deals won in the selected period."
     },
     "dealsTable": {
       "title": "Deals this period",
@@ -2821,7 +2823,8 @@
     "pipelineFunnelChart": {
       "title": "Funnel by stage",
       "empty": "No open deals in the funnel.",
-      "tooltipOpenDeals": "Open deals"
+      "tooltipOpenDeals": "Open deals",
+      "insightTopStage": "Highest volume in \"{stage}\" ({count} {count, plural, one {deal} other {deals}})"
     },
     "pipelineTab": {
       "loadFailed": "Could not load pipeline data.",
@@ -2836,7 +2839,11 @@
       "projectedCommission": "Projected commission",
       "openDealsSubtitle": "Open deals",
       "avgTimeToWin": "Avg time to win",
-      "avgTimeToWinTooltip": "Average days between the opening of the ticket that originated the deal (the contact's most recent ticket before the deal was created, within 30 days) and the moment the deal was won. Deals with no linked ticket aren't included in the average."
+      "avgTimeToWinTooltip": "Average days between the opening of the ticket that originated the deal (the contact's most recent ticket before the deal was created, within 30 days) and the moment the deal was won. Deals with no linked ticket aren't included in the average.",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change",
+      "otherIndicators": "Other indicators"
     },
     "salesGoalCard": {
       "title": "{month} goal",
@@ -3030,7 +3037,9 @@
       "title": "Lost by reason",
       "empty": "No lost deals in the selected period.",
       "noReason": "No reason",
-      "seriesCount": "Lost deals"
+      "seriesCount": "Lost deals",
+      "insightTop": "\"{label}\" accounts for {pct}% of losses",
+      "seriesValue": "Lost value"
     },
     "ticketConversionBySourceTable": {
       "title": "Conversion by ticket source",
