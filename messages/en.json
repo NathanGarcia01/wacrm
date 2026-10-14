@@ -3045,7 +3045,13 @@
       "breached": "Breached"
     },
     "userSummaryTab": {
-      "loadFailed": "Could not load the per-agent summary."
+      "loadFailed": "Could not load the user summary.",
+      "summaryTitle": "Team summary",
+      "agentsCount": "Agents",
+      "totalReceived": "Received",
+      "totalClosed": "Closed",
+      "teamAvgTma": "Team average TMA",
+      "totalDealsWon": "Deals won"
     },
     "userSummaryTable": {
       "title": "Per-agent summary",

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Clock, DollarSign, Inbox, Users, UserCheck2 } from "lucide-react"
 
 import { loadUserSummaryDashboard } from "@/lib/reports/user-summary-queries"
 import { loadTicketDashboardFilterOptions } from "@/lib/reports/ticket-dashboard-queries"
@@ -15,9 +15,12 @@ import {
   resolveTicketDashboardPeriod,
   type TicketDashboardPeriodKey,
 } from "@/lib/reports/ticket-dashboard-period"
+import { formatCurrency } from "@/lib/currency"
+import { formatDurationSeconds } from "@/lib/reports/format"
 import type { TicketDashboardFilterOptions, UserSummaryBundle } from "@/lib/reports/types"
 
 import { AttendanceFilters } from "@/components/reports/attendance-filters"
+import { CompactStat } from "@/components/reports/compact-stat"
 import { UserSummaryTable } from "@/components/reports/user-summary-table"
 
 // Own query params, same convention as attendance-tab.tsx/sla-tab.tsx —
@@ -108,6 +111,23 @@ export function UserSummaryTab() {
     }
   }, [accountId, period, departmentId, channelId, businessHours, t])
 
+  const summary = useMemo(() => {
+    const rows = bundle?.rows ?? []
+    if (rows.length === 0) return null
+    const tmaValues = rows.map((r) => r.tma.meanSeconds).filter((v): v is number => v != null)
+    return {
+      agentsCount: rows.length,
+      totalReceived: rows.reduce((s, r) => s + r.receivedCount, 0),
+      totalClosed: rows.reduce((s, r) => s + r.closedCount, 0),
+      // Average of each agent's own mean TMA — not weighted by ticket
+      // count (the RPC only returns per-agent means, not the
+      // underlying durations), so this reads as "typical agent",
+      // not "typical ticket".
+      avgTmaSeconds: tmaValues.length === 0 ? null : tmaValues.reduce((s, v) => s + v, 0) / tmaValues.length,
+      totalDealsWonValue: rows.reduce((s, r) => s + r.dealsWonValue, 0),
+    }
+  }, [bundle])
+
   const missingGoals: string[] = []
   if (bundle && bundle.firstResponseGoalMinutes == null) missingGoals.push(tSla("goalFirstResponse"))
   if (bundle && bundle.resolutionGoalMinutes == null) missingGoals.push(tSla("goalResolution"))
@@ -144,6 +164,33 @@ export function UserSummaryTab() {
           </span>
         </div>
       )}
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="mb-3 text-xs font-medium text-muted-foreground">{t("summaryTitle")}</p>
+        {loading || !summary ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <CompactStat icon={Users} label={t("agentsCount")} value={summary.agentsCount.toLocaleString()} />
+            <CompactStat icon={Inbox} label={t("totalReceived")} value={summary.totalReceived.toLocaleString()} />
+            <CompactStat icon={UserCheck2} label={t("totalClosed")} value={summary.totalClosed.toLocaleString()} />
+            <CompactStat
+              icon={Clock}
+              label={t("teamAvgTma")}
+              value={summary.avgTmaSeconds == null ? "—" : formatDurationSeconds(summary.avgTmaSeconds)}
+            />
+            <CompactStat
+              icon={DollarSign}
+              label={t("totalDealsWon")}
+              value={formatCurrency(summary.totalDealsWonValue, defaultCurrency)}
+            />
+          </div>
+        )}
+      </div>
 
       <UserSummaryTable
         rows={bundle?.rows ?? []}

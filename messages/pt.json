@@ -3045,7 +3045,13 @@
       "breached": "Estourado"
     },
     "userSummaryTab": {
-      "loadFailed": "Não foi possível carregar o resumo por usuário."
+      "loadFailed": "Não foi possível carregar o resumo por usuário.",
+      "summaryTitle": "Resumo da equipe",
+      "agentsCount": "Atendentes",
+      "totalReceived": "Recebidos",
+      "totalClosed": "Fechados",
+      "teamAvgTma": "TMA médio da equipe",
+      "totalDealsWon": "Deals ganhos"
     },
     "userSummaryTable": {
       "title": "Resumo por usuário",
