@@ -15,8 +15,18 @@ import {
   resolveTicketDashboardPeriod,
   type TicketDashboardPeriodKey,
 } from "@/lib/reports/ticket-dashboard-period"
+import { previousPeriod } from "@/lib/reports/period"
+import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
 import { formatSlaCompliancePct, formatSlaViolations } from "@/lib/reports/format"
-import type { SlaDashboardBundle, TicketDashboardFilterOptions } from "@/lib/reports/types"
+import type { SlaDashboardBundle, SlaDashboardCards, SlaMetricCounts, TicketDashboardFilterOptions } from "@/lib/reports/types"
+
+function pctOf(m: SlaMetricCounts): number | null {
+  return m.total === 0 ? null : (m.withinGoal / m.total) * 100
+}
+
+function violationsOf(m: SlaMetricCounts): number | null {
+  return m.total === 0 ? null : m.total - m.withinGoal
+}
 
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -91,8 +101,14 @@ export function SlaTab() {
   const agentNames = useMemo(() => new Map(options.agents.map((a) => [a.userId, a.name])), [options.agents])
 
   const [bundle, setBundle] = useState<SlaDashboardBundle | null>(null)
+  const [previousCards, setPreviousCards] = useState<SlaDashboardCards | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const deltaLabels: DeltaLabels = {
+    vsPrevious: t("vsPreviousPeriod"),
+    new: t("newVsPreviousPeriod"),
+    flat: t("flatVsPreviousPeriod"),
+  }
 
   useEffect(() => {
     if (!accountId) return
@@ -104,9 +120,21 @@ export function SlaTab() {
       }
       setError(null)
       const db = createClient()
-      loadSlaDashboard(db, { accountId: accountId as string, period, timezone, userId, departmentId, channelId })
-        .then((b) => {
-          if (!cancelled) setBundle(b)
+      Promise.all([
+        loadSlaDashboard(db, { accountId: accountId as string, period, timezone, userId, departmentId, channelId }),
+        loadSlaDashboard(db, {
+          accountId: accountId as string,
+          period: { ...period, ...previousPeriod(period) },
+          timezone,
+          userId,
+          departmentId,
+          channelId,
+        }),
+      ])
+        .then(([b, prev]) => {
+          if (cancelled) return
+          setBundle(b)
+          setPreviousCards(prev.cards)
         })
         .catch((err) => {
           console.error("[reports] sla dashboard load failed:", err)
@@ -178,24 +206,46 @@ export function SlaTab() {
               value={formatSlaCompliancePct(bundle.cards.firstResponse)}
               icon={Percent}
               tooltip={t("firstResponsePctTooltip")}
+              delta={pointsDelta(
+                pctOf(bundle.cards.firstResponse),
+                previousCards ? pctOf(previousCards.firstResponse) : null,
+                deltaLabels,
+              )}
             />
             <MetricCard
               title={t("resolutionPct")}
               value={formatSlaCompliancePct(bundle.cards.resolution)}
               icon={Percent}
               tooltip={t("resolutionPctTooltip")}
+              delta={pointsDelta(
+                pctOf(bundle.cards.resolution),
+                previousCards ? pctOf(previousCards.resolution) : null,
+                deltaLabels,
+              )}
             />
             <MetricCard
               title={t("firstResponseViolations")}
               value={formatSlaViolations(bundle.cards.firstResponse)}
               icon={Timer}
               tooltip={t("firstResponseViolationsTooltip")}
+              delta={relativeDelta(
+                violationsOf(bundle.cards.firstResponse),
+                previousCards ? violationsOf(previousCards.firstResponse) : null,
+                deltaLabels,
+                false,
+              )}
             />
             <MetricCard
               title={t("resolutionViolations")}
               value={formatSlaViolations(bundle.cards.resolution)}
               icon={ShieldAlert}
               tooltip={t("resolutionViolationsTooltip")}
+              delta={relativeDelta(
+                violationsOf(bundle.cards.resolution),
+                previousCards ? violationsOf(previousCards.resolution) : null,
+                deltaLabels,
+                false,
+              )}
             />
           </>
         )}

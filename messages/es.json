@@ -3014,13 +3014,17 @@
       "firstResponseViolations": "Violaciones de 1ª respuesta",
       "firstResponseViolationsTooltip": "Atenciones que ya superaron la meta de 1ª respuesta sin respuesta, o que respondieron fuera de plazo — cuenta de inmediato, aunque la atención siga abierta.",
       "resolutionViolations": "Violaciones de resolución",
-      "resolutionViolationsTooltip": "Atenciones aún abiertas que ya superaron la meta de resolución, o que cerraron fuera de plazo — cuenta de inmediato, aunque la atención siga abierta."
+      "resolutionViolationsTooltip": "Atenciones aún abiertas que ya superaron la meta de resolución, o que cerraron fuera de plazo — cuenta de inmediato, aunque la atención siga abierta.",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Nuevo en el período",
+      "flatVsPreviousPeriod": "Sin variación"
     },
     "slaComplianceTrendChart": {
       "title": "Evolución del cumplimiento de la meta",
       "empty": "Ninguna atención evaluada en el período seleccionado.",
       "seriesFirstResponse": "1ª respuesta",
-      "seriesResolution": "Resolución"
+      "seriesResolution": "Resolución",
+      "insightAvg": "Promedio del período: 1ª respuesta {fr}% · Resolución {res}%"
     },
     "slaAgentRankingTable": {
       "title": "Ranking de SLA por agente",

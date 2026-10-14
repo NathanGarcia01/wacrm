@@ -39,10 +39,24 @@ export function SlaComplianceTrendChart({
     resolutionPct: pct(d.resolution.total, d.resolution.withinGoal),
   }))
   const hasAnySample = points.some((p) => p.firstResponsePct != null || p.resolutionPct != null)
+  // Period-wide average, weighted by volume (sum of totals/within —
+  // NOT an average of the daily percentages, which would let a
+  // slow 2-ticket day count as much as a busy 50-ticket one).
+  const frTotals = data.reduce((acc, d) => ({ total: acc.total + d.firstResponse.total, within: acc.within + d.firstResponse.withinGoal }), { total: 0, within: 0 })
+  const resTotals = data.reduce((acc, d) => ({ total: acc.total + d.resolution.total, within: acc.within + d.resolution.withinGoal }), { total: 0, within: 0 })
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      {hasAnySample && (
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {t("insightAvg", {
+            fr: frTotals.total === 0 ? "—" : ((frTotals.within / frTotals.total) * 100).toFixed(0),
+            res: resTotals.total === 0 ? "—" : ((resTotals.within / resTotals.total) * 100).toFixed(0),
+          })}
+        </p>
+      )}
+      <div className="mt-4">
       {!hasAnySample ? (
         <p className="py-10 text-center text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
@@ -117,6 +131,7 @@ export function SlaComplianceTrendChart({
           </div>
         </>
       )}
+      </div>
     </div>
   )
 }

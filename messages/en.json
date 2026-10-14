@@ -3014,13 +3014,17 @@
       "firstResponseViolations": "First-response violations",
       "firstResponseViolationsTooltip": "Tickets already past the first-response goal with no response yet, or that responded late — counts immediately, even while the ticket is still open.",
       "resolutionViolations": "Resolution violations",
-      "resolutionViolationsTooltip": "Tickets still open past the resolution goal, or that closed late — counts immediately, even while the ticket is still open."
+      "resolutionViolationsTooltip": "Tickets still open past the resolution goal, or that closed late — counts immediately, even while the ticket is still open.",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change"
     },
     "slaComplianceTrendChart": {
       "title": "Goal compliance over time",
       "empty": "No tickets judged in the selected period.",
       "seriesFirstResponse": "First response",
-      "seriesResolution": "Resolution"
+      "seriesResolution": "Resolution",
+      "insightAvg": "Period average: first response {fr}% · Resolution {res}%"
     },
     "slaAgentRankingTable": {
       "title": "SLA ranking by agent",
