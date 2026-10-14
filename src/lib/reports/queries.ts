@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { localDayKey } from '@/lib/dashboard/date-utils'
+import { fetchAllRows } from './paginate'
 import type {
   AccountReportCards,
   MessagesPerDayPoint,
@@ -61,20 +62,35 @@ interface RawMessageRow {
 export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<ReportsBundle> {
   const { startISO, endISO } = period
 
-  const [agentMsgsRes, allMsgsRes, wonDealsRes, membersRes] = await Promise.all([
-    db
-      .from('messages')
-      .select('id, conversation_id, conversations!inner(assigned_agent_id)')
-      .eq('sender_type', 'agent')
-      .gte('created_at', startISO)
-      .lt('created_at', endISO),
-    db
-      .from('messages')
-      .select('conversation_id, sender_type, created_at')
-      .gte('created_at', startISO)
-      .lt('created_at', endISO)
-      .order('conversation_id', { ascending: true })
-      .order('created_at', { ascending: true }),
+  // Paginated — a busy account easily sends/receives more than 1000
+  // messages in a month, and a plain unbounded `.from(...)` fetch
+  // silently stops at PostgREST's implicit 1000-row cap (confirmed in
+  // production: October's "Mensagens enviadas"/"recebidas" cards were
+  // stuck at 686/314, summing to exactly 1000, against a real
+  // 1771/898). `wonDealsRes`/`membersRes` stay plain fetches — won
+  // deals in a single period and account members are both ordersof-
+  // magnitude away from that cap.
+  const [agentMessages, allMessages, wonDealsRes, membersRes] = await Promise.all([
+    fetchAllRows<AgentMessageRow>((from, to) =>
+      db
+        .from('messages')
+        .select('id, conversation_id, conversations!inner(assigned_agent_id)')
+        .eq('sender_type', 'agent')
+        .gte('created_at', startISO)
+        .lt('created_at', endISO)
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: AgentMessageRow[] | null; error: unknown }>,
+    ),
+    fetchAllRows<RawMessageRow>((from, to) =>
+      db
+        .from('messages')
+        .select('conversation_id, sender_type, created_at')
+        .gte('created_at', startISO)
+        .lt('created_at', endISO)
+        .order('conversation_id', { ascending: true })
+        .order('created_at', { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: RawMessageRow[] | null; error: unknown }>,
+    ),
     db
       .from('deals')
       .select('id, value, assigned_to')
@@ -83,16 +99,12 @@ export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<Re
       .lt('won_at', endISO),
     db.from('profiles').select('id, user_id, full_name, email, account_role'),
   ])
-  if (agentMsgsRes.error) throw agentMsgsRes.error
-  if (allMsgsRes.error) throw allMsgsRes.error
   if (wonDealsRes.error) throw wonDealsRes.error
   if (membersRes.error) throw membersRes.error
 
-  const agentMessages = (agentMsgsRes.data ?? []) as unknown as AgentMessageRow[]
   const wonDeals = (wonDealsRes.data ?? []) as WonDealRow[]
   const members = (membersRes.data ?? []) as MemberRow[]
 
-  const allMessages = (allMsgsRes.data ?? []) as RawMessageRow[]
   const responseMetrics = computeResponseMetrics(allMessages)
 
   // Card/chart totals count every outbound message — agent AND bot
