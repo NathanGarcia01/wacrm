@@ -21,7 +21,21 @@ export interface MetaPhoneInfo {
   display_phone_number: string
   verified_name?: string
   quality_rating?: string
-  messaging_limit_tier?: string
+  /** CONNECTED / FLAGGED / RESTRICTED / etc — the number's own platform
+   *  status, distinct from quality_rating. */
+  status?: string
+  /** APPROVED / AVAILABLE_WITHOUT_REVIEW / DECLINED / EXPIRED /
+   *  PENDING_REVIEW / NONE — review status of the display name. */
+  name_status?: string
+  /** NOT_VERIFIED / EXPIRED / VERIFIED. */
+  code_verification_status?: string
+  /** Replaces the deprecated `messaging_limit_tier` (same TIER_* shape,
+   *  e.g. "TIER_1K") — since Meta's October 2025 change this is no
+   *  longer a per-number limit: it's computed at the BUSINESS PORTFOLIO
+   *  level and shared by every number under that portfolio, just still
+   *  queried per phone-number-id. See
+   *  https://developers.facebook.com/documentation/business-messaging/whatsapp/messaging-limits */
+  whatsapp_business_manager_messaging_limit?: string
 }
 
 interface MetaErrorResponse {
@@ -69,15 +83,33 @@ export interface VerifyPhoneNumberArgs {
   accessToken: string
 }
 
+/** `whatsapp_business_manager_messaging_limit` only exists from Graph
+ *  API v24.0 onward — requested on this one call at a newer version
+ *  than META_API_VERSION (v21.0) rather than bumping that shared
+ *  constant and re-validating every other Meta call site in the app. */
+const PHONE_INFO_API_VERSION = 'v24.0'
+
 /**
- * Verify a Meta phone number ID by fetching its public metadata
- * (display_phone_number, verified_name, quality_rating).
+ * Verify a Meta phone number ID by fetching its public metadata:
+ * display_phone_number, verified_name, quality_rating, the number's
+ * own connection/name status, and the (portfolio-level, since Meta's
+ * Oct 2025 change) messaging limit.
  */
 export async function verifyPhoneNumber(
   args: VerifyPhoneNumberArgs
 ): Promise<MetaPhoneInfo> {
   const { phoneNumberId, accessToken } = args
-  const url = `${META_API_BASE}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,messaging_limit_tier`
+  const fields = [
+    'id',
+    'display_phone_number',
+    'verified_name',
+    'quality_rating',
+    'status',
+    'name_status',
+    'code_verification_status',
+    'whatsapp_business_manager_messaging_limit',
+  ].join(',')
+  const url = `https://graph.facebook.com/${PHONE_INFO_API_VERSION}/${phoneNumberId}?fields=${fields}`
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })

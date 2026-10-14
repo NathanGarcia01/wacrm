@@ -211,7 +211,12 @@ function ReportsPageInner() {
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            {!isTicketsTab(tab) && <PeriodFilter period={period} onChange={updatePeriod} />}
+            {/* Qualidade is a live Meta snapshot, not scoped to any
+                period — a filter here would imply data that doesn't
+                exist. */}
+            {!isTicketsTab(tab) && tab !== "quality" && (
+              <PeriodFilter period={period} onChange={updatePeriod} />
+            )}
             <UpdatedAtControl lastRefreshedAt={lastRefreshedAt} onRefresh={() => setRefreshNonce((n) => n + 1)} />
           </div>
         </div>
