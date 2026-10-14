@@ -26,11 +26,14 @@ import {
   resolveTicketDashboardPeriod,
   type TicketDashboardPeriodKey,
 } from "@/lib/reports/ticket-dashboard-period"
+import { previousPeriod } from "@/lib/reports/period"
+import { relativeDelta, type DeltaLabels } from "@/lib/reports/delta"
 import { formatDurationSeconds } from "@/lib/reports/format"
-import type { TicketDashboardBundle, TicketDashboardFilterOptions } from "@/lib/reports/types"
+import type { TicketDashboardBundle, TicketDashboardCards, TicketDashboardFilterOptions } from "@/lib/reports/types"
 
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
+import { CompactStat } from "@/components/reports/compact-stat"
 import { AttendanceFilters } from "@/components/reports/attendance-filters"
 import { TicketsPerDayChart } from "@/components/reports/tickets-per-day-chart"
 import { TicketsByChannelChart } from "@/components/reports/tickets-by-channel-chart"
@@ -97,8 +100,14 @@ export function AttendanceTab() {
   }, [])
 
   const [bundle, setBundle] = useState<TicketDashboardBundle | null>(null)
+  const [previousCards, setPreviousCards] = useState<TicketDashboardCards | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const deltaLabels: DeltaLabels = {
+    vsPrevious: t("vsPreviousPeriod"),
+    new: t("newVsPreviousPeriod"),
+    flat: t("flatVsPreviousPeriod"),
+  }
 
   useEffect(() => {
     if (!accountId) return
@@ -107,9 +116,22 @@ export function AttendanceTab() {
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadTicketDashboard(db, { accountId, period, timezone, userId, departmentId, channelId, businessHours })
-      .then((b) => {
-        if (!cancelled) setBundle(b)
+    Promise.all([
+      loadTicketDashboard(db, { accountId, period, timezone, userId, departmentId, channelId, businessHours }),
+      loadTicketDashboard(db, {
+        accountId,
+        period: { ...period, ...previousPeriod(period) },
+        timezone,
+        userId,
+        departmentId,
+        channelId,
+        businessHours,
+      }),
+    ])
+      .then(([b, prev]) => {
+        if (cancelled) return
+        setBundle(b)
+        setPreviousCards(prev.cards)
       })
       .catch((err) => {
         console.error("[reports] attendance dashboard load failed:", err)
@@ -167,9 +189,15 @@ export function AttendanceTab() {
         </div>
       )}
 
+      {/* Headline — volume, reach, and speed, each with a trend vs. the
+          immediately preceding period of the same length. Pending/
+          in-progress are a live queue snapshot (not period-scoped —
+          see their tooltips), so they move to the secondary strip
+          without a delta instead of comparing a live count to a
+          window that doesn't apply to it. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {loading || !bundle ? (
-          Array.from({ length: 10 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
             <MetricCard
@@ -177,62 +205,86 @@ export function AttendanceTab() {
               value={bundle.cards.totalTickets.toLocaleString()}
               icon={Inbox}
               tooltip={t("totalTicketsTooltip")}
-            />
-            <MetricCard
-              title={t("initiatedByCustomer")}
-              value={bundle.cards.initiatedByCustomer.toLocaleString()}
-              icon={ArrowDownToLine}
-              tooltip={t("initiatedByCustomerTooltip")}
-            />
-            <MetricCard
-              title={t("initiatedByCompany")}
-              value={bundle.cards.initiatedByCompany.toLocaleString()}
-              icon={ArrowUpFromLine}
-              tooltip={t("initiatedByCompanyTooltip")}
-            />
-            <MetricCard
-              title={t("pending")}
-              value={bundle.cards.pending.toLocaleString()}
-              icon={Clock}
-              tooltip={t("pendingTooltip")}
-            />
-            <MetricCard
-              title={t("inProgress")}
-              value={bundle.cards.inProgress.toLocaleString()}
-              icon={Activity}
-              tooltip={t("inProgressTooltip")}
-            />
-            <MetricCard
-              title={t("agentsCount")}
-              value={bundle.cards.agentsCount.toLocaleString()}
-              icon={Users}
-              tooltip={t("agentsCountTooltip")}
+              delta={relativeDelta(bundle.cards.totalTickets, previousCards?.totalTickets ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("contactsServed")}
               value={bundle.cards.contactsServed.toLocaleString()}
               icon={UserCheck}
               tooltip={t("contactsServedTooltip")}
+              delta={relativeDelta(bundle.cards.contactsServed, previousCards?.contactsServed ?? null, deltaLabels)}
             />
             <MetricCard
-              title={t("newContactsEngaged")}
-              value={bundle.cards.newContactsEngaged.toLocaleString()}
-              icon={UserPlus}
-              tooltip={t("newContactsEngagedTooltip", { total: bundle.cards.newContacts })}
+              title={t("agentsCount")}
+              value={bundle.cards.agentsCount.toLocaleString()}
+              icon={Users}
+              tooltip={t("agentsCountTooltip")}
+              delta={relativeDelta(bundle.cards.agentsCount, previousCards?.agentsCount ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("tma")}
               value={formatDurationSeconds(bundle.cards.tmaSeconds)}
               icon={Timer}
               tooltip={t("tmaTooltip")}
+              delta={relativeDelta(bundle.cards.tmaSeconds, previousCards?.tmaSeconds ?? null, deltaLabels, false)}
             />
             <MetricCard
               title={t("firstResponse")}
               value={formatDurationSeconds(bundle.cards.firstResponseSeconds)}
               icon={Reply}
               tooltip={t("firstResponseTooltip")}
+              delta={relativeDelta(
+                bundle.cards.firstResponseSeconds,
+                previousCards?.firstResponseSeconds ?? null,
+                deltaLabels,
+                false,
+              )}
             />
           </>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="mb-3 text-xs font-medium text-muted-foreground">{t("otherIndicators")}</p>
+        {loading || !bundle ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            <CompactStat
+              icon={ArrowDownToLine}
+              label={t("initiatedByCustomer")}
+              value={bundle.cards.initiatedByCustomer.toLocaleString()}
+              hint={t("initiatedByCustomerTooltip")}
+            />
+            <CompactStat
+              icon={ArrowUpFromLine}
+              label={t("initiatedByCompany")}
+              value={bundle.cards.initiatedByCompany.toLocaleString()}
+              hint={t("initiatedByCompanyTooltip")}
+            />
+            <CompactStat
+              icon={Clock}
+              label={t("pending")}
+              value={bundle.cards.pending.toLocaleString()}
+              hint={t("liveQueueSubtitle")}
+            />
+            <CompactStat
+              icon={Activity}
+              label={t("inProgress")}
+              value={bundle.cards.inProgress.toLocaleString()}
+              hint={t("liveQueueSubtitle")}
+            />
+            <CompactStat
+              icon={UserPlus}
+              label={t("newContactsEngaged")}
+              value={bundle.cards.newContactsEngaged.toLocaleString()}
+              hint={t("newContactsEngagedTooltip", { total: bundle.cards.newContacts })}
+            />
+          </div>
         )}
       </div>
 

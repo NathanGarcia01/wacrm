@@ -2960,12 +2960,19 @@
       "firstResponse": "Tiempo de 1ª respuesta",
       "firstResponseTooltip": "Promedio del tiempo entre la apertura de la atención (iniciada por el cliente) y la primera respuesta de la empresa, en el período.",
       "newContactsEngaged": "Nuevos contactos que conversaron",
-      "newContactsEngagedTooltip": "Contactos creados en el período que enviaron al menos un mensaje en el período — no aplica los filtros de usuario, departamento o canal, ya que un contacto no pertenece directamente a ninguno de ellos. Se crearon {total} contactos nuevos en el período en total (incluyendo importaciones para envío que aún no respondieron)."
+      "newContactsEngagedTooltip": "Contactos creados en el período que enviaron al menos un mensaje en el período — no aplica los filtros de usuario, departamento o canal, ya que un contacto no pertenece directamente a ninguno de ellos. Se crearon {total} contactos nuevos en el período en total (incluyendo importaciones para envío que aún no respondieron).",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Nuevo en el período",
+      "flatVsPreviousPeriod": "Sin variación",
+      "otherIndicators": "Otros indicadores",
+      "liveQueueSubtitle": "Cola en vivo (independiente del período)"
     },
     "ticketsPerDayChart": {
       "title": "Atenciones por día",
       "seriesCount": "Atenciones",
-      "titleHourly": "Atenciones por hora"
+      "titleHourly": "Atenciones por hora",
+      "insightPeak": "Pico de {count} atenciones el {date}",
+      "insightNone": "Ninguna atención en el período seleccionado."
     },
     "ticketsByChannelChart": {
       "title": "Atenciones por canal",

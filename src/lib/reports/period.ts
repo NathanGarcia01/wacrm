@@ -101,7 +101,10 @@ export function resolvePeriod(
  * a full previous one and make the trend look worse than it is.
  * Used for the headline cards' "vs. período anterior" deltas.
  */
-export function previousPeriod(period: PeriodRange): { startISO: string; endISO: string } {
+export function previousPeriod(period: { startISO: string; endISO: string }): {
+  startISO: string
+  endISO: string
+} {
   const start = new Date(period.startISO).getTime()
   const end = new Date(period.endISO).getTime()
   const duration = end - start

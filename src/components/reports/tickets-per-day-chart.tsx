@@ -37,13 +37,17 @@ export function TicketsPerDayChart({
     ...d,
     label: granularity === "hour" ? fmtHour(d.date) : fmtDay(d.date, locale),
   }))
+  const peak = [...points].sort((a, b) => b.count - a.count)[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">
+      <p className="text-sm font-semibold text-foreground">
         {granularity === "hour" ? t("titleHourly") : t("title")}
       </p>
-      <div className="h-64 w-full">
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {peak && peak.count > 0 ? t("insightPeak", { count: peak.count, date: peak.label }) : t("insightNone")}
+      </p>
+      <div className="mt-4 h-64 w-full">
         <ResponsiveContainer>
           <LineChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid className="stroke-border" strokeDasharray="3 3" vertical={false} />

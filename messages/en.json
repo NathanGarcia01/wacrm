@@ -2960,12 +2960,19 @@
       "firstResponse": "1st response time",
       "firstResponseTooltip": "Average time between a ticket's opening (started by the customer) and the company's first response, in the period.",
       "newContactsEngaged": "New contacts who replied",
-      "newContactsEngagedTooltip": "Contacts created in the period who sent at least one message in the period — does not apply the user, department, or channel filters, since a contact doesn't belong to any of them directly. {total} new contacts were created in the period in total (including broadcast-send imports that haven't replied yet)."
+      "newContactsEngagedTooltip": "Contacts created in the period who sent at least one message in the period — does not apply the user, department, or channel filters, since a contact doesn't belong to any of them directly. {total} new contacts were created in the period in total (including broadcast-send imports that haven't replied yet).",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change",
+      "otherIndicators": "Other indicators",
+      "liveQueueSubtitle": "Live queue (independent of the period)"
     },
     "ticketsPerDayChart": {
       "title": "Tickets per day",
       "seriesCount": "Tickets",
-      "titleHourly": "Tickets per hour"
+      "titleHourly": "Tickets per hour",
+      "insightPeak": "Peak of {count} tickets on {date}",
+      "insightNone": "No tickets in the selected period."
     },
     "ticketsByChannelChart": {
       "title": "Tickets by channel",
