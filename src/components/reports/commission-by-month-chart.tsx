@@ -29,11 +29,17 @@ export function CommissionByMonthChart({
   const t = useTranslations("reports.commissionByMonthChart")
   const locale = useLocale() as Locale
   const points = data.map((d) => ({ ...d, label: fmtMonth(d.month, locale) }))
+  const peak = [...points].sort((a, b) => b.commission - a.commission)[0]
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      <p className="mb-4 text-sm font-semibold text-foreground">{t("title")}</p>
-      <div className="h-64 w-full">
+      <p className="text-sm font-semibold text-foreground">{t("title")}</p>
+      <p className="mt-0.5 text-xs text-muted-foreground">
+        {peak && peak.commission > 0
+          ? t("insightPeak", { month: peak.label, value: formatCurrency(peak.commission, currency) })
+          : t("insightNone")}
+      </p>
+      <div className="mt-4 h-64 w-full">
         <ResponsiveContainer>
           <BarChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid className="stroke-border" strokeDasharray="3 3" vertical={false} />

@@ -2739,7 +2739,9 @@
     },
     "commissionByMonthChart": {
       "title": "Commission by month",
-      "seriesCommission": "Commission"
+      "seriesCommission": "Commission",
+      "insightPeak": "Best month: {month}, {value}",
+      "insightNone": "No commission earned in the period."
     },
     "commissionsTab": {
       "loadFailed": "Could not load commissions.",
@@ -2749,7 +2751,11 @@
       "allStages": "All stages",
       "commissionWon": "Total won commission",
       "commissionOpen": "Total open commission",
-      "commissionLost": "Total lost commission"
+      "commissionLost": "Total lost commission",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change",
+      "openSubtitle": "Open pipeline (independent of the period)"
     },
     "commissionsTable": {
       "title": "Commissions",

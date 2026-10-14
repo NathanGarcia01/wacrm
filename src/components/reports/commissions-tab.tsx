@@ -7,7 +7,9 @@ import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
 import { CheckCircle2, Clock, XCircle } from "lucide-react"
 import { loadCommissionReport } from "@/lib/reports/commission-queries"
-import type { CommissionReportBundle, CommissionStatusFilter, PeriodRange } from "@/lib/reports/types"
+import { previousPeriod } from "@/lib/reports/period"
+import { relativeDelta, type DeltaLabels } from "@/lib/reports/delta"
+import type { CommissionReportBundle, CommissionReportCards, CommissionStatusFilter, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
 import {
@@ -30,8 +32,14 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
   const [statusFilter, setStatusFilter] = useState<CommissionStatusFilter>("all")
   const [stageId, setStageId] = useState<string | null>(null)
   const [bundle, setBundle] = useState<CommissionReportBundle | null>(null)
+  const [previousCards, setPreviousCards] = useState<CommissionReportCards | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const deltaLabels: DeltaLabels = {
+    vsPrevious: t("vsPreviousPeriod"),
+    new: t("newVsPreviousPeriod"),
+    flat: t("flatVsPreviousPeriod"),
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -39,9 +47,16 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadCommissionReport(db, period, statusFilter, stageId)
-      .then((b) => {
-        if (!cancelled) setBundle(b)
+    Promise.all([
+      loadCommissionReport(db, period, statusFilter, stageId),
+      // "all"/null — the previous-period card is just a comparison
+      // number, not meant to reflect whatever table filter is active.
+      loadCommissionReport(db, { ...period, ...previousPeriod(period) }, "all", null),
+    ])
+      .then(([b, prev]) => {
+        if (cancelled) return
+        setBundle(b)
+        setPreviousCards(prev.cards)
       })
       .catch((err) => {
         console.error("[reports] commissions load failed:", err)
@@ -132,16 +147,24 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
               title={t("commissionWon")}
               value={formatCurrency(bundle.cards.commissionWon, defaultCurrency)}
               icon={CheckCircle2}
+              delta={relativeDelta(bundle.cards.commissionWon, previousCards?.commissionWon ?? null, deltaLabels)}
             />
             <MetricCard
               title={t("commissionOpen")}
               value={formatCurrency(bundle.cards.commissionOpen, defaultCurrency)}
               icon={Clock}
+              subtitle={t("openSubtitle")}
             />
             <MetricCard
               title={t("commissionLost")}
               value={formatCurrency(bundle.cards.commissionLost, defaultCurrency)}
               icon={XCircle}
+              delta={relativeDelta(
+                bundle.cards.commissionLost,
+                previousCards?.commissionLost ?? null,
+                deltaLabels,
+                false,
+              )}
             />
           </>
         )}

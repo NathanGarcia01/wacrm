@@ -2739,7 +2739,9 @@
     },
     "commissionByMonthChart": {
       "title": "Comissão por mês",
-      "seriesCommission": "Comissão"
+      "seriesCommission": "Comissão",
+      "insightPeak": "Melhor mês: {month}, {value}",
+      "insightNone": "Nenhuma comissão ganha no período."
     },
     "commissionsTab": {
       "loadFailed": "Não foi possível carregar as comissões.",
@@ -2749,7 +2751,11 @@
       "allStages": "Todas as etapas",
       "commissionWon": "Total comissão ganhos",
       "commissionOpen": "Total comissão em aberto",
-      "commissionLost": "Total comissão perdidos"
+      "commissionLost": "Total comissão perdidos",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Novo no período",
+      "flatVsPreviousPeriod": "Sem variação",
+      "openSubtitle": "Carteira aberta (independe do período)"
     },
     "commissionsTable": {
       "title": "Comissões",
