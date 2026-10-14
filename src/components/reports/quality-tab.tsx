@@ -5,6 +5,8 @@ import { useLocale, useTranslations } from "next-intl"
 import { Gauge, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react"
 import type { QualityRating } from "@/lib/reports/types"
 import { localeToIntl, type Locale } from "@/i18n/locales"
+import { MetricCard } from "@/components/dashboard/metric-card"
+import { SkeletonCard } from "@/components/dashboard/skeleton"
 
 interface QualityApiResponse {
   quality_rating: string | null
@@ -134,22 +136,16 @@ export function QualityTab() {
           )}
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-muted-foreground">{t("messageLimit")}</p>
-            <Gauge className="h-4 w-4 text-muted-foreground" />
-          </div>
-          {loading ? (
-            <div className="mt-3 h-16 animate-pulse rounded-lg bg-muted" />
-          ) : (
-            <div className="mt-3 space-y-1">
-              <p className="font-mono text-[28px] leading-none font-bold text-foreground">{tierLabel ?? "—"}</p>
-              <p className="text-xs text-muted-foreground">
-                {t("conversationsPerDayHint", { tier: data?.messaging_limit_tier ?? t("unknown") })}
-              </p>
-            </div>
-          )}
-        </div>
+        {loading ? (
+          <SkeletonCard />
+        ) : (
+          <MetricCard
+            title={t("messageLimit")}
+            value={tierLabel ?? "—"}
+            icon={Gauge}
+            subtitle={t("conversationsPerDayHint", { tier: data?.messaging_limit_tier ?? t("unknown") })}
+          />
+        )}
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5">
