@@ -2733,7 +2733,12 @@
       "colContact": "Contato",
       "colValue": "Valor",
       "colClosedAt": "Fechado em",
-      "noWonDeals": "Nenhum negócio ganho vinculado a este disparo ainda."
+      "noWonDeals": "Nenhum negócio ganho vinculado a este disparo ainda.",
+      "vsPreviousPeriod": "vs. período anterior",
+      "newVsPreviousPeriod": "Novo no período",
+      "flatVsPreviousPeriod": "Sem variação",
+      "otherIndicators": "Outros indicadores",
+      "funnelInsight": "{pct}% dos enviados viraram negócio ganho"
     },
     "commissionAgentRankingTable": {
       "title": "Comissão por agente",

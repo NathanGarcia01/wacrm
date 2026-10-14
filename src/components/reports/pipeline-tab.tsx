@@ -21,6 +21,7 @@ import { pointsDelta, relativeDelta, type DeltaLabels } from "@/lib/reports/delt
 import type { PeriodRange, PipelineReportBundle, PipelineReportCards } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
+import { CompactStat } from "@/components/reports/compact-stat"
 import { PipelineFunnelChart } from "@/components/reports/pipeline-funnel-chart"
 import { DealsPerDayChart } from "@/components/reports/deals-per-day-chart"
 import { DealsTable } from "@/components/reports/deals-table"
@@ -189,26 +190,3 @@ export function PipelineTab({ period }: { period: PeriodRange }) {
   )
 }
 
-function CompactStat({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  hint?: string
-}) {
-  return (
-    <div className="flex items-start gap-2" title={hint}>
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-xs text-muted-foreground">{label}</p>
-        <p className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</p>
-      </div>
-    </div>
-  )
-}

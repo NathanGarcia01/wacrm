@@ -7,9 +7,12 @@ import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
 import { DollarSign, TrendingUp, TrendingDown, Users, Target, Percent, Ticket, Clock } from "lucide-react"
 import { loadBroadcastRoiReport } from "@/lib/reports/broadcast-roi-queries"
-import type { BroadcastRoiBundle, PeriodRange } from "@/lib/reports/types"
+import { previousPeriod } from "@/lib/reports/period"
+import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import type { BroadcastRoiBundle, BroadcastRoiCards, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
+import { CompactStat } from "@/components/reports/compact-stat"
 import { BroadcastRoiFunnelChart } from "./broadcast-roi-funnel-chart"
 import {
   Table,
@@ -24,8 +27,14 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.broadcastRoiTab")
   const { defaultCurrency } = useAuth()
   const [bundle, setBundle] = useState<BroadcastRoiBundle | null>(null)
+  const [previousCards, setPreviousCards] = useState<BroadcastRoiCards | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const deltaLabels: DeltaLabels = {
+    vsPrevious: t("vsPreviousPeriod"),
+    new: t("newVsPreviousPeriod"),
+    flat: t("flatVsPreviousPeriod"),
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -33,9 +42,14 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
     setLoading(true)
     setError(null)
     const db = createClient()
-    loadBroadcastRoiReport(db, period)
-      .then((b) => {
-        if (!cancelled) setBundle(b)
+    Promise.all([
+      loadBroadcastRoiReport(db, period),
+      loadBroadcastRoiReport(db, { ...period, ...previousPeriod(period) }),
+    ])
+      .then(([b, prev]) => {
+        if (cancelled) return
+        setBundle(b)
+        setPreviousCards(prev.cards)
       })
       .catch((err) => {
         console.error("[reports] broadcast ROI load failed:", err)
@@ -81,15 +95,60 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
           >
             {bundle.cards.roiPct == null ? "—" : `${bundle.cards.roiPct.toFixed(0)}%`}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{t("roiSubtitle")}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="text-xs text-muted-foreground">{t("roiSubtitle")}</p>
+            {(() => {
+              const delta = pointsDelta(bundle.cards.roiPct, previousCards?.roiPct ?? null, deltaLabels)
+              return delta ? (
+                <span
+                  className={`font-mono text-xs ${
+                    delta.sign > 0 ? "text-primary" : delta.sign < 0 ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  {delta.label}
+                </span>
+              ) : null
+            })()}
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Headline — commission, leads, and conversion, each with a
+          trend vs. the immediately preceding period. Cost/multiple/
+          avg-ticket/avg-days move together with these and stay in the
+          secondary strip instead of repeating the same story. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading || !bundle ? (
-          Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
+            <MetricCard
+              title={t("commissionGenerated")}
+              value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
+              icon={TrendingUp}
+              delta={relativeDelta(
+                bundle.cards.commissionGenerated,
+                previousCards?.commissionGenerated ?? null,
+                deltaLabels,
+              )}
+            />
+            <MetricCard
+              title={t("leadsGenerated")}
+              value={bundle.cards.leadsGenerated.toLocaleString()}
+              icon={Users}
+              delta={relativeDelta(bundle.cards.leadsGenerated, previousCards?.leadsGenerated ?? null, deltaLabels)}
+            />
+            <MetricCard
+              title={t("conversionRate")}
+              value={bundle.cards.conversionRatePct == null ? "—" : `${bundle.cards.conversionRatePct.toFixed(0)}%`}
+              icon={Percent}
+              subtitle={t("dealsWon") + ": " + bundle.cards.dealsWon.toLocaleString()}
+              delta={pointsDelta(
+                bundle.cards.conversionRatePct,
+                previousCards?.conversionRatePct ?? null,
+                deltaLabels,
+              )}
+            />
             <MetricCard
               title={t("costTotal")}
               value={formatCurrency(bundle.cards.cost.total, defaultCurrency)}
@@ -100,55 +159,44 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
                 authentication: formatCurrency(bundle.cards.cost.authentication, defaultCurrency),
               })}
             />
-            <MetricCard
-              title={t("commissionGenerated")}
-              value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
-              icon={TrendingUp}
-            />
-            <MetricCard
-              title={t("multiple")}
-              value={bundle.cards.multiple == null ? "—" : `${bundle.cards.multiple.toFixed(1)}x`}
-              icon={Target}
-            />
           </>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="mb-3 text-xs font-medium text-muted-foreground">{t("otherIndicators")}</p>
         {loading || !bundle ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
+          <div className="grid grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-md bg-muted" />
+            ))}
+          </div>
         ) : (
-          <>
-            <MetricCard
-              title={t("leadsGenerated")}
-              value={bundle.cards.leadsGenerated.toLocaleString()}
-              icon={Users}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <CompactStat
+              icon={Target}
+              label={t("multiple")}
+              value={bundle.cards.multiple == null ? "—" : `${bundle.cards.multiple.toFixed(1)}x`}
             />
-            <MetricCard
-              title={t("conversionRate")}
-              value={bundle.cards.conversionRatePct == null ? "—" : `${bundle.cards.conversionRatePct.toFixed(0)}%`}
-              icon={Percent}
-              subtitle={t("dealsWon") + ": " + bundle.cards.dealsWon.toLocaleString()}
-            />
-            <MetricCard
-              title={t("avgCommissionPerDeal")}
+            <CompactStat
+              icon={Ticket}
+              label={t("avgCommissionPerDeal")}
               value={
                 bundle.cards.avgCommissionPerDeal == null
                   ? "—"
                   : formatCurrency(bundle.cards.avgCommissionPerDeal, defaultCurrency)
               }
-              icon={Ticket}
             />
-            <MetricCard
-              title={t("avgDaysToClose")}
+            <CompactStat
+              icon={Clock}
+              label={t("avgDaysToClose")}
               value={
                 bundle.cards.avgDaysToClose == null
                   ? "—"
                   : t("avgDaysToCloseValue", { days: bundle.cards.avgDaysToClose.toFixed(1) })
               }
-              icon={Clock}
             />
-          </>
+          </div>
         )}
       </div>
 
@@ -165,6 +213,11 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
         }
         loading={loading}
         title={t("funnelTitle")}
+        insight={
+          bundle && bundle.funnel.sent > 0
+            ? t("funnelInsight", { pct: ((bundle.funnel.dealsWon / bundle.funnel.sent) * 100).toFixed(1) })
+            : undefined
+        }
       />
 
       <div className="rounded-xl border border-border bg-card">

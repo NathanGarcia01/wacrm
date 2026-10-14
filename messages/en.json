@@ -2733,7 +2733,12 @@
       "colContact": "Contact",
       "colValue": "Value",
       "colClosedAt": "Closed on",
-      "noWonDeals": "No won deal linked to this broadcast yet."
+      "noWonDeals": "No won deal linked to this broadcast yet.",
+      "vsPreviousPeriod": "vs. previous period",
+      "newVsPreviousPeriod": "New this period",
+      "flatVsPreviousPeriod": "No change",
+      "otherIndicators": "Other indicators",
+      "funnelInsight": "{pct}% of sends turned into a won deal"
     },
     "commissionAgentRankingTable": {
       "title": "Commission by agent",
