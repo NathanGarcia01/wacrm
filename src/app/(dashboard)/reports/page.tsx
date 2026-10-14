@@ -1,6 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useMemo, useState } from "react"
+import { cn } from "@/lib/utils"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { Headset, Radio, RefreshCw, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react"
@@ -168,6 +169,26 @@ function ReportsPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastRefreshedAt = useMemo(() => Date.now(), [tab, period, refreshNonce])
 
+  // The header collapses to a thin bar once the page has scrolled past
+  // its own title block — `<main>` (dashboard-shell.tsx) is the actual
+  // scroll container, not `window`, so this listens there directly.
+  const [isScrolled, setIsScrolled] = useState(false)
+  useEffect(() => {
+    const scrollEl = document.querySelector("main")
+    if (!scrollEl) return
+    const onScroll = () => setIsScrolled(scrollEl.scrollTop > 24)
+    scrollEl.addEventListener("scroll", onScroll, { passive: true })
+    onScroll()
+    return () => scrollEl.removeEventListener("scroll", onScroll)
+  }, [])
+
+  // A deep scroll position left over from the previous tab would
+  // otherwise hide the next tab's headline cards under the sticky
+  // header — jump back to the top on every tab switch.
+  useEffect(() => {
+    document.querySelector("main")?.scrollTo({ top: 0 })
+  }, [tab])
+
   function buildParams(next: { tab?: ReportTab; period: PeriodKey; from?: string; to?: string }) {
     const params = new URLSearchParams()
     params.set("tab", next.tab ?? tab)
@@ -199,18 +220,107 @@ function ReportsPageInner() {
   return (
     <div className="space-y-5">
       {/* Full-bleed sticky header — negative margins cancel out
-          <main>'s own padding (dashboard-shell.tsx) so the bar reaches
-          the edges while staying flush with the top of the scroll
-          area instead of stopping one padding-width short of it. */}
-      <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-border bg-background/95 px-4 pt-4 pb-3 backdrop-blur-sm sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <main>'s own padding (dashboard-shell.tsx) so the opaque
+          background paints all the way up to the global app header,
+          leaving no gap of unpainted page behind it. Solid background
+          (no opacity/blur) + its own stacking context (isolate) so
+          scrolled-under cards can never show through or outrank it. */}
+      <div
+        className={cn(
+          "sticky top-0 z-30 isolate -mx-4 -mt-4 border-b border-border bg-background px-4 pt-4 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6",
+          "transition-[padding] duration-200",
+          isScrolled ? "pb-2" : "pb-3",
+        )}
+      >
+        {/* Title + description — collapses to zero height once
+            scrolled, via an animated grid-rows track (not max-height,
+            which would have to guess a value) so the compact bar is
+            genuinely thin instead of just visually trimmed. */}
+        <div
+          className={cn(
+            "grid overflow-hidden transition-[grid-template-rows] duration-200",
+            isScrolled ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+          )}
+        >
+          <div className="min-h-0">
             <h1 className="text-2xl font-bold text-foreground">Relatórios</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 mb-4 text-sm text-muted-foreground">
               Métricas de atendimento, vendas, transmissões e qualidade da conta por período.
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-3">
+        </div>
+
+        {/* Nav + filters — always a single row, in both states; only
+            the section pills swap for the compact selector once
+            scrolled (see below), so this row never grows taller than
+            one line. */}
+        {/* Nav and filters stack as two full-width rows below `sm`
+            (640px) — cramming the section selector, level-2 tabs, AND
+            the period/updated controls into one row left the tabs
+            squeezed to a sliver and clipped there. From `sm` up
+            there's room for both groups side by side on one line. */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2 sm:flex-1">
+            {/* Level 1, expanded — section pills, desktop only, hidden
+                once scrolled (the compact selector below takes over). */}
+            <div className={cn("hidden", !isScrolled && "sm:block")}>
+              <Tabs value={section.key} onValueChange={(v) => updateSection(v as string)}>
+                <TabsList data-tour="reports-sections">
+                  {SECTIONS.map((s) => (
+                    <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
+                      <s.icon className="h-4 w-4" />
+                      {s.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {/* Level 1, compact — always on mobile (no room for pills
+                there regardless of scroll); on desktop only once
+                scrolled, so the single-line compact bar still lets you
+                switch sections without scrolling back up first. */}
+            <div className={cn("w-36 shrink-0 sm:w-44", isScrolled ? "block" : "sm:hidden")}>
+              <Select
+                items={Object.fromEntries(SECTIONS.map((s) => [s.key, s.label]))}
+                value={section.key}
+                onValueChange={(v) => updateSection(v as string)}
+              >
+                <SelectTrigger className="w-full bg-card" size="sm">
+                  <section.icon className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECTIONS.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>
+                      <s.icon className="h-4 w-4" />
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Level 2 — the active section's tabs. Hidden when a
+                section only resolves to one visible tab (Qualidade
+                always; Atendimento when ticketsUiEnabled is off) since
+                a single-item tab bar has nothing to navigate between. */}
+            {sectionTabs.length > 1 && (
+              <div className="min-w-0 flex-1 overflow-x-auto">
+                <Tabs value={tab} onValueChange={(v) => updateTab(v as ReportTab)}>
+                  <TabsList variant="line" data-tour="reports-tabs" className="w-max">
+                    {sectionTabs.map((t) => (
+                      <TabsTrigger key={t} value={t} className="whitespace-nowrap">
+                        {TAB_LABELS[t]}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-3">
             {/* Qualidade is a live Meta snapshot, not scoped to any
                 period — a filter here would imply data that doesn't
                 exist. */}
@@ -219,60 +329,6 @@ function ReportsPageInner() {
             )}
             <UpdatedAtControl lastRefreshedAt={lastRefreshedAt} onRefresh={() => setRefreshNonce((n) => n + 1)} />
           </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {/* Level 1 — section pills (desktop) / compact selector (mobile) */}
-          <div className="hidden sm:block">
-            <Tabs value={section.key} onValueChange={(v) => updateSection(v as string)}>
-              <TabsList data-tour="reports-sections">
-                {SECTIONS.map((s) => (
-                  <TabsTrigger key={s.key} value={s.key} className="gap-1.5">
-                    <s.icon className="h-4 w-4" />
-                    {s.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-          <div className="sm:hidden">
-            <Select
-              items={Object.fromEntries(SECTIONS.map((s) => [s.key, s.label]))}
-              value={section.key}
-              onValueChange={(v) => updateSection(v as string)}
-            >
-              <SelectTrigger className="w-full bg-card">
-                <section.icon className="h-4 w-4 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SECTIONS.map((s) => (
-                  <SelectItem key={s.key} value={s.key}>
-                    <s.icon className="h-4 w-4" />
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Level 2 — the active section's tabs. Hidden when a
-              section only resolves to one visible tab (Qualidade
-              always; Atendimento when ticketsUiEnabled is off) since a
-              single-item tab bar has nothing to navigate between. */}
-          {sectionTabs.length > 1 && (
-            <div className="-mx-1 overflow-x-auto px-1">
-              <Tabs value={tab} onValueChange={(v) => updateTab(v as ReportTab)}>
-                <TabsList variant="line" data-tour="reports-tabs" className="w-max">
-                  {sectionTabs.map((t) => (
-                    <TabsTrigger key={t} value={t} className="whitespace-nowrap">
-                      {TAB_LABELS[t]}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            </div>
-          )}
         </div>
       </div>
 
