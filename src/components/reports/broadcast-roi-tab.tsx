@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/currency"
 import { DollarSign, TrendingUp, TrendingDown, Users, Target, Percent, Ticket, Clock } from "lucide-react"
 import { loadBroadcastRoiReport } from "@/lib/reports/broadcast-roi-queries"
 import { previousPeriod } from "@/lib/reports/period"
-import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, withShortLabel, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
 import type { BroadcastRoiBundle, BroadcastRoiCards, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -18,10 +18,18 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+
+function formatCountAbsolute(unit: string) {
+  return (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${diff.toLocaleString()} ${unit}`
+  }
+}
 
 export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.broadcastRoiTab")
@@ -35,6 +43,11 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
   }
+  const formatCurrencyAbsolute = (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${formatCurrency(diff, defaultCurrency)}`
+  }
+  const gateCount = previousCards?.leadsGenerated ?? 0
 
   useEffect(() => {
     let cancelled = false
@@ -90,25 +103,27 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
             )}
             <span className="text-sm font-medium text-muted-foreground">{t("roi")}</span>
           </div>
-          <p
-            className={`mt-1 font-mono text-4xl font-bold ${positive ? "text-primary" : "text-destructive"}`}
-          >
+          <p className={`mt-1 text-4xl font-bold tabular-nums ${positive ? "text-primary" : "text-destructive"}`}>
             {bundle.cards.roiPct == null ? "—" : `${bundle.cards.roiPct.toFixed(0)}%`}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-xs text-muted-foreground">{t("roiSubtitle")}</p>
-            {(() => {
-              const delta = pointsDelta(bundle.cards.roiPct, previousCards?.roiPct ?? null, deltaLabels)
-              return delta ? (
-                <span
-                  className={`font-mono text-xs ${
-                    delta.sign > 0 ? "text-primary" : delta.sign < 0 ? "text-destructive" : "text-muted-foreground"
-                  }`}
-                >
-                  {delta.label}
-                </span>
-              ) : null
-            })()}
+            {gateCount < 5 ? (
+              <span className="text-xs text-muted-foreground">{t("noComparisonBase")}</span>
+            ) : (
+              (() => {
+                const delta = pointsDelta(bundle.cards.roiPct, previousCards?.roiPct ?? null, deltaLabels)
+                return delta ? (
+                  <span
+                    className={`text-xs tabular-nums ${
+                      delta.sign > 0 ? "text-primary" : delta.sign < 0 ? "text-destructive" : "text-muted-foreground"
+                    }`}
+                  >
+                    {delta.label}
+                  </span>
+                ) : null
+              })()
+            )}
           </div>
         </div>
       )}
@@ -117,7 +132,7 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
           trend vs. the immediately preceding period. Cost/multiple/
           avg-ticket/avg-days move together with these and stay in the
           secondary strip instead of repeating the same story. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {loading || !bundle ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -126,28 +141,41 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
               title={t("commissionGenerated")}
               value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
               icon={TrendingUp}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 bundle.cards.commissionGenerated,
                 previousCards?.commissionGenerated ?? null,
+                gateCount,
                 deltaLabels,
+                formatCurrencyAbsolute,
               )}
             />
             <MetricCard
               title={t("leadsGenerated")}
               value={bundle.cards.leadsGenerated.toLocaleString()}
               icon={Users}
-              delta={relativeDelta(bundle.cards.leadsGenerated, previousCards?.leadsGenerated ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.leadsGenerated,
+                previousCards?.leadsGenerated ?? null,
+                gateCount,
+                deltaLabels,
+                formatCountAbsolute(t("leadsGenerated")),
+              )}
             />
             <MetricCard
               title={t("conversionRate")}
               value={bundle.cards.conversionRatePct == null ? "—" : `${bundle.cards.conversionRatePct.toFixed(0)}%`}
               icon={Percent}
-              subtitle={t("dealsWon") + ": " + bundle.cards.dealsWon.toLocaleString()}
-              delta={pointsDelta(
-                bundle.cards.conversionRatePct,
-                previousCards?.conversionRatePct ?? null,
-                deltaLabels,
-              )}
+              subtitle={
+                gateCount < 5 ? t("noComparisonBase") : t("dealsWon") + ": " + bundle.cards.dealsWon.toLocaleString()
+              }
+              delta={
+                gateCount < 5
+                  ? undefined
+                  : withShortLabel(
+                      pointsDelta(bundle.cards.conversionRatePct, previousCards?.conversionRatePct ?? null, deltaLabels),
+                      deltaLabels.vsPrevious,
+                    )
+              }
             />
             <MetricCard
               title={t("costTotal")}
@@ -256,20 +284,16 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
                   <TableRow key={row.id}>
                     <TableCell className="font-medium text-foreground">{row.name}</TableCell>
                     <TableCell className="text-muted-foreground">{row.templateCategory ?? "—"}</TableCell>
-                    <TableCell className="font-mono text-right tabular-nums">
-                      {row.sentCount.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-mono text-right tabular-nums">
+                    <TableCell className="text-right tabular-nums">{row.sentCount.toLocaleString()}</TableCell>
+                    <TableCell className="text-right tabular-nums">
                       {formatCurrency(row.cost, defaultCurrency)}
                     </TableCell>
-                    <TableCell className="font-mono text-right tabular-nums">{row.dealsWon}</TableCell>
-                    <TableCell className="font-mono text-right tabular-nums text-gold">
+                    <TableCell className="text-right tabular-nums">{row.dealsWon}</TableCell>
+                    <TableCell className="text-right tabular-nums text-gold">
                       {formatCurrency(row.commissionGenerated, defaultCurrency)}
                     </TableCell>
                     <TableCell
-                      className={`font-mono text-right tabular-nums ${
-                        rowPositive ? "text-primary" : "text-destructive"
-                      }`}
+                      className={`text-right tabular-nums ${rowPositive ? "text-primary" : "text-destructive"}`}
                     >
                       {row.roiPct == null ? "—" : `${row.roiPct.toFixed(0)}%`}
                     </TableCell>
@@ -278,6 +302,27 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
               })
             )}
           </TableBody>
+          {!loading && bundle && bundle.rows.length > 0 && (
+            <TableFooter>
+              <TableRow className="hover:bg-transparent">
+                <TableCell className="font-semibold text-foreground">{t("colTotal")}</TableCell>
+                <TableCell />
+                <TableCell className="text-right tabular-nums font-semibold">
+                  {bundle.rows.reduce((s, r) => s + r.sentCount, 0).toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right tabular-nums font-semibold">
+                  {formatCurrency(bundle.rows.reduce((s, r) => s + r.cost, 0), defaultCurrency)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums font-semibold">
+                  {bundle.rows.reduce((s, r) => s + r.dealsWon, 0).toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right tabular-nums font-semibold text-gold">
+                  {formatCurrency(bundle.rows.reduce((s, r) => s + r.commissionGenerated, 0), defaultCurrency)}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">—</TableCell>
+              </TableRow>
+            </TableFooter>
+          )}
         </Table>
       </div>
     </div>

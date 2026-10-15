@@ -8,15 +8,23 @@ import { formatCurrency } from "@/lib/currency"
 import { DollarSign, Radio, Reply, Trophy, Users } from "lucide-react"
 import { loadBroadcastsReport } from "@/lib/reports/broadcasts-queries"
 import { previousPeriod } from "@/lib/reports/period"
-import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, withShortLabel, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
 import type { BroadcastReportCards, BroadcastsReportBundle, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
+import { CompactStat } from "@/components/reports/compact-stat"
 import { BroadcastsTable } from "@/components/reports/broadcasts-table"
 import { BroadcastRoiFunnelChart } from "@/components/reports/broadcast-roi-funnel-chart"
 
 function fmtPct(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(0)}%`
+}
+
+function formatCountAbsolute(unit: string) {
+  return (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${diff.toLocaleString()} ${unit}`
+  }
 }
 
 export function BroadcastsTab({ period }: { period: PeriodRange }) {
@@ -31,6 +39,11 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
   }
+  const formatCurrencyAbsolute = (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${formatCurrency(diff, defaultCurrency)}`
+  }
+  const gateCount = previousCards?.totalSent ?? 0
 
   useEffect(() => {
     let cancelled = false
@@ -67,7 +80,7 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {loading || !bundle ? (
           Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -76,38 +89,62 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
               title={t("totalSent")}
               value={bundle.cards.totalSent.toLocaleString()}
               icon={Users}
-              delta={relativeDelta(bundle.cards.totalSent, previousCards?.totalSent ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.totalSent,
+                previousCards?.totalSent ?? null,
+                gateCount,
+                deltaLabels,
+                formatCountAbsolute(t("totalSent")),
+              )}
             />
             <MetricCard
               title={t("uniqueContactsReached")}
               value={bundle.cards.uniqueContactsReached.toLocaleString()}
               icon={Users}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 bundle.cards.uniqueContactsReached,
                 previousCards?.uniqueContactsReached ?? null,
+                gateCount,
                 deltaLabels,
+                formatCountAbsolute(t("uniqueContactsReached")),
               )}
             />
             <MetricCard
               title={t("replyRate")}
               value={fmtPct(bundle.cards.replyRatePct)}
               icon={Reply}
-              delta={pointsDelta(bundle.cards.replyRatePct, previousCards?.replyRatePct ?? null, deltaLabels)}
+              delta={
+                gateCount < 5
+                  ? undefined
+                  : withShortLabel(
+                      pointsDelta(bundle.cards.replyRatePct, previousCards?.replyRatePct ?? null, deltaLabels),
+                      deltaLabels.vsPrevious,
+                    )
+              }
+              subtitle={gateCount < 5 ? t("noComparisonBase") : undefined}
             />
             <MetricCard
               title={t("dealsWon")}
               value={bundle.cards.dealsWon.toLocaleString()}
               icon={Trophy}
-              delta={relativeDelta(bundle.cards.dealsWon, previousCards?.dealsWon ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.dealsWon,
+                previousCards?.dealsWon ?? null,
+                gateCount,
+                deltaLabels,
+                formatCountAbsolute(t("dealsWon")),
+              )}
             />
             <MetricCard
               title={t("commissionGenerated")}
               value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
               icon={DollarSign}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 bundle.cards.commissionGenerated,
                 previousCards?.commissionGenerated ?? null,
+                gateCount,
                 deltaLabels,
+                formatCurrencyAbsolute,
               )}
             />
           </>
@@ -119,16 +156,12 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
         {loading || !bundle ? (
           <div className="h-10 w-32 animate-pulse rounded-md bg-muted" />
         ) : (
-          <div className="flex items-start gap-2">
-            <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-              <Radio className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs text-muted-foreground">{t("totalBroadcasts")}</p>
-              <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                {bundle.cards.totalBroadcasts.toLocaleString()}
-              </p>
-            </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <CompactStat
+              icon={Radio}
+              label={t("totalBroadcasts")}
+              value={bundle.cards.totalBroadcasts.toLocaleString()}
+            />
           </div>
         )}
       </div>

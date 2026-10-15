@@ -161,17 +161,17 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                   </Link>
                   <p className="text-xs font-normal text-muted-foreground">{b.templateName}</p>
                 </TableCell>
-                <TableCell className="font-mono tabular-nums text-muted-foreground">
+                <TableCell className="tabular-nums text-muted-foreground">
                   {fmtDate(b.createdAt, locale)}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums text-right">{b.sentCount.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums text-right">
+                <TableCell className="tabular-nums text-right">{b.sentCount.toLocaleString()}</TableCell>
+                <TableCell className="tabular-nums text-right">
                   {b.repliedCount.toLocaleString()}
                   <span className="ml-1 text-muted-foreground">({fmtPct(b.replyRatePct)})</span>
                 </TableCell>
                 <TableCell className="text-right">
                   {b.button1 ? (
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       <span className="text-foreground">{b.button1.label}</span>{" "}
                       {b.button1.count.toLocaleString()}
                       <span className="ml-1 text-muted-foreground">({fmtPct(b.button1.pct)})</span>
@@ -182,7 +182,7 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                 </TableCell>
                 <TableCell className="text-right">
                   {b.button2 ? (
-                    <span className="font-mono tabular-nums">
+                    <span className="tabular-nums">
                       <span className="text-foreground">{b.button2.label}</span>{" "}
                       {b.button2.count.toLocaleString()}
                       <span className="ml-1 text-muted-foreground">({fmtPct(b.button2.pct)})</span>
@@ -191,8 +191,8 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums text-right">{b.dealsWon.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums text-right text-gold">
+                <TableCell className="tabular-nums text-right">{b.dealsWon.toLocaleString()}</TableCell>
+                <TableCell className="tabular-nums text-right text-gold">
                   {formatCurrency(b.commissionGenerated, defaultCurrency)}
                 </TableCell>
               </TableRow>
@@ -204,22 +204,22 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
             <TableRow className="hover:bg-transparent">
               <TableCell className="font-semibold text-foreground">{t("total")}</TableCell>
               <TableCell />
-              <TableCell className="font-mono tabular-nums text-right font-semibold">
+              <TableCell className="tabular-nums text-right font-semibold">
                 {totals.sentCount.toLocaleString()}
               </TableCell>
-              <TableCell className="font-mono tabular-nums text-right font-semibold">
+              <TableCell className="tabular-nums text-right font-semibold">
                 {totals.repliedCount.toLocaleString()}
               </TableCell>
-              <TableCell className="font-mono tabular-nums text-right font-semibold">
+              <TableCell className="tabular-nums text-right font-semibold">
                 {totals.button1Count.toLocaleString()}
               </TableCell>
-              <TableCell className="font-mono tabular-nums text-right font-semibold">
+              <TableCell className="tabular-nums text-right font-semibold">
                 {totals.button2Count.toLocaleString()}
               </TableCell>
-              <TableCell className="font-mono tabular-nums text-right font-semibold">
+              <TableCell className="tabular-nums text-right font-semibold">
                 {totals.dealsWon.toLocaleString()}
               </TableCell>
-              <TableCell className="font-mono tabular-nums text-right font-semibold text-gold">
+              <TableCell className="tabular-nums text-right font-semibold text-gold">
                 {formatCurrency(totals.commissionGenerated, defaultCurrency)}
               </TableCell>
             </TableRow>

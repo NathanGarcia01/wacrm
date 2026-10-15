@@ -2683,7 +2683,8 @@
       "newVsPreviousPeriod": "Novo no período",
       "flatVsPreviousPeriod": "Sem variação",
       "otherIndicators": "Outros indicadores",
-      "funnelInsight": "{pct}% das mensagens enviadas viraram negócio ganho"
+      "funnelInsight": "{pct}% das mensagens enviadas viraram negócio ganho",
+      "noComparisonBase": "Sem base de comparação"
     },
     "broadcastsTable": {
       "title": "Transmissões do período",
@@ -2738,7 +2739,9 @@
       "newVsPreviousPeriod": "Novo no período",
       "flatVsPreviousPeriod": "Sem variação",
       "otherIndicators": "Outros indicadores",
-      "funnelInsight": "{pct}% dos enviados viraram negócio ganho"
+      "funnelInsight": "{pct}% dos enviados viraram negócio ganho",
+      "noComparisonBase": "Sem base de comparação",
+      "colTotal": "Total"
     },
     "commissionAgentRankingTable": {
       "title": "Comissão por agente",

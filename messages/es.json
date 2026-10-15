@@ -2683,7 +2683,8 @@
       "newVsPreviousPeriod": "Nuevo en el período",
       "flatVsPreviousPeriod": "Sin variación",
       "otherIndicators": "Otros indicadores",
-      "funnelInsight": "{pct}% de los mensajes enviados se convirtieron en un negocio ganado"
+      "funnelInsight": "{pct}% de los mensajes enviados se convirtieron en un negocio ganado",
+      "noComparisonBase": "Sin base de comparación"
     },
     "broadcastsTable": {
       "title": "Difusiones del período",
@@ -2738,7 +2739,9 @@
       "newVsPreviousPeriod": "Nuevo en el período",
       "flatVsPreviousPeriod": "Sin variación",
       "otherIndicators": "Otros indicadores",
-      "funnelInsight": "{pct}% de los enviados se convirtieron en un negocio ganado"
+      "funnelInsight": "{pct}% de los enviados se convirtieron en un negocio ganado",
+      "noComparisonBase": "Sin base de comparación",
+      "colTotal": "Total"
     },
     "commissionAgentRankingTable": {
       "title": "Comisión por agente",
