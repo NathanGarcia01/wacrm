@@ -123,6 +123,9 @@ export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<Re
     responseRatePct: responseMetrics.responseRatePct,
   }
 
+  const memberUserIds = new Set(members.map((m) => m.user_id))
+  const memberProfileIds = new Set(members.map((m) => m.id))
+
   const users: UserReportRow[] = members.map((member) => {
     const userMessages = agentMessages.filter((m) => assignedAgentOf(m) === member.user_id)
     const userDeals = wonDeals.filter((d) => d.assigned_to === member.id)
@@ -137,6 +140,42 @@ export async function loadReportsBundle(db: DB, period: PeriodRange): Promise<Re
       valueWon: userDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
     }
   })
+
+  // "Sem responsável" — everything the cards above count that isn't
+  // attributable to a CURRENT member: bot messages (agentMessages only
+  // ever holds sender_type='agent' rows, so a bot message never
+  // appears there), agent messages in a conversation with no assigned
+  // agent (or one assigned to a profile that no longer exists),  and
+  // won deals with no assignee. Without this row the table's sum fell
+  // short of the cards above whenever any deal/conversation had no
+  // owner — confirmed live: 4 of this account's 8 won deals this
+  // month have assigned_to = null.
+  const unattributedAgentMessages = agentMessages.filter((m) => {
+    const agentUserId = assignedAgentOf(m)
+    return agentUserId == null || !memberUserIds.has(agentUserId)
+  })
+  const botMessages = allMessages.filter((m) => m.sender_type === 'bot')
+  const unassignedConversationIds = new Set([
+    ...unattributedAgentMessages.map((m) => m.conversation_id),
+    ...botMessages.map((m) => m.conversation_id),
+  ])
+  const unassignedDeals = wonDeals.filter((d) => d.assigned_to == null || !memberProfileIds.has(d.assigned_to))
+
+  if (unattributedAgentMessages.length + botMessages.length + unassignedDeals.length > 0) {
+    users.push({
+      userId: null,
+      profileId: null,
+      // Resolved to a translated "Sem responsável" by the component
+      // (same null-sentinel convention as SlaAgentRankingRow/
+      // UserSummaryRow) — this lib file has no i18n access.
+      name: '',
+      email: '',
+      messagesSent: unattributedAgentMessages.length + botMessages.length,
+      conversationsHandled: unassignedConversationIds.size,
+      dealsWon: unassignedDeals.length,
+      valueWon: unassignedDeals.reduce((sum, d) => sum + (d.value ?? 0), 0),
+    })
+  }
 
   return { cards, users, messagesPerDay: buildMessagesPerDay(allMessages, period) }
 }

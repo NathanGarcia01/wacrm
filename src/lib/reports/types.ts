@@ -38,10 +38,15 @@ export interface MessagesPerDayPoint {
 }
 
 export interface UserReportRow {
-  /** profiles.user_id — matches conversations.assigned_agent_id. */
-  userId: string
-  /** profiles.id — matches deals.assigned_to. */
-  profileId: string
+  /** profiles.user_id — matches conversations.assigned_agent_id. Null
+   *  for the synthetic "Sem responsável" row (messages in an
+   *  unassigned conversation, or a bot; deals with no assignee) —
+   *  present so this table's totals reconcile exactly with the
+   *  account-wide cards above it, which don't filter by assignment. */
+  userId: string | null
+  /** profiles.id — matches deals.assigned_to. Null for the same
+   *  synthetic row as `userId`. */
+  profileId: string | null
   name: string
   email: string
   messagesSent: number
@@ -82,7 +87,10 @@ export interface PipelineReportCards {
 /** Commission earned per agent from deals won in the period, ranked
  *  by commissionWon descending. */
 export interface CommissionAgentRow {
-  profileId: string
+  /** Null for the synthetic "Sem responsável" row — a deal won with
+   *  no assignee still earns commission, and must still show up here
+   *  for this table's total to reconcile with cards.commissionWon. */
+  profileId: string | null
   name: string
   commissionWon: number
   dealsWon: number

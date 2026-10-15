@@ -2745,7 +2745,10 @@
       "colAgent": "Agente",
       "colDealsWon": "Negocios ganados",
       "colCommission": "Comisión",
-      "empty": "No hay comisión en el período."
+      "empty": "No hay comisión en el período.",
+      "insightTop": "{name} lidera con {value} en comisión",
+      "totalRow": "Total",
+      "unassigned": "Sin responsable"
     },
     "commissionByMonthChart": {
       "title": "Comisión por mes",
@@ -2762,7 +2765,7 @@
       "commissionWon": "Total comisión ganada",
       "commissionOpen": "Total comisión abierta",
       "commissionLost": "Total comisión perdida",
-      "vsPreviousPeriod": "vs. período anterior",
+      "vsPreviousPeriod": "vs mes anterior",
       "newVsPreviousPeriod": "Nuevo en el período",
       "flatVsPreviousPeriod": "Sin variación",
       "openSubtitle": "Cartera abierta (independiente del período)"
@@ -2777,7 +2780,8 @@
       "colAgent": "Agente",
       "colStatus": "Estado",
       "colDate": "Fecha",
-      "empty": "No se encontró comisión para los filtros seleccionados."
+      "empty": "No se encontró comisión para los filtros seleccionados.",
+      "totalRow": "Total"
     },
     "dealsPerDayChart": {
       "title": "Negocios ganados por día",
@@ -2801,7 +2805,7 @@
       "title": "Mensajes por día",
       "seriesSent": "Enviados",
       "seriesReceived": "Recibidos",
-      "insightPeak": "Pico de {count} mensajes el {date}",
+      "insightPeak": "Pico de {count} mensajes (enviados + recibidos) en {date}",
       "insightNone": "Ningún mensaje en el período seleccionado."
     },
     "npsAgentRankingTable": {
@@ -2953,7 +2957,10 @@
       "colAvgResponseTime": "Tiempo promedio de respuesta",
       "avgResponseTimeHeaderTooltip": "Sender_id aún no es confiable por agente — se calculará individualmente cuando ese dato esté disponible.",
       "avgResponseTimeCellTooltip": "Se calculará individualmente cuando los datos estén disponibles.",
-      "empty": "No se encontró ningún miembro."
+      "empty": "No se encontró ningún miembro.",
+      "insightTop": "{name} lidera con {value} en ventas",
+      "totalRow": "Total",
+      "unassigned": "Sin responsable"
     },
     "attendanceFilters": {
       "periodLabel": "Período",

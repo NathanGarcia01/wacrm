@@ -7,8 +7,8 @@ import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
 import { CheckCircle2, Clock, XCircle } from "lucide-react"
 import { loadCommissionReport } from "@/lib/reports/commission-queries"
-import { previousPeriod } from "@/lib/reports/period"
-import { relativeDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { samePeriodLastMonth } from "@/lib/reports/period"
+import { gatedRelativeDelta, type DeltaLabels } from "@/lib/reports/delta"
 import type { CommissionReportBundle, CommissionReportCards, CommissionStatusFilter, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -33,12 +33,23 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
   const [stageId, setStageId] = useState<string | null>(null)
   const [bundle, setBundle] = useState<CommissionReportBundle | null>(null)
   const [previousCards, setPreviousCards] = useState<CommissionReportCards | null>(null)
+  /** Count of commission line items (deal_products rows) in the
+   *  immediately-preceding period — the same "small sample" gate
+   *  Pipeline & Vendas uses (there dealsWon, here this), since
+   *  CommissionReportCards only carries amounts, not a count. */
+  const [previousRowCount, setPreviousRowCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const deltaLabels: DeltaLabels = {
     vsPrevious: t("vsPreviousPeriod"),
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
+  }
+  const formatCurrencyAbsolute = (current: number, previous: number) =>
+    `${formatCurrency(previous, defaultCurrency)} → ${formatCurrency(current, defaultCurrency)}`
+  const formatCurrencyAbsoluteShort = (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${formatCurrency(diff, defaultCurrency)}`
   }
 
   useEffect(() => {
@@ -51,12 +62,13 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
       loadCommissionReport(db, period, statusFilter, stageId),
       // "all"/null — the previous-period card is just a comparison
       // number, not meant to reflect whatever table filter is active.
-      loadCommissionReport(db, { ...period, ...previousPeriod(period) }, "all", null),
+      loadCommissionReport(db, { ...period, ...samePeriodLastMonth(period) }, "all", null),
     ])
       .then(([b, prev]) => {
         if (cancelled) return
         setBundle(b)
         setPreviousCards(prev.cards)
+        setPreviousRowCount(prev.rows.length)
       })
       .catch((err) => {
         console.error("[reports] commissions load failed:", err)
@@ -138,7 +150,7 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         {loading || !bundle ? (
           Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -147,7 +159,15 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
               title={t("commissionWon")}
               value={formatCurrency(bundle.cards.commissionWon, defaultCurrency)}
               icon={CheckCircle2}
-              delta={relativeDelta(bundle.cards.commissionWon, previousCards?.commissionWon ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.commissionWon,
+                previousCards?.commissionWon ?? null,
+                previousRowCount,
+                deltaLabels,
+                formatCurrencyAbsolute,
+                true,
+                formatCurrencyAbsoluteShort,
+              )}
             />
             <MetricCard
               title={t("commissionOpen")}
@@ -159,11 +179,14 @@ export function CommissionsTab({ period }: { period: PeriodRange }) {
               title={t("commissionLost")}
               value={formatCurrency(bundle.cards.commissionLost, defaultCurrency)}
               icon={XCircle}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 bundle.cards.commissionLost,
                 previousCards?.commissionLost ?? null,
+                previousRowCount,
                 deltaLabels,
+                formatCurrencyAbsolute,
                 false,
+                formatCurrencyAbsoluteShort,
               )}
             />
           </>

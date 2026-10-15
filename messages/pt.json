@@ -2745,7 +2745,10 @@
       "colAgent": "Agente",
       "colDealsWon": "Negócios ganhos",
       "colCommission": "Comissão",
-      "empty": "Nenhuma comissão no período."
+      "empty": "Nenhuma comissão no período.",
+      "insightTop": "{name} lidera com {value} em comissão",
+      "totalRow": "Total",
+      "unassigned": "Sem responsável"
     },
     "commissionByMonthChart": {
       "title": "Comissão por mês",
@@ -2755,21 +2758,21 @@
     },
     "commissionsTab": {
       "loadFailed": "Não foi possível carregar as comissões.",
-      "dealStatusLabel": "Status do deal",
+      "dealStatusLabel": "Status do negócio",
       "statusAll": "Todos os status",
       "stageLabel": "Etapa do funil",
       "allStages": "Todas as etapas",
       "commissionWon": "Total comissão ganhos",
       "commissionOpen": "Total comissão em aberto",
       "commissionLost": "Total comissão perdidos",
-      "vsPreviousPeriod": "vs. período anterior",
+      "vsPreviousPeriod": "vs mês anterior",
       "newVsPreviousPeriod": "Novo no período",
       "flatVsPreviousPeriod": "Sem variação",
       "openSubtitle": "Carteira aberta (independe do período)"
     },
     "commissionsTable": {
       "title": "Comissões",
-      "colDeal": "Deal",
+      "colDeal": "Negócio",
       "colContact": "Contato",
       "colProduct": "Produto",
       "colValue": "Valor",
@@ -2777,7 +2780,8 @@
       "colAgent": "Agente",
       "colStatus": "Status",
       "colDate": "Data",
-      "empty": "Nenhuma comissão encontrada para os filtros selecionados."
+      "empty": "Nenhuma comissão encontrada para os filtros selecionados.",
+      "totalRow": "Total"
     },
     "dealsPerDayChart": {
       "title": "Negócios ganhos por dia",
@@ -2801,7 +2805,7 @@
       "title": "Mensagens por dia",
       "seriesSent": "Enviadas",
       "seriesReceived": "Recebidas",
-      "insightPeak": "Pico de {count} mensagens em {date}",
+      "insightPeak": "Pico de {count} mensagens (enviadas + recebidas) em {date}",
       "insightNone": "Nenhuma mensagem no período selecionado."
     },
     "npsAgentRankingTable": {
@@ -2948,12 +2952,15 @@
       "colUser": "Usuário",
       "colMessagesSent": "Mensagens enviadas",
       "colConversationsHandled": "Conversas atendidas",
-      "colDealsWon": "Deals ganhos",
+      "colDealsWon": "Negócios ganhos",
       "colValueWon": "Valor vendido",
       "colAvgResponseTime": "Tempo médio de resposta",
       "avgResponseTimeHeaderTooltip": "Sender_id não é confiável por agente ainda — será calculado individualmente quando esse dado estiver disponível.",
       "avgResponseTimeCellTooltip": "Será calculado individualmente quando os dados estiverem disponíveis.",
-      "empty": "Nenhum membro encontrado."
+      "empty": "Nenhum membro encontrado.",
+      "insightTop": "{name} lidera com {value} em vendas",
+      "totalRow": "Total",
+      "unassigned": "Sem responsável"
     },
     "attendanceFilters": {
       "periodLabel": "Período",

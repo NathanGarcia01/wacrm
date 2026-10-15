@@ -7,24 +7,43 @@ import { formatCurrency } from "@/lib/currency"
 import { Clock, DollarSign, MessageSquare, MessageSquareReply, Percent, Trophy, Users } from "lucide-react"
 
 import { loadReportsBundle } from "@/lib/reports/queries"
-import { previousPeriod } from "@/lib/reports/period"
+import { samePeriodLastMonth } from "@/lib/reports/period"
 import { formatResponseTime } from "@/lib/reports/format"
-import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, pointsDelta, withShortLabel, type DeltaLabels } from "@/lib/reports/delta"
 import type { AccountReportCards, PeriodRange, ReportsBundle } from "@/lib/reports/types"
 
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
+import { CompactStat } from "@/components/reports/compact-stat"
 import { UserRankingTable } from "@/components/reports/user-ranking-table"
 import { MessagesPerDayChart } from "@/components/reports/messages-per-day-chart"
 
 const DELTA_LABELS: DeltaLabels = {
-  vsPrevious: "vs. período anterior",
+  vsPrevious: "vs mês anterior",
   new: "Novo no período",
   flat: "Sem variação",
 }
 
 function fmtPct(v: number | null): string {
   return v == null ? "—" : `${v.toFixed(0)}%`
+}
+
+/** Low-baseline gate (same "menos de 5" rule approved for Pipeline &
+ *  Vendas): each metric is gated by whichever previous-period COUNT
+ *  makes its own % unreliable at small volume — deals won for the
+ *  two sales numbers, the metric's own previous value for message
+ *  volume, and conversations handled (the response-rate/time sample
+ *  size) for the two response metrics. */
+function formatCountAbsolute(unit: string) {
+  return (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${diff.toLocaleString()} ${unit}`
+  }
+}
+
+function formatResponseTimeAbsolute(current: number, previous: number): string {
+  const diff = current - previous
+  return `${diff > 0 ? "+" : diff < 0 ? "-" : ""}${formatResponseTime(Math.abs(diff))}`
 }
 
 export function OverviewTab({ period }: { period: PeriodRange }) {
@@ -42,7 +61,7 @@ export function OverviewTab({ period }: { period: PeriodRange }) {
     const db = createClient()
     Promise.all([
       loadReportsBundle(db, period),
-      loadReportsBundle(db, { ...period, ...previousPeriod(period) }),
+      loadReportsBundle(db, { ...period, ...samePeriodLastMonth(period) }),
     ])
       .then(([b, prev]) => {
         if (cancelled) return
@@ -62,6 +81,12 @@ export function OverviewTab({ period }: { period: PeriodRange }) {
   }, [period])
 
   const cards = bundle?.cards ?? null
+  const formatCurrencyAbsolute = (current: number, previous: number) =>
+    `${formatCurrency(previous, defaultCurrency)} → ${formatCurrency(current, defaultCurrency)}`
+  const formatCurrencyAbsoluteShort = (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${formatCurrency(diff, defaultCurrency)}`
+  }
 
   return (
     <div className="space-y-5">
@@ -76,7 +101,7 @@ export function OverviewTab({ period }: { period: PeriodRange }) {
           length. The other two counts (received/handled) move in
           lockstep with "Mensagens enviadas" almost always, so they
           stay in the secondary strip instead of repeating the story. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {loading || !cards ? (
           Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -85,34 +110,64 @@ export function OverviewTab({ period }: { period: PeriodRange }) {
               title="Valor vendido"
               value={formatCurrency(cards.valueWon, defaultCurrency)}
               icon={DollarSign}
-              delta={relativeDelta(cards.valueWon, previousCards?.valueWon ?? null, DELTA_LABELS)}
+              delta={gatedRelativeDelta(
+                cards.valueWon,
+                previousCards?.valueWon ?? null,
+                previousCards?.dealsWon ?? 0,
+                DELTA_LABELS,
+                formatCurrencyAbsolute,
+                true,
+                formatCurrencyAbsoluteShort,
+              )}
             />
             <MetricCard
-              title="Deals ganhos"
+              title="Negócios ganhos"
               value={cards.dealsWon.toLocaleString()}
               icon={Trophy}
-              delta={relativeDelta(cards.dealsWon, previousCards?.dealsWon ?? null, DELTA_LABELS)}
+              delta={gatedRelativeDelta(
+                cards.dealsWon,
+                previousCards?.dealsWon ?? null,
+                previousCards?.dealsWon ?? 0,
+                DELTA_LABELS,
+                formatCountAbsolute("negócios"),
+              )}
             />
             <MetricCard
               title="Mensagens enviadas"
               value={cards.messagesSent.toLocaleString()}
               icon={MessageSquare}
-              delta={relativeDelta(cards.messagesSent, previousCards?.messagesSent ?? null, DELTA_LABELS)}
+              delta={gatedRelativeDelta(
+                cards.messagesSent,
+                previousCards?.messagesSent ?? null,
+                previousCards?.messagesSent ?? 0,
+                DELTA_LABELS,
+                formatCountAbsolute("mensagens"),
+              )}
             />
             <MetricCard
               title="Taxa de resposta"
               value={fmtPct(cards.responseRatePct)}
               icon={Percent}
-              delta={pointsDelta(cards.responseRatePct, previousCards?.responseRatePct ?? null, DELTA_LABELS)}
+              delta={
+                (previousCards?.conversationsHandled ?? 0) < 5
+                  ? undefined
+                  : withShortLabel(
+                      pointsDelta(cards.responseRatePct, previousCards?.responseRatePct ?? null, DELTA_LABELS),
+                      DELTA_LABELS.vsPrevious,
+                    )
+              }
+              subtitle={(previousCards?.conversationsHandled ?? 0) < 5 ? "Sem base de comparação" : undefined}
             />
             <MetricCard
               title="Tempo médio de resposta"
               value={formatResponseTime(cards.avgResponseMinutes)}
               icon={Clock}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 cards.avgResponseMinutes,
                 previousCards?.avgResponseMinutes ?? null,
+                previousCards?.conversationsHandled ?? 0,
                 DELTA_LABELS,
+                formatResponseTimeAbsolute,
                 false,
               )}
             />
@@ -130,28 +185,16 @@ export function OverviewTab({ period }: { period: PeriodRange }) {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                <MessageSquareReply className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-xs text-muted-foreground">Mensagens recebidas</p>
-                <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                  {cards.messagesReceived.toLocaleString()}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                <Users className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-xs text-muted-foreground">Conversas atendidas</p>
-                <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                  {cards.conversationsHandled.toLocaleString()}
-                </p>
-              </div>
-            </div>
+            <CompactStat
+              icon={MessageSquareReply}
+              label="Mensagens recebidas"
+              value={cards.messagesReceived.toLocaleString()}
+            />
+            <CompactStat
+              icon={Users}
+              label="Conversas atendidas"
+              value={cards.conversationsHandled.toLocaleString()}
+            />
           </div>
         )}
       </div>

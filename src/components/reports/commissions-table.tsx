@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/currency"
+import { cn } from "@/lib/utils"
 import type { CommissionRow } from "@/lib/reports/types"
 import { localeToIntl, type Locale } from "@/i18n/locales"
 
@@ -22,6 +23,19 @@ export function CommissionsTable({ rows, loading }: { rows: CommissionRow[]; loa
   const tCommon = useTranslations("common")
   const tDealStatus = useTranslations("reports.dealStatus")
   const locale = useLocale() as Locale
+
+  // Totals ignore currency mixing (deliberately, like the rest of this
+  // table) — summing across rows that may carry different currencies
+  // would already be wrong before this change; out of scope here.
+  const totals = rows.reduce(
+    (acc, r) => ({
+      value: acc.value + r.value * r.quantity,
+      commission: acc.commission + r.commissionValue,
+    }),
+    { value: 0, commission: 0 },
+  )
+  const currency = rows[0]?.currency
+
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
@@ -33,11 +47,11 @@ export function CommissionsTable({ rows, loading }: { rows: CommissionRow[]; loa
             <TableHead>{t("colDeal")}</TableHead>
             <TableHead>{t("colContact")}</TableHead>
             <TableHead>{t("colProduct")}</TableHead>
-            <TableHead>{t("colValue")}</TableHead>
-            <TableHead>{t("colCommission")}</TableHead>
+            <TableHead className="text-right">{t("colValue")}</TableHead>
+            <TableHead className="text-right">{t("colCommission")}</TableHead>
             <TableHead>{t("colAgent")}</TableHead>
             <TableHead>{t("colStatus")}</TableHead>
-            <TableHead>{t("colDate")}</TableHead>
+            <TableHead className="text-right">{t("colDate")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -54,31 +68,47 @@ export function CommissionsTable({ rows, loading }: { rows: CommissionRow[]; loa
               </TableCell>
             </TableRow>
           ) : (
-            rows.map((row, i) => (
-              <TableRow key={`${row.dealId}-${row.productName}-${i}`}>
-                <TableCell className="font-medium text-foreground">{row.dealTitle}</TableCell>
-                <TableCell>{row.contactName ?? "—"}</TableCell>
-                <TableCell>{row.productName}</TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatCurrency(row.value * row.quantity, row.currency)}
+            <>
+              {rows.map((row, i) => (
+                <TableRow key={`${row.dealId}-${row.productName}-${i}`}>
+                  <TableCell className="font-medium text-foreground">{row.dealTitle}</TableCell>
+                  <TableCell>{row.contactName ?? "—"}</TableCell>
+                  <TableCell>{row.productName}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrency(row.value * row.quantity, row.currency)}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums text-gold">
+                    {formatCurrency(row.commissionValue, row.currency)}
+                    {row.commissionRate != null && (
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">
+                        ({row.commissionRate}%)
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>{row.agentName ?? "—"}</TableCell>
+                  <TableCell>
+                    {row.status === "open" || row.status === "won" || row.status === "lost"
+                      ? tDealStatus(row.status)
+                      : row.status}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {fmtDate(row.date, locale)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className={cn("border-t-2 border-border font-semibold")}>
+                <TableCell className="text-foreground">{t("totalRow")}</TableCell>
+                <TableCell />
+                <TableCell />
+                <TableCell className="text-right tabular-nums">{formatCurrency(totals.value, currency)}</TableCell>
+                <TableCell className="text-right tabular-nums text-gold">
+                  {formatCurrency(totals.commission, currency)}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums font-medium text-gold">
-                  {formatCurrency(row.commissionValue, row.currency)}
-                  {row.commissionRate != null && (
-                    <span className="ml-1 text-xs font-normal text-muted-foreground">
-                      ({row.commissionRate}%)
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>{row.agentName ?? "—"}</TableCell>
-                <TableCell>
-                  {row.status === "open" || row.status === "won" || row.status === "lost"
-                    ? tDealStatus(row.status)
-                    : row.status}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(row.date, locale)}</TableCell>
+                <TableCell />
+                <TableCell />
+                <TableCell />
               </TableRow>
-            ))
+            </>
           )}
         </TableBody>
       </Table>

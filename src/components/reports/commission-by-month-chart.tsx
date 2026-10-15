@@ -14,9 +14,19 @@ import { formatCurrency } from "@/lib/currency"
 import type { CommissionByMonthPoint } from "@/lib/reports/types"
 import { localeToIntl, type Locale } from "@/i18n/locales"
 
+/** key is either "YYYY-MM" (month bucket) or "YYYY-MM-DD" (day
+ *  bucket, periods <=31 days) — told apart by length. Month buckets
+ *  render as "out/26" (compact slash form, not Intl's verbose "out.
+ *  de 26"); day buckets as "02/out". */
 function fmtMonth(key: string, locale: Locale): string {
-  const [y, m] = key.split("-").map(Number)
-  return new Date(y, m - 1, 1).toLocaleDateString(localeToIntl(locale), { month: "short", year: "2-digit" })
+  const parts = key.split("-").map(Number)
+  const [y, m, d] = parts
+  const date = new Date(y, m - 1, d ?? 1)
+  const monthAbbr = date
+    .toLocaleDateString(localeToIntl(locale), { month: "short" })
+    .replace(/\.$/, "")
+  if (d != null) return `${String(d).padStart(2, "0")}/${monthAbbr}`
+  return `${monthAbbr}/${String(y).slice(-2)}`
 }
 
 export function CommissionByMonthChart({
@@ -41,7 +51,7 @@ export function CommissionByMonthChart({
       </p>
       <div className="mt-4 h-64 w-full">
         <ResponsiveContainer>
-          <BarChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+          <BarChart data={points} margin={{ top: 16, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid className="stroke-border" strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="label"
@@ -55,7 +65,8 @@ export function CommissionByMonthChart({
               className="fill-muted-foreground text-xs"
               tickLine={false}
               axisLine={false}
-              width={48}
+              width={64}
+              domain={[0, (max: number) => Math.ceil((max || 1) * 1.15)]}
               tickFormatter={(v) => formatCurrency(v, currency)}
               fill=""
               stroke=""

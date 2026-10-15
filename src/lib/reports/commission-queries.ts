@@ -45,6 +45,11 @@ function monthKey(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function dayKey(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function dealCommission(d: DealRow): number {
   return (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
 }
@@ -139,24 +144,45 @@ export async function loadCommissionReport(
   rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
   // Commission by month — won deals only, keyed by won_at (what was
-  // actually earned, not projected/lost).
+  // actually earned, not projected/lost). Periods spanning <=31 days
+  // bucket by DAY instead of month — a month-wide bar for e.g. "Este
+  // mês" (15 days in) collapsed the whole period into one bar and hid
+  // any day-to-day shape; the chart tells day-keys (10 chars,
+  // YYYY-MM-DD) from month-keys (7 chars, YYYY-MM) by length.
+  const spanDays = (new Date(endISO).getTime() - new Date(startISO).getTime()) / 86_400_000
+  const useDayBuckets = spanDays <= 31
+  const bucketKey = useDayBuckets ? dayKey : monthKey
   const monthMap = new Map<string, number>()
   for (const d of won) {
     if (!d.won_at) continue
-    const key = monthKey(d.won_at)
+    const key = bucketKey(d.won_at)
     monthMap.set(key, (monthMap.get(key) ?? 0) + dealCommission(d))
   }
   const byMonth: CommissionByMonthPoint[] = [...monthMap.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
     .map(([month, commission]) => ({ month, commission }))
 
-  // Agent ranking over whatever the status filter currently includes.
+  // Agent ranking always reflects commission actually WON in the
+  // period — independent of the "Status do negócio" filter (which
+  // only scopes the detail table below) — so it stays reconciled with
+  // cards.commissionWon regardless of what's selected there. A
+  // previous version built this from `included` (won+lost+open
+  // depending on the filter), which silently mixed in ALL-TIME open
+  // commission (not period-scoped) whenever the filter was "all" or
+  // "open" — confirmed live: this table showed 28 deals/R$19.535 for
+  // "Este mês" against an R$4.352 card.
   const agentMap = new Map<string, CommissionAgentRow>()
-  for (const { deal } of included) {
+  let unassignedCommission = 0
+  let unassignedDealsWon = 0
+  for (const deal of won) {
     const assignee = one(deal.assignee)
-    if (!assignee) continue
     const commission = dealCommission(deal)
     if (commission === 0) continue
+    if (!assignee) {
+      unassignedCommission += commission
+      unassignedDealsWon += 1
+      continue
+    }
     const existing = agentMap.get(assignee.id)
     if (existing) {
       existing.commissionWon += commission
@@ -171,6 +197,9 @@ export async function loadCommissionReport(
     }
   }
   const agentRanking = [...agentMap.values()].sort((a, b) => b.commissionWon - a.commissionWon)
+  if (unassignedDealsWon > 0) {
+    agentRanking.push({ profileId: null, name: '', commissionWon: unassignedCommission, dealsWon: unassignedDealsWon })
+  }
 
   return { cards, rows, byMonth, agentRanking, stages }
 }

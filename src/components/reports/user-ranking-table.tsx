@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatCurrency } from "@/lib/currency"
+import { cn } from "@/lib/utils"
 import type { UserReportRow } from "@/lib/reports/types"
 
 type SortKey = "messagesSent" | "conversationsHandled" | "dealsWon" | "valueWon"
@@ -56,17 +57,37 @@ export function UserRankingTable({
     }
   }
 
+  function displayName(row: UserReportRow): string {
+    return row.profileId == null ? t("unassigned") : row.name
+  }
+
+  const top = [...rows].sort((a, b) => b.valueWon - a.valueWon)[0]
+  const totals = rows.reduce(
+    (acc, r) => ({
+      messagesSent: acc.messagesSent + r.messagesSent,
+      conversationsHandled: acc.conversationsHandled + r.conversationsHandled,
+      dealsWon: acc.dealsWon + r.dealsWon,
+      valueWon: acc.valueWon + r.valueWon,
+    }),
+    { messagesSent: 0, conversationsHandled: 0, dealsWon: 0, valueWon: 0 },
+  )
+
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
         <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
+        {top && top.valueWon > 0 && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {t("insightTop", { name: displayName(top), value: formatCurrency(top.valueWon, currency) })}
+          </p>
+        )}
       </div>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>{t("colUser")}</TableHead>
             {COLUMNS.map((col) => (
-              <TableHead key={col.key}>
+              <TableHead key={col.key} className="text-right">
                 <button
                   type="button"
                   onClick={() => toggleSort(col.key)}
@@ -77,7 +98,7 @@ export function UserRankingTable({
                 </button>
               </TableHead>
             ))}
-            <TableHead>
+            <TableHead className="text-right">
               <span
                 className="text-xs font-medium text-muted-foreground"
                 title={t("avgResponseTimeHeaderTooltip")}
@@ -101,25 +122,39 @@ export function UserRankingTable({
               </TableCell>
             </TableRow>
           ) : (
-            sorted.map((row) => (
-              <TableRow key={row.profileId}>
-                <TableCell className="font-medium text-foreground">{row.name}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.messagesSent.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {row.conversationsHandled.toLocaleString()}
+            <>
+              {sorted.map((row) => (
+                <TableRow key={row.profileId ?? "unassigned"}>
+                  <TableCell className="font-medium text-foreground">{displayName(row)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{row.messagesSent.toLocaleString()}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {row.conversationsHandled.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{row.dealsWon.toLocaleString()}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrency(row.valueWon, currency)}
+                  </TableCell>
+                  <TableCell
+                    className="text-right text-muted-foreground"
+                    title={t("avgResponseTimeCellTooltip")}
+                  >
+                    —
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow className={cn("border-t-2 border-border font-semibold")}>
+                <TableCell className="text-foreground">{t("totalRow")}</TableCell>
+                <TableCell className="text-right tabular-nums">{totals.messagesSent.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {totals.conversationsHandled.toLocaleString()}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">{row.dealsWon.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums">
-                  {formatCurrency(row.valueWon, currency)}
+                <TableCell className="text-right tabular-nums">{totals.dealsWon.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatCurrency(totals.valueWon, currency)}
                 </TableCell>
-                <TableCell
-                  className="text-muted-foreground"
-                  title={t("avgResponseTimeCellTooltip")}
-                >
-                  —
-                </TableCell>
+                <TableCell className="text-right text-muted-foreground">—</TableCell>
               </TableRow>
-            ))
+            </>
           )}
         </TableBody>
       </Table>

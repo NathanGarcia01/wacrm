@@ -2745,7 +2745,10 @@
       "colAgent": "Agent",
       "colDealsWon": "Deals won",
       "colCommission": "Commission",
-      "empty": "No commission in this period."
+      "empty": "No commission in this period.",
+      "insightTop": "{name} leads with {value} in commission",
+      "totalRow": "Total",
+      "unassigned": "Unassigned"
     },
     "commissionByMonthChart": {
       "title": "Commission by month",
@@ -2762,7 +2765,7 @@
       "commissionWon": "Total won commission",
       "commissionOpen": "Total open commission",
       "commissionLost": "Total lost commission",
-      "vsPreviousPeriod": "vs. previous period",
+      "vsPreviousPeriod": "vs last month",
       "newVsPreviousPeriod": "New this period",
       "flatVsPreviousPeriod": "No change",
       "openSubtitle": "Open pipeline (independent of the period)"
@@ -2777,7 +2780,8 @@
       "colAgent": "Agent",
       "colStatus": "Status",
       "colDate": "Date",
-      "empty": "No commission found for the selected filters."
+      "empty": "No commission found for the selected filters.",
+      "totalRow": "Total"
     },
     "dealsPerDayChart": {
       "title": "Deals won per day",
@@ -2801,7 +2805,7 @@
       "title": "Messages per day",
       "seriesSent": "Sent",
       "seriesReceived": "Received",
-      "insightPeak": "Peak of {count} messages on {date}",
+      "insightPeak": "Peak of {count} messages (sent + received) on {date}",
       "insightNone": "No messages in the selected period."
     },
     "npsAgentRankingTable": {
@@ -2953,7 +2957,10 @@
       "colAvgResponseTime": "Average response time",
       "avgResponseTimeHeaderTooltip": "Sender_id isn't reliable per-agent yet — it will be computed individually once that data is available.",
       "avgResponseTimeCellTooltip": "Will be computed individually once the data is available.",
-      "empty": "No member found."
+      "empty": "No member found.",
+      "insightTop": "{name} leads with {value} in sales",
+      "totalRow": "Total",
+      "unassigned": "Unassigned"
     },
     "attendanceFilters": {
       "periodLabel": "Period",
