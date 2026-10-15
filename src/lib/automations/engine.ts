@@ -866,6 +866,16 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       return 'conversation closed'
     }
 
+    case 'mark_as_read': {
+      if (!args.contactId) throw new Error('mark_as_read needs a contact')
+      await db
+        .from('conversations')
+        .update({ unread_count: 0, updated_at: new Date().toISOString() })
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+      return 'conversation marked as read'
+    }
+
     default:
       return `unknown step: ${step.step_type}`
   }

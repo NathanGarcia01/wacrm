@@ -900,7 +900,8 @@ export type AutomationStepType =
   | 'send_webhook'
   | 'open_conversation'
   | 'set_conversation_pending'
-  | 'close_conversation';
+  | 'close_conversation'
+  | 'mark_as_read';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
 

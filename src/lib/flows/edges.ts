@@ -82,6 +82,7 @@ export function deriveCanvasEdges(
       case "open_conversation":
       case "set_conversation_pending":
       case "close_conversation":
+      case "mark_as_read":
       case "send_webhook":
       case "wait": {
         const next = (cfg as { next_node_key?: string }).next_node_key;
@@ -256,6 +257,7 @@ export function outgoingSlots(
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "mark_as_read":
     case "send_webhook":
     case "wait":
       return [{ id: "next", label: t("next") }];
@@ -353,6 +355,7 @@ export function applyEdgeConnection(
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "mark_as_read":
     case "send_webhook":
     case "wait":
       if (sourceHandle === "next") return { next_node_key: targetKey };
@@ -469,6 +472,7 @@ function patchedConfigWithoutKey(
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "mark_as_read":
     case "send_webhook":
     case "wait": {
       const next = (cfg as { next_node_key?: string }).next_node_key;

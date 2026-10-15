@@ -41,6 +41,7 @@ import {
   Shuffle,
   PlayCircle,
   StopCircle,
+  CheckCheck,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -114,6 +115,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   open_conversation: { labelKey: "stepOpenConversation", icon: MessageCircle, border: "border-l-primary" },
   set_conversation_pending: { labelKey: "stepSetConversationPending", icon: Clock, border: "border-l-primary" },
   close_conversation: { labelKey: "stepCloseConversation", icon: CircleSlash, border: "border-l-primary" },
+  mark_as_read: { labelKey: "stepMarkAsRead", icon: CheckCheck, border: "border-l-primary" },
   unassign_agent: { labelKey: "stepUnassignAgent", icon: UserX, border: "border-l-primary" },
   update_deal_stage: { labelKey: "stepUpdateDealStage", icon: ArrowRightLeft, border: "border-l-primary" },
   update_deal_value: { labelKey: "stepUpdateDealValue", icon: DollarSign, border: "border-l-primary" },
@@ -146,6 +148,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "open_conversation",
   "set_conversation_pending",
   "close_conversation",
+  "mark_as_read",
 ]
 
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; labelKey: string; hintKey: string }[] = [
@@ -213,6 +216,7 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "mark_as_read":
       return {}
     default:
       return {}
@@ -1555,6 +1559,8 @@ function StepEditor({
           {t("closeConversationHint")}
         </p>
       )
+    case "mark_as_read":
+      return <p className="text-xs text-muted-foreground">{t("markAsReadHint")}</p>
     default:
       return null
   }
@@ -1638,6 +1644,8 @@ function previewFor(
       return t("setPendingHint")
     case "close_conversation":
       return t("closeConversationHint")
+    case "mark_as_read":
+      return t("markAsReadHint")
     default:
       return ""
   }

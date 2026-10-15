@@ -96,6 +96,12 @@ vi.mock("./admin-client", () => {
       if (type === "upsert" || type === "delete") return { data: null, error: null };
       return { data: null, error: null, count: 0 };
     }
+    if (table === "conversations") {
+      if (type === "update") {
+        state.updateCalls.push({ table, payload, filters: ops.filters });
+      }
+      return { data: null, error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -383,6 +389,33 @@ describe("update_contact_field — custom fields (mirrors automations' engine.te
 
     expect(h.state.upsertCalls).toHaveLength(0);
     expect(endedWithStatus("failed")).toBe(true);
+  });
+});
+
+describe("mark_as_read node", () => {
+  it("zeroes the contact's conversation unread_count and advances", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.flows = [workflowFlow()];
+    h.state.nodes = [
+      { node_key: "start", node_type: "start", config: { next_node_key: "mar" } },
+      { node_key: "mar", node_type: "mark_as_read", config: { next_node_key: "end" } },
+      { node_key: "end", node_type: "end", config: {} },
+    ];
+
+    await runFlowsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "new_contact_created",
+      contactId: "c1",
+      context: {},
+    });
+
+    const conversationUpdate = h.state.updateCalls.find((c) => c.table === "conversations");
+    expect(conversationUpdate).toBeDefined();
+    expect((conversationUpdate?.payload as Record<string, unknown>).unread_count).toBe(0);
+    expect(conversationUpdate?.filters).toEqual(
+      expect.arrayContaining([["eq", "account_id", ACCOUNT], ["eq", "contact_id", "c1"]]),
+    );
+    expect(endedWithStatus("completed")).toBe(true);
   });
 });
 

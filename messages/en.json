@@ -1026,6 +1026,7 @@
       "stepRandomizer": "Random Splitter (A/B)",
       "stepStartAutomation": "Start Another Automation",
       "stepStopAutomation": "Stop Automation",
+      "stepMarkAsRead": "Mark as Read",
       "triggerNewMessageReceived": "New Message Received",
       "triggerNewMessageReceivedHint": "Any incoming message",
       "triggerFirstInboundMessage": "Contact's First Message",
@@ -1110,6 +1111,7 @@
       "unassignAgentHint": "Removes the agent assigned to the conversation. No configuration needed.",
       "openConversationHint": "Sets the conversation status to \"open\". No configuration needed.",
       "setPendingHint": "Sets the conversation status to \"pending\". No configuration needed.",
+      "markAsReadHint": "Clears the conversation's unread messages. No configuration needed.",
       "stageLabel": "Stage",
       "selectStage": "Select a stage…",
       "unknownStageOption": "{value} (unknown stage)",
@@ -3195,6 +3197,7 @@
       "open_conversation": "Open conversation",
       "set_conversation_pending": "Set conversation pending",
       "close_conversation": "Close conversation",
+      "mark_as_read": "Mark as read",
       "send_webhook": "Send webhook",
       "handoff": "Hand off to agent",
       "end": "End"
@@ -3234,6 +3237,7 @@
       "openConversationSummary": "Opens the conversation",
       "setConversationPendingSummary": "Sets the conversation to pending",
       "closeConversationSummary": "Closes the conversation",
+      "markAsReadSummary": "Clears the conversation's unread count",
       "messageContentSummary": "Message contains \"{value}\"",
       "timeOfDaySummary": "Time is within {range}"
     },

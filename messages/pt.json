@@ -1026,6 +1026,7 @@
       "stepRandomizer": "Divisor Aleatório (A/B)",
       "stepStartAutomation": "Iniciar Outra Automação",
       "stepStopAutomation": "Parar Automação",
+      "stepMarkAsRead": "Marcar como Lida",
       "triggerNewMessageReceived": "Nova Mensagem Recebida",
       "triggerNewMessageReceivedHint": "Qualquer mensagem recebida",
       "triggerFirstInboundMessage": "Primeira Mensagem do Contato",
@@ -1110,6 +1111,7 @@
       "unassignAgentHint": "Remove o agente atribuído à conversa. Não precisa de configuração.",
       "openConversationHint": "Define o status da conversa como \"aberta\". Não precisa de configuração.",
       "setPendingHint": "Define o status da conversa como \"pendente\". Não precisa de configuração.",
+      "markAsReadHint": "Zera as mensagens não lidas da conversa. Não precisa de configuração.",
       "stageLabel": "Etapa",
       "selectStage": "Selecione uma etapa…",
       "unknownStageOption": "{value} (etapa desconhecida)",
@@ -3195,6 +3197,7 @@
       "open_conversation": "Abrir conversa",
       "set_conversation_pending": "Marcar conversa como pendente",
       "close_conversation": "Fechar conversa",
+      "mark_as_read": "Marcar como lida",
       "send_webhook": "Enviar webhook",
       "handoff": "Transferir para atendente",
       "end": "Fim"
@@ -3234,6 +3237,7 @@
       "openConversationSummary": "Abre a conversa",
       "setConversationPendingSummary": "Marca a conversa como pendente",
       "closeConversationSummary": "Fecha a conversa",
+      "markAsReadSummary": "Zera as não lidas da conversa",
       "messageContentSummary": "Mensagem contém \"{value}\"",
       "timeOfDaySummary": "Horário está entre {range}"
     },

@@ -663,6 +663,7 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "open_conversation",
     "set_conversation_pending",
     "close_conversation",
+    "mark_as_read",
     "send_webhook",
     "handoff",
     "end",

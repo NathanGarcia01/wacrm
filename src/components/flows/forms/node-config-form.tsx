@@ -318,6 +318,7 @@ export function NodeConfigForm({
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "mark_as_read":
       return (
         <NextNodeRow
           value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
@@ -1666,8 +1667,8 @@ function MarkDealLostForm({
 
 // ============================================================
 // assign_conversation / unassign_agent / update_contact_field /
-// open_conversation / set_conversation_pending / close_conversation —
-// workflow-mode only. Mirror automations' conversation/contact steps
+// open_conversation / set_conversation_pending / close_conversation /
+// mark_as_read — workflow-mode only. Mirror automations' conversation/contact steps
 // (AssignConversationStepConfig, UpdateContactFieldStepConfig in
 // src/types/index.ts). close_conversation also best-effort fires the
 // NPS survey, same as automations/engine.ts — see workflow-engine.ts

@@ -45,6 +45,7 @@ const CONVERSATIONAL_UNSUPPORTED_NODE_TYPES = new Set([
   "update_contact_field",
   "set_conversation_pending",
   "close_conversation",
+  "mark_as_read",
   "send_webhook",
 ]);
 
@@ -1267,7 +1268,8 @@ function validateNode(
     case "unassign_agent":
     case "open_conversation":
     case "set_conversation_pending":
-    case "close_conversation": {
+    case "close_conversation":
+    case "mark_as_read": {
       const cfg = node.config as { next_node_key?: string };
       if (!cfg.next_node_key) {
         issues.push({
@@ -1397,6 +1399,7 @@ function outgoingEdges(node: NodeInput): string[] {
     case "open_conversation":
     case "set_conversation_pending":
     case "close_conversation":
+    case "mark_as_read":
     case "send_webhook":
     case "wait": {
       const cfg = node.config as { next_node_key?: string };

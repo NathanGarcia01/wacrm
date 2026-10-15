@@ -656,6 +656,7 @@ const ADD_NODE_TYPES: NodeType[] = [
   "open_conversation",
   "set_conversation_pending",
   "close_conversation",
+  "mark_as_read",
   "send_webhook",
   "handoff",
   "end",

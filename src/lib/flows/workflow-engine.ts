@@ -936,6 +936,27 @@ async function advanceWorkflow(
         continue;
       }
 
+      case "mark_as_read": {
+        const cfg = node.config as { next_node_key: string };
+        try {
+          if (!run.contact_id) throw new Error("mark_as_read needs a contact");
+          await db
+            .from("conversations")
+            .update({ unread_count: 0, updated_at: new Date().toISOString() })
+            .eq("account_id", run.account_id)
+            .eq("contact_id", run.contact_id);
+        } catch (err) {
+          await logEvent(db, run.id, "error", node.node_key, {
+            reason: "mark_as_read_failed",
+            detail: err instanceof Error ? err.message : String(err),
+          });
+          await endRun(db, run.id, "failed", "mark_as_read_failed");
+          return;
+        }
+        currentKey = cfg.next_node_key;
+        continue;
+      }
+
       case "send_webhook": {
         const cfg = node.config as unknown as SendWebhookNodeConfig;
         try {

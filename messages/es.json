@@ -1026,6 +1026,7 @@
       "stepRandomizer": "Divisor Aleatorio (A/B)",
       "stepStartAutomation": "Iniciar Otra Automatización",
       "stepStopAutomation": "Detener Automatización",
+      "stepMarkAsRead": "Marcar como Leída",
       "triggerNewMessageReceived": "Nuevo Mensaje Recibido",
       "triggerNewMessageReceivedHint": "Cualquier mensaje recibido",
       "triggerFirstInboundMessage": "Primer Mensaje del Contacto",
@@ -1110,6 +1111,7 @@
       "unassignAgentHint": "Elimina el agente asignado a la conversación. No necesita configuración.",
       "openConversationHint": "Establece el estado de la conversación como \"abierta\". No necesita configuración.",
       "setPendingHint": "Establece el estado de la conversación como \"pendiente\". No necesita configuración.",
+      "markAsReadHint": "Pone a cero los mensajes no leídos de la conversación. No necesita configuración.",
       "stageLabel": "Etapa",
       "selectStage": "Selecciona una etapa…",
       "unknownStageOption": "{value} (etapa desconocida)",
@@ -3195,6 +3197,7 @@
       "open_conversation": "Abrir conversación",
       "set_conversation_pending": "Marcar conversación como pendiente",
       "close_conversation": "Cerrar conversación",
+      "mark_as_read": "Marcar como leída",
       "send_webhook": "Enviar webhook",
       "handoff": "Transferir a un agente",
       "end": "Fin"
@@ -3234,6 +3237,7 @@
       "openConversationSummary": "Abre la conversación",
       "setConversationPendingSummary": "Marca la conversación como pendiente",
       "closeConversationSummary": "Cierra la conversación",
+      "markAsReadSummary": "Pone a cero las no leídas de la conversación",
       "messageContentSummary": "El mensaje contiene \"{value}\"",
       "timeOfDaySummary": "La hora está dentro de {range}"
     },

@@ -431,6 +431,15 @@ export interface CloseConversationNodeConfig {
 }
 
 /**
+ * Zeroes the contact's conversation `unread_count` — mirrors
+ * automations' `mark_as_read` step. Only meaningful on
+ * run_mode='workflow'.
+ */
+export interface MarkAsReadNodeConfig {
+  next_node_key: string;
+}
+
+/**
  * POSTs a JSON payload to an external URL, then auto-advances —
  * mirrors automations' `send_webhook` step (`SendWebhookStepConfig`
  * in src/types/index.ts). `body_template` supports the same
@@ -481,6 +490,7 @@ export type FlowNodeConfig =
   | { node_type: "open_conversation"; config: OpenConversationNodeConfig }
   | { node_type: "set_conversation_pending"; config: SetConversationPendingNodeConfig }
   | { node_type: "close_conversation"; config: CloseConversationNodeConfig }
+  | { node_type: "mark_as_read"; config: MarkAsReadNodeConfig }
   | { node_type: "send_webhook"; config: SendWebhookNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };

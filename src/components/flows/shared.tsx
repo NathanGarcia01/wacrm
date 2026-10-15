@@ -18,6 +18,7 @@
 
 import {
   Ban,
+  CheckCheck,
   Clock,
   DollarSign,
   FileText,
@@ -82,6 +83,7 @@ export type NodeType =
   | "open_conversation"
   | "set_conversation_pending"
   | "close_conversation"
+  | "mark_as_read"
   | "send_webhook"
   | "handoff"
   | "end";
@@ -207,6 +209,10 @@ export const NODE_META: Record<
   close_conversation: {
     icon: FolderOutput,
     color: "text-muted-foreground",
+  },
+  mark_as_read: {
+    icon: CheckCheck,
+    color: "text-sky-400",
   },
   send_webhook: {
     icon: Globe,
@@ -447,6 +453,8 @@ export function summarizeNode(
       return t("setConversationPendingSummary");
     case "close_conversation":
       return t("closeConversationSummary");
+    case "mark_as_read":
+      return t("markAsReadSummary");
     case "send_webhook": {
       const url = typeof cfg.url === "string" ? cfg.url : "";
       return url ? truncate(url, 60) : null;

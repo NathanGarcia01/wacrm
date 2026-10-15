@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
     updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
     logUpdates: [] as Record<string, unknown>[],
+    conversationUpdates: [] as { payload: Record<string, unknown>; filters: [string, string, unknown][] }[],
   },
 }));
 
@@ -54,6 +55,12 @@ vi.mock("./admin-client", () => {
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
+    if (table === "conversations") {
+      if (type === "update") {
+        state.conversationUpdates.push({ payload: ops.payload as Record<string, unknown>, filters: ops.filters });
+      }
+      return { data: null, error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -112,6 +119,7 @@ beforeEach(() => {
   h.state.updateCalls = [];
   h.state.upsertCalls = [];
   h.state.logUpdates = [];
+  h.state.conversationUpdates = [];
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -257,6 +265,35 @@ describe("stop_automation", () => {
     expect(h.state.logUpdates.length).toBeGreaterThan(0);
     const lastUpdate = h.state.logUpdates[h.state.logUpdates.length - 1];
     expect(lastUpdate.status).toBe("success");
+  });
+});
+
+describe("mark_as_read", () => {
+  it("zeroes the contact's conversation unread_count, scoped to the automation's account", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [automationWithUpdateStep()];
+    h.state.steps = [
+      {
+        id: "s-mar",
+        automation_id: "a1",
+        step_type: "mark_as_read",
+        position: 0,
+        parent_step_id: null,
+        step_config: {},
+      },
+    ];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "new_message_received",
+      contactId: "c1",
+      context: {},
+    });
+
+    expect(h.state.conversationUpdates).toHaveLength(1);
+    expect(h.state.conversationUpdates[0].payload.unread_count).toBe(0);
+    expect(h.state.conversationUpdates[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
+    expect(h.state.conversationUpdates[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
   });
 });
 
