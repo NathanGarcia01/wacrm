@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git stash *)",
+      "Bash(git pull *)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm view *)",
+      "Bash(npm ls *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(npx prettier *)",
+      "Bash(npx tsx *)",
+      "Bash(node *)",
+      "Bash(python3 *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(curl *)",
+      "Bash(pkill -f \"next dev\")",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__list_migrations",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__list_extensions",
+      "Skill(dataviz)",
+      "Skill(run)",
+      "Skill(claude-api)",
+      "Skill(claude-in-chrome)",
+      "WebSearch",
+      "Artifact"
+    ]
+  }
+}
