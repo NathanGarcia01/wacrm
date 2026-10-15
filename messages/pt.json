@@ -2743,7 +2743,7 @@
     "commissionAgentRankingTable": {
       "title": "Comissão por agente",
       "colAgent": "Agente",
-      "colDealsWon": "Deals ganhos",
+      "colDealsWon": "Negócios ganhos",
       "colCommission": "Comissão",
       "empty": "Nenhuma comissão no período."
     },
@@ -2780,13 +2780,13 @@
       "empty": "Nenhuma comissão encontrada para os filtros selecionados."
     },
     "dealsPerDayChart": {
-      "title": "Deals ganhos por dia",
+      "title": "Negócios ganhos por dia",
       "seriesWon": "Ganhos",
       "insightPeak": "Pico de {count} {count, plural, one {ganho} other {ganhos}} em {date}",
-      "insightNone": "Nenhum deal ganho no período selecionado."
+      "insightNone": "Nenhum negócio ganho no período selecionado."
     },
     "dealsTable": {
-      "title": "Deals do período",
+      "title": "Negócios do período",
       "colTitle": "Título",
       "colContact": "Contato",
       "colValue": "Valor",
@@ -2795,7 +2795,7 @@
       "colCreatedAt": "Criado em",
       "colClosedAt": "Fechado em",
       "colStatus": "Status",
-      "empty": "Nenhum deal no período selecionado."
+      "empty": "Nenhum negócio no período selecionado."
     },
     "messagesPerDayChart": {
       "title": "Mensagens por dia",
@@ -2844,36 +2844,47 @@
       "insightBest": "Melhor dia: {date} ({value})"
     },
     "pipelineFunnelChart": {
-      "title": "Funil por etapa",
-      "empty": "Nenhum deal em aberto no funil.",
-      "tooltipOpenDeals": "Deals em aberto",
-      "insightTopStage": "Maior volume em \"{stage}\" ({count} {count, plural, one {deal} other {deals}})"
+      "title": "Funil de conversão",
+      "empty": "Nenhum negócio no funil.",
+      "insightConclusion": "1 em cada {n} leads vira contrato",
+      "wonStep": "Ganho"
     },
     "pipelineTab": {
       "loadFailed": "Não foi possível carregar os dados de pipeline.",
-      "dealsCreated": "Deals criados",
-      "dealsWon": "Deals ganhos",
-      "dealsLost": "Deals perdidos",
+      "dealsCreated": "Negócios criados",
+      "dealsWon": "Negócios ganhos",
+      "dealsLost": "Negócios perdidos",
       "conversionRate": "Taxa de conversão",
       "valueWon": "Valor ganho",
       "avgTicket": "Ticket médio",
       "avgCloseTime": "Tempo médio de fechamento",
       "periodCommission": "Comissão do período",
       "projectedCommission": "Comissão prevista",
-      "openDealsSubtitle": "Deals em aberto",
+      "openDealsSubtitle": "Negócios em aberto",
       "avgTimeToWin": "Tempo médio até ganhar",
-      "avgTimeToWinTooltip": "Média de dias entre a abertura do atendimento que originou o negócio (último atendimento do contato antes da criação do deal, em até 30 dias) e o momento em que o negócio foi ganho. Negócios sem atendimento vinculado não entram na média.",
+      "avgTimeToWinTooltip": "Média de dias entre a abertura do atendimento que originou o negócio (último atendimento do contato antes da criação do negócio, em até 30 dias) e o momento em que o negócio foi ganho. Negócios sem atendimento vinculado não entram na média.",
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Novo no período",
       "flatVsPreviousPeriod": "Sem variação",
-      "otherIndicators": "Outros indicadores"
+      "otherIndicators": "Outros indicadores",
+      "vsSameMonthLastPeriod": "vs mês anterior",
+      "newVsSameMonthLastPeriod": "Novo no período",
+      "flatVsSameMonthLastPeriod": "Sem variação",
+      "commissionGenerated": "Comissão gerada",
+      "dealsUnit": "negócios",
+      "daysUnit": "dias",
+      "noComparisonBase": "Sem base de comparação",
+      "funnelCohortMonth": "Dos {created} negócios criados em {month}, {won} já viraram contrato",
+      "funnelCohortPeriod": "Dos {created} negócios criados no período selecionado, {won} já viraram contrato"
     },
     "salesGoalCard": {
       "title": "Meta de {month}",
       "notConfigured": "Meta de vendas não configurada para esta conta.",
       "notConfiguredLink": "Configurar meta",
       "valueGoalLabel": "Valor ganho",
-      "countGoalLabel": "Negócios ganhos"
+      "countGoalLabel": "Negócios ganhos",
+      "paceLine": "Faltam {remaining} em {days} dias · ritmo necessário {pace}/dia",
+      "goalReached": "Meta batida este mês!"
     },
     "qualityTab": {
       "loadFailed": "Falha ao consultar a Meta.",
@@ -3101,9 +3112,9 @@
     },
     "pipelineLossReasonChart": {
       "title": "Perdidos por motivo",
-      "empty": "Nenhum deal perdido no período selecionado.",
+      "empty": "Nenhum negócio perdido no período selecionado.",
       "noReason": "Sem motivo",
-      "seriesCount": "Deals perdidos",
+      "seriesCount": "Negócios perdidos",
       "insightTop": "\"{label}\" responde por {pct}% das perdas",
       "seriesValue": "Valor perdido"
     },
@@ -3122,7 +3133,14 @@
       "colGenerated": "Gerou negócio",
       "colWon": "Ganhos",
       "colConversion": "Conversão",
-      "empty": "Nenhum atendimento de campanha no período selecionado."
+      "empty": "Nenhum atendimento de campanha no período selecionado.",
+      "colCategory": "Categoria",
+      "colTickets": "Atendimentos",
+      "colWonValue": "Valor ganho",
+      "totalRow": "Total",
+      "insightShare": "Campanhas trouxeram {pct}% dos negócios ganhos",
+      "showAll": "Ver todas ({count})",
+      "showLess": "Ver menos"
     }
   },
   "flows": {

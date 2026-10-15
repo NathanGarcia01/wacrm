@@ -2844,10 +2844,10 @@
       "insightBest": "Best day: {date} ({value})"
     },
     "pipelineFunnelChart": {
-      "title": "Funnel by stage",
-      "empty": "No open deals in the funnel.",
-      "tooltipOpenDeals": "Open deals",
-      "insightTopStage": "Highest volume in \"{stage}\" ({count} {count, plural, one {deal} other {deals}})"
+      "title": "Conversion funnel",
+      "empty": "No deals in the funnel.",
+      "insightConclusion": "1 in every {n} leads becomes a contract",
+      "wonStep": "Won"
     },
     "pipelineTab": {
       "loadFailed": "Could not load pipeline data.",
@@ -2866,14 +2866,25 @@
       "vsPreviousPeriod": "vs. previous period",
       "newVsPreviousPeriod": "New this period",
       "flatVsPreviousPeriod": "No change",
-      "otherIndicators": "Other indicators"
+      "otherIndicators": "Other indicators",
+      "vsSameMonthLastPeriod": "vs last month",
+      "newVsSameMonthLastPeriod": "New this period",
+      "flatVsSameMonthLastPeriod": "No change",
+      "commissionGenerated": "Commission generated",
+      "dealsUnit": "deals",
+      "daysUnit": "days",
+      "noComparisonBase": "No comparison baseline",
+      "funnelCohortMonth": "Of the {created} deals created in {month}, {won} have already become contracts",
+      "funnelCohortPeriod": "Of the {created} deals created in the selected period, {won} have already become contracts"
     },
     "salesGoalCard": {
       "title": "{month} goal",
       "notConfigured": "No sales goal configured for this account.",
       "notConfiguredLink": "Configure goal",
       "valueGoalLabel": "Value won",
-      "countGoalLabel": "Deals won"
+      "countGoalLabel": "Deals won",
+      "paceLine": "{remaining} left in {days} days · need {pace}/day",
+      "goalReached": "Goal reached this month!"
     },
     "qualityTab": {
       "loadFailed": "Failed to query Meta.",
@@ -3122,7 +3133,14 @@
       "colGenerated": "Generated",
       "colWon": "Won",
       "colConversion": "Conversion",
-      "empty": "No campaign tickets in the selected period."
+      "empty": "No campaign tickets in the selected period.",
+      "colCategory": "Category",
+      "colTickets": "Tickets",
+      "colWonValue": "Value won",
+      "totalRow": "Total",
+      "insightShare": "Campaigns brought in {pct}% of deals won",
+      "showAll": "See all ({count})",
+      "showLess": "See less"
     }
   },
   "flows": {

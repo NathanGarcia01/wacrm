@@ -759,7 +759,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       // lost_at is set by the deals_set_lost_at DB trigger (migration 027).
       await db
         .from('deals')
-        .update({ status: 'lost', lost_reason: cfg.reason ?? null, updated_at: new Date().toISOString() })
+        .update({
+          status: 'lost',
+          lost_reason: cfg.reason ?? null,
+          lost_reason_id: cfg.reason_id ?? null,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', dealId)
         .eq('account_id', args.automation.account_id)
       return 'deal marked lost'

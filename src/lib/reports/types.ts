@@ -101,6 +101,18 @@ export interface DealsPerDayPoint {
   won: number
 }
 
+/** One point per calendar day in the period (account-tz keyed, same
+ *  bucketing as DealsPerDayPoint) — feeds the headline KPI cards'
+ *  sparklines. Derived client-side from the same won/lost deal rows
+ *  the cards are built from, just resampled by day; not a new
+ *  aggregation of anything that wasn't already counted. */
+export interface PipelineDailySparkPoint {
+  date: string
+  wonCount: number
+  wonValue: number
+  lostCount: number
+}
+
 export interface DealReportRow {
   id: string
   title: string
@@ -145,6 +157,29 @@ export interface CampaignConversionRow {
   campaignName: string
   generated: number
   won: number
+  /** Tickets opened with source='campaign' for this broadcast in the
+   *  period — a separate count from `generated` (deals), since not
+   *  every campaign ticket produces a deal. */
+  ticketsTotal: number
+  /** Sum of won deals' value for this campaign in the period. */
+  wonValue: number
+  /** The broadcast's template category (MARKETING/UTILITY/AUTHENTICATION),
+   *  looked up from message_templates by name+language. Null when no
+   *  matching template row exists (e.g. the template was deleted). */
+  templateCategory: string | null
+}
+
+/** A pipeline_stages row, independent of any period or open/won/lost
+ *  filtering — fetched client-side so the funnel can render every
+ *  configured stage (including ones with zero deals right now)
+ *  instead of only the stages get_pipeline_dashboard's open-deals
+ *  grouping happened to return. */
+export interface PipelineStageMeta {
+  id: string
+  name: string
+  color: string
+  position: number
+  pipelineId: string
 }
 
 /** Account-wide monthly sales goal + actuals, always for the CURRENT

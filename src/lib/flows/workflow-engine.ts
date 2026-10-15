@@ -701,6 +701,7 @@ async function advanceWorkflow(
             .update({
               status: "lost",
               lost_reason: cfg.reason ?? null,
+              lost_reason_id: cfg.reason_id ?? null,
               updated_at: new Date().toISOString(),
             })
             .eq("id", dealId)

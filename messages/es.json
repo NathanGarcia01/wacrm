@@ -2844,10 +2844,10 @@
       "insightBest": "Mejor día: {date} ({value})"
     },
     "pipelineFunnelChart": {
-      "title": "Embudo por etapa",
-      "empty": "No hay negocios abiertos en el embudo.",
-      "tooltipOpenDeals": "Negocios abiertos",
-      "insightTopStage": "Mayor volumen en \"{stage}\" ({count} {count, plural, one {negocio} other {negocios}})"
+      "title": "Embudo de conversión",
+      "empty": "Ningún negocio en el embudo.",
+      "insightConclusion": "1 de cada {n} leads se convierte en contrato",
+      "wonStep": "Ganado"
     },
     "pipelineTab": {
       "loadFailed": "No se pudieron cargar los datos de pipeline.",
@@ -2866,14 +2866,25 @@
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Nuevo en el período",
       "flatVsPreviousPeriod": "Sin variación",
-      "otherIndicators": "Otros indicadores"
+      "otherIndicators": "Otros indicadores",
+      "vsSameMonthLastPeriod": "vs mes anterior",
+      "newVsSameMonthLastPeriod": "Nuevo en el período",
+      "flatVsSameMonthLastPeriod": "Sin variación",
+      "commissionGenerated": "Comisión generada",
+      "dealsUnit": "negocios",
+      "daysUnit": "días",
+      "noComparisonBase": "Sin base de comparación",
+      "funnelCohortMonth": "De los {created} negocios creados en {month}, {won} ya se convirtieron en contrato",
+      "funnelCohortPeriod": "De los {created} negocios creados en el período seleccionado, {won} ya se convirtieron en contrato"
     },
     "salesGoalCard": {
       "title": "Meta de {month}",
       "notConfigured": "No hay meta de ventas configurada para esta cuenta.",
       "notConfiguredLink": "Configurar meta",
       "valueGoalLabel": "Valor ganado",
-      "countGoalLabel": "Negocios ganados"
+      "countGoalLabel": "Negocios ganados",
+      "paceLine": "Faltan {remaining} en {days} días · ritmo necesario {pace}/día",
+      "goalReached": "¡Meta alcanzada este mes!"
     },
     "qualityTab": {
       "loadFailed": "Error al consultar a Meta.",
@@ -3122,7 +3133,14 @@
       "colGenerated": "Generó negocio",
       "colWon": "Ganados",
       "colConversion": "Conversión",
-      "empty": "Ninguna atención de campaña en el período seleccionado."
+      "empty": "Ninguna atención de campaña en el período seleccionado.",
+      "colCategory": "Categoría",
+      "colTickets": "Atenciones",
+      "colWonValue": "Valor ganado",
+      "totalRow": "Total",
+      "insightShare": "Las campañas aportaron el {pct}% de los negocios ganados",
+      "showAll": "Ver todas ({count})",
+      "showLess": "Ver menos"
     }
   },
   "flows": {

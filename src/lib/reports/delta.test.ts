@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { pointsDelta, relativeDelta } from "./delta"
+import { gatedRelativeDelta, pointsDelta, relativeDelta, withShortLabel } from "./delta"
 
 const labels = { vsPrevious: "vs. prev", new: "Novo", flat: "Sem variação" }
 
@@ -62,5 +62,73 @@ describe("pointsDelta", () => {
 
   it("flips the color sign (not the arrow) for higherIsBetter=false", () => {
     expect(pointsDelta(15, 20, labels, false)).toEqual({ sign: 1, arrowSign: -1, label: "-5 p.p. vs. prev" })
+  })
+})
+
+const fmtAbs = (current: number, previous: number) => `${current - previous >= 0 ? "+" : ""}${current - previous} negócios`
+
+describe("gatedRelativeDelta", () => {
+  it("uses the normal percentage when the gate count is healthy and the change is moderate", () => {
+    // 108 vs 100 deals won last month (gate=100, well above 5), +8% — unremarkable.
+    expect(gatedRelativeDelta(108, 100, 100, labels, fmtAbs)).toEqual({
+      sign: 1,
+      arrowSign: 1,
+      label: "+8% vs. prev",
+      shortLabel: "+8%",
+    })
+  })
+
+  it("falls back to the absolute value when the gate count is below 5", () => {
+    // Previous period only had 3 deals won — a % off that base is noise.
+    expect(gatedRelativeDelta(52254, 4170, 3, labels, fmtAbs)).toEqual({
+      sign: 1,
+      arrowSign: 1,
+      label: "+48084 negócios vs. prev",
+      shortLabel: "+48084 negócios",
+    })
+  })
+
+  it("falls back to the absolute value when the relative change exceeds 300%, even with a healthy gate count", () => {
+    // 8 vs 1 deal won = +700%, gate count (previous itself here) is still < 5 in
+    // this example, but exercise the >300% branch independently with a high gate.
+    expect(gatedRelativeDelta(50, 10, 20, labels, fmtAbs)).toEqual({
+      sign: 1,
+      arrowSign: 1,
+      label: "+40 negócios vs. prev",
+      shortLabel: "+40 negócios",
+    })
+  })
+
+  it("defers to relativeDelta's zero-baseline handling and still attaches shortLabel", () => {
+    expect(gatedRelativeDelta(10, 0, 0, labels, fmtAbs)).toEqual({ sign: 1, arrowSign: 1, label: "Novo", shortLabel: "Novo" })
+  })
+
+  it("returns undefined when either value is null", () => {
+    expect(gatedRelativeDelta(null, 100, 50, labels, fmtAbs)).toBeUndefined()
+    expect(gatedRelativeDelta(100, null, 50, labels, fmtAbs)).toBeUndefined()
+  })
+})
+
+describe("withShortLabel", () => {
+  it("strips the trailing vsPrevious phrase for the short form", () => {
+    expect(withShortLabel(relativeDelta(150, 100, labels), labels.vsPrevious)).toEqual({
+      sign: 1,
+      arrowSign: 1,
+      label: "+50% vs. prev",
+      shortLabel: "+50%",
+    })
+  })
+
+  it("leaves labels with no suffix (new/flat) unchanged", () => {
+    expect(withShortLabel(relativeDelta(10, 0, labels), labels.vsPrevious)).toEqual({
+      sign: 1,
+      arrowSign: 1,
+      label: "Novo",
+      shortLabel: "Novo",
+    })
+  })
+
+  it("passes undefined through", () => {
+    expect(withShortLabel(undefined, labels.vsPrevious)).toBeUndefined()
   })
 })

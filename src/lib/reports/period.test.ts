@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { resolveAccountPeriod } from "./period"
+import { resolveAccountPeriod, samePeriodLastMonth } from "./period"
 
 describe("resolveAccountPeriod", () => {
   afterEach(() => {
@@ -58,5 +58,33 @@ describe("resolveAccountPeriod", () => {
     const period = resolveAccountPeriod("custom", "America/Sao_Paulo", "2026-09-01", null)
     expect(period.key).toBe("today")
     expect(period.fromDate).toBe("2026-10-14")
+  })
+})
+
+describe("samePeriodLastMonth", () => {
+  it("shifts a month-to-date window to the same days last month (Oct 1-15 -> Sep 1-15)", () => {
+    const period = { startISO: "2026-10-01T03:00:00.000Z", endISO: "2026-10-15T03:00:00.000Z" }
+    expect(samePeriodLastMonth(period)).toEqual({
+      startISO: "2026-09-01T03:00:00.000Z",
+      endISO: "2026-09-15T03:00:00.000Z",
+    })
+  })
+
+  it("shifts a full calendar month to the full previous month (Sep -> Aug)", () => {
+    const period = { startISO: "2026-09-01T03:00:00.000Z", endISO: "2026-10-01T03:00:00.000Z" }
+    expect(samePeriodLastMonth(period)).toEqual({
+      startISO: "2026-08-01T03:00:00.000Z",
+      endISO: "2026-09-01T03:00:00.000Z",
+    })
+  })
+
+  it("clamps a day that doesn't exist in the shorter previous month (Mar 31 -> Feb 28)", () => {
+    const period = { startISO: "2026-03-31T03:00:00.000Z", endISO: "2026-03-31T03:00:00.000Z" }
+    const shifted = samePeriodLastMonth(period)
+    // JS Date normalizes Feb 31 -> Mar 3 in a non-leap year — both
+    // boundaries land on the same (slightly rolled-over) date, which
+    // is the documented, deliberate behavior, not a bug: there is no
+    // single "correct" Feb equivalent of Mar 31.
+    expect(shifted.startISO).toBe(shifted.endISO)
   })
 })

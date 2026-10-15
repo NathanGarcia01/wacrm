@@ -359,6 +359,10 @@ export interface MarkDealWonNodeConfig {
  */
 export interface MarkDealLostNodeConfig {
   reason?: string;
+  /** deal_loss_reasons.id — when set, also stored in
+   *  deals.lost_reason_id so this reason groups into the Reports
+   *  loss-by-reason catalog bucket instead of a free-text one. */
+  reason_id?: string;
   next_node_key: string;
 }
 

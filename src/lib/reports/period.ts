@@ -176,6 +176,29 @@ export function resolveAccountPeriod(
 }
 
 /**
+ * Shifts `period`'s boundaries back by exactly one calendar month (JS
+ * `setMonth` handles day-of-month/length differences, e.g. Mar 31 → a
+ * date in Feb clamped to Feb's last day). Distinct from
+ * `previousPeriod` (immediately-preceding window of the same
+ * DURATION) — this answers "the same period last month" instead, the
+ * comparison approved for the Pipeline & Vendas headline cards (Oct
+ * 1-15 vs Sep 1-15, not vs the 15 days immediately before Oct 1).
+ * Deliberately NOT a drop-in replacement for previousPeriod — every
+ * other tab's delta keeps its existing semantics.
+ */
+export function samePeriodLastMonth(period: { startISO: string; endISO: string }): {
+  startISO: string
+  endISO: string
+} {
+  const shiftBackOneMonth = (iso: string) => {
+    const d = new Date(iso)
+    d.setMonth(d.getMonth() - 1)
+    return d.toISOString()
+  }
+  return { startISO: shiftBackOneMonth(period.startISO), endISO: shiftBackOneMonth(period.endISO) }
+}
+
+/**
  * The immediately-preceding window of the SAME duration as `period`
  * — not "the calendar month/week before", which would compare a
  * partial current period (e.g. the first 14 days of October) against

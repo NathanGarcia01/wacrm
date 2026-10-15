@@ -49,9 +49,9 @@ export function TicketConversionBySourceTable({
         <TableHeader>
           <TableRow>
             <TableHead>{t("colSource")}</TableHead>
-            <TableHead>{t("colGenerated")}</TableHead>
-            <TableHead>{t("colWon")}</TableHead>
-            <TableHead>{t("colConversion")}</TableHead>
+            <TableHead className="text-right">{t("colGenerated")}</TableHead>
+            <TableHead className="text-right">{t("colWon")}</TableHead>
+            <TableHead className="text-right">{t("colConversion")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -71,9 +71,9 @@ export function TicketConversionBySourceTable({
             rows.map((row) => (
               <TableRow key={row.source ?? "none"}>
                 <TableCell className="font-medium text-foreground">{labelOf(row.source)}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.generated.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.won.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums">{fmtPct(row.generated, row.won)}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.generated.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.won.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{fmtPct(row.generated, row.won)}</TableCell>
               </TableRow>
             ))
           )}

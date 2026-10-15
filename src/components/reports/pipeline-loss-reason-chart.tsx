@@ -1,7 +1,6 @@
 "use client"
 
 import { useTranslations } from "next-intl"
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { formatCurrency } from "@/lib/currency"
 import type { LossReasonPoint } from "@/lib/reports/types"
 
@@ -14,8 +13,11 @@ export function PipelineLossReasonChart({
 }) {
   const t = useTranslations("reports.pipelineLossReasonChart")
   const total = data.reduce((sum, d) => sum + d.count, 0)
-  const points = data.map((d) => ({ ...d, label: d.label === "" ? t("noReason") : d.label }))
   const top = [...data].sort((a, b) => b.count - a.count)[0]
+  const rows = [...data]
+    .map((d) => ({ ...d, label: d.label === "" ? t("noReason") : d.label }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8)
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -28,54 +30,34 @@ export function PipelineLossReasonChart({
           })}
         </p>
       )}
-      <div className="mt-4">
       {total === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">{t("empty")}</p>
       ) : (
-        <div className="h-56 w-full">
-          <ResponsiveContainer>
-            <BarChart data={points} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-              <XAxis
-                dataKey="label"
-                className="fill-muted-foreground text-xs"
-                tickLine={false}
-                axisLine={false}
-                fill=""
-                stroke=""
-              />
-              <YAxis
-                className="fill-muted-foreground text-xs"
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-                width={40}
-                fill=""
-                stroke=""
-              />
-              <Tooltip
-                cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-                contentStyle={{
-                  background: "var(--popover)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: "var(--muted-foreground)" }}
-                itemStyle={{ color: "var(--popover-foreground)" }}
-                formatter={(value, name, item) => {
-                  const point = item.payload as (typeof points)[number]
-                  return [
-                    `${value ?? 0} · ${formatCurrency(point.value, currency)}`,
-                    t("seriesCount"),
-                  ]
-                }}
-              />
-              <Bar dataKey="count" fill="#F87171" radius={[4, 4, 0, 0]} maxBarSize={48} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="mt-4 space-y-3">
+          {rows.map((row) => {
+            const pct = total === 0 ? 0 : Math.round((row.count / total) * 100)
+            return (
+              <div key={row.label}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-sm">
+                  <span className="truncate text-foreground">{row.label}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {row.count.toLocaleString()} · {formatCurrency(row.value, currency)}
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-destructive/80"
+                    style={{ width: `${Math.max(pct, 2)}%` }}
+                  />
+                </div>
+                <span className="mt-0.5 block text-right text-[11px] tabular-nums text-muted-foreground">
+                  {pct}%
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
-      </div>
     </div>
   )
 }
