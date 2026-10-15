@@ -49,7 +49,7 @@ export function AtRiskTicketsList({
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
                     #{row.protocolNumber}
                   </span>
                   <span className="truncate text-sm font-medium text-foreground">

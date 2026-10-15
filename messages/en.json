@@ -2813,7 +2813,10 @@
       "colAgent": "Agent",
       "colAverage": "Average",
       "colReviews": "Reviews",
-      "empty": "No review assigned to an agent in this period."
+      "empty": "No review assigned to an agent in this period.",
+      "unassigned": "Unassigned",
+      "insightTop": "{name} leads with {value} average",
+      "totalRow": "Total"
     },
     "npsReviewsTable": {
       "title": "Latest reviews",
@@ -2833,7 +2836,10 @@
       "responseRate": "Response rate",
       "vsPreviousPeriod": "vs. previous period",
       "newVsPreviousPeriod": "New this period",
-      "flatVsPreviousPeriod": "No change"
+      "flatVsPreviousPeriod": "No change",
+      "surveysUnit": "surveys",
+      "responsesUnit": "responses",
+      "noComparisonBase": "No comparison baseline"
     },
     "npsDistributionChart": {
       "title": "Rating distribution",
@@ -3009,7 +3015,10 @@
       "newVsPreviousPeriod": "New this period",
       "flatVsPreviousPeriod": "No change",
       "otherIndicators": "Other indicators",
-      "liveQueueSubtitle": "Live queue (independent of the period)"
+      "liveQueueSubtitle": "Live queue (independent of the period)",
+      "ticketsUnit": "tickets",
+      "contactsUnit": "contacts",
+      "agentsUnit": "agents"
     },
     "ticketsPerDayChart": {
       "title": "Tickets per day",
@@ -3061,7 +3070,8 @@
       "resolutionViolationsTooltip": "Tickets still open past the resolution goal, or that closed late — counts immediately, even while the ticket is still open.",
       "vsPreviousPeriod": "vs. previous period",
       "newVsPreviousPeriod": "New this period",
-      "flatVsPreviousPeriod": "No change"
+      "flatVsPreviousPeriod": "No change",
+      "noComparisonBase": "No comparison baseline"
     },
     "slaComplianceTrendChart": {
       "title": "Goal compliance over time",
@@ -3079,7 +3089,8 @@
       "colResolutionViolations": "Resolution violations",
       "empty": "No tickets judged in the selected period.",
       "noAgent": "No agent",
-      "unknownAgent": "Removed agent"
+      "unknownAgent": "Removed agent",
+      "totalRow": "Total"
     },
     "atRiskTicketsList": {
       "title": "At risk now",
@@ -3115,7 +3126,8 @@
       "salesGoalNotConfigured": "No goal",
       "empty": "No agent activity in the selected period.",
       "noAgent": "No agent",
-      "unknownAgent": "Removed agent"
+      "unknownAgent": "Removed agent",
+      "totalRow": "Total"
     },
     "pipelineLossReasonChart": {
       "title": "Lost by reason",

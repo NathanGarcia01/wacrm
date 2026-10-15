@@ -16,7 +16,7 @@ import {
   type TicketDashboardPeriodKey,
 } from "@/lib/reports/ticket-dashboard-period"
 import { previousPeriod } from "@/lib/reports/period"
-import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, pointsDelta, withShortLabel, type DeltaLabels } from "@/lib/reports/delta"
 import { formatSlaCompliancePct, formatSlaViolations } from "@/lib/reports/format"
 import type { SlaDashboardBundle, SlaDashboardCards, SlaMetricCounts, TicketDashboardFilterOptions } from "@/lib/reports/types"
 
@@ -109,6 +109,10 @@ export function SlaTab() {
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
   }
+  const formatCountAbsolute = (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${diff.toLocaleString()}`
+  }
 
   useEffect(() => {
     if (!accountId) return
@@ -196,7 +200,7 @@ export function SlaTab() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {loading || !bundle ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -206,32 +210,50 @@ export function SlaTab() {
               value={formatSlaCompliancePct(bundle.cards.firstResponse)}
               icon={Percent}
               tooltip={t("firstResponsePctTooltip")}
-              delta={pointsDelta(
-                pctOf(bundle.cards.firstResponse),
-                previousCards ? pctOf(previousCards.firstResponse) : null,
-                deltaLabels,
-              )}
+              delta={
+                (previousCards?.firstResponse.total ?? 0) < 5
+                  ? undefined
+                  : withShortLabel(
+                      pointsDelta(
+                        pctOf(bundle.cards.firstResponse),
+                        previousCards ? pctOf(previousCards.firstResponse) : null,
+                        deltaLabels,
+                      ),
+                      deltaLabels.vsPrevious,
+                    )
+              }
+              subtitle={(previousCards?.firstResponse.total ?? 0) < 5 ? t("noComparisonBase") : undefined}
             />
             <MetricCard
               title={t("resolutionPct")}
               value={formatSlaCompliancePct(bundle.cards.resolution)}
               icon={Percent}
               tooltip={t("resolutionPctTooltip")}
-              delta={pointsDelta(
-                pctOf(bundle.cards.resolution),
-                previousCards ? pctOf(previousCards.resolution) : null,
-                deltaLabels,
-              )}
+              delta={
+                (previousCards?.resolution.total ?? 0) < 5
+                  ? undefined
+                  : withShortLabel(
+                      pointsDelta(
+                        pctOf(bundle.cards.resolution),
+                        previousCards ? pctOf(previousCards.resolution) : null,
+                        deltaLabels,
+                      ),
+                      deltaLabels.vsPrevious,
+                    )
+              }
+              subtitle={(previousCards?.resolution.total ?? 0) < 5 ? t("noComparisonBase") : undefined}
             />
             <MetricCard
               title={t("firstResponseViolations")}
               value={formatSlaViolations(bundle.cards.firstResponse)}
               icon={Timer}
               tooltip={t("firstResponseViolationsTooltip")}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 violationsOf(bundle.cards.firstResponse),
                 previousCards ? violationsOf(previousCards.firstResponse) : null,
+                previousCards?.firstResponse.total ?? 0,
                 deltaLabels,
+                formatCountAbsolute,
                 false,
               )}
             />
@@ -240,10 +262,12 @@ export function SlaTab() {
               value={formatSlaViolations(bundle.cards.resolution)}
               icon={ShieldAlert}
               tooltip={t("resolutionViolationsTooltip")}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 violationsOf(bundle.cards.resolution),
                 previousCards ? violationsOf(previousCards.resolution) : null,
+                previousCards?.resolution.total ?? 0,
                 deltaLabels,
+                formatCountAbsolute,
                 false,
               )}
             />

@@ -87,18 +87,26 @@ export async function loadNpsReport(db: DB, period: PeriodRange): Promise<NpsRep
     }
   })
 
+  // Keyed by assigned_agent_id, with a 'null' sentinel string for
+  // surveys with no assigned agent — folded back to a real `null`
+  // userId when building rows below. Previously these were skipped
+  // entirely (`if (!s.assigned_agent_id) continue`), so this table's
+  // totalResponses undercounted cards.totalResponded whenever any
+  // rated survey had no assignee — confirmed live: 117 of this
+  // account's 220 rated surveys have assigned_agent_id = null.
+  const UNASSIGNED = '__unassigned__'
   const byAgent = new Map<string, { sum: number; count: number }>()
   for (const s of rated) {
-    if (!s.assigned_agent_id) continue
-    const row = byAgent.get(s.assigned_agent_id) ?? { sum: 0, count: 0 }
+    const key = s.assigned_agent_id ?? UNASSIGNED
+    const row = byAgent.get(key) ?? { sum: 0, count: 0 }
     row.sum += s.rating
     row.count += 1
-    byAgent.set(s.assigned_agent_id, row)
+    byAgent.set(key, row)
   }
   const agentRanking: NpsAgentRankingRow[] = [...byAgent.entries()]
-    .map(([userId, { sum, count }]) => ({
-      userId,
-      name: agentMap.get(userId) ?? 'Desconhecido',
+    .map(([key, { sum, count }]) => ({
+      userId: key === UNASSIGNED ? null : key,
+      name: key === UNASSIGNED ? '' : agentMap.get(key) ?? 'Desconhecido',
       avgRating: count === 0 ? null : sum / count,
       totalResponses: count,
     }))

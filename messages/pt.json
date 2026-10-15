@@ -2813,7 +2813,10 @@
       "colAgent": "Agente",
       "colAverage": "Média",
       "colReviews": "Avaliações",
-      "empty": "Nenhuma avaliação atribuída a um agente no período."
+      "empty": "Nenhuma avaliação atribuída a um agente no período.",
+      "unassigned": "Sem responsável",
+      "insightTop": "{name} lidera com {value} de média",
+      "totalRow": "Total"
     },
     "npsReviewsTable": {
       "title": "Últimas avaliações",
@@ -2833,7 +2836,10 @@
       "responseRate": "Taxa de resposta",
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Novo no período",
-      "flatVsPreviousPeriod": "Sem variação"
+      "flatVsPreviousPeriod": "Sem variação",
+      "surveysUnit": "pesquisas",
+      "responsesUnit": "respostas",
+      "noComparisonBase": "Sem base de comparação"
     },
     "npsDistributionChart": {
       "title": "Distribuição de notas",
@@ -3009,7 +3015,10 @@
       "newVsPreviousPeriod": "Novo no período",
       "flatVsPreviousPeriod": "Sem variação",
       "otherIndicators": "Outros indicadores",
-      "liveQueueSubtitle": "Fila viva (independe do período)"
+      "liveQueueSubtitle": "Fila viva (independe do período)",
+      "ticketsUnit": "tickets",
+      "contactsUnit": "contatos",
+      "agentsUnit": "agentes"
     },
     "ticketsPerDayChart": {
       "title": "Atendimentos por dia",
@@ -3061,7 +3070,8 @@
       "resolutionViolationsTooltip": "Atendimentos ainda abertos que já passaram da meta de resolução, ou que fecharam fora do prazo — conta na hora, mesmo que o atendimento ainda esteja aberto.",
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Novo no período",
-      "flatVsPreviousPeriod": "Sem variação"
+      "flatVsPreviousPeriod": "Sem variação",
+      "noComparisonBase": "Sem base de comparação"
     },
     "slaComplianceTrendChart": {
       "title": "Evolução do cumprimento da meta",
@@ -3079,7 +3089,8 @@
       "colResolutionViolations": "Violações resolução",
       "empty": "Nenhum atendimento julgado no período selecionado.",
       "noAgent": "Sem atendente",
-      "unknownAgent": "Atendente removido"
+      "unknownAgent": "Atendente removido",
+      "totalRow": "Total"
     },
     "atRiskTicketsList": {
       "title": "Em risco agora",
@@ -3115,7 +3126,8 @@
       "salesGoalNotConfigured": "Sem meta",
       "empty": "Nenhum atendente com atividade no período selecionado.",
       "noAgent": "Sem atendente",
-      "unknownAgent": "Atendente removido"
+      "unknownAgent": "Atendente removido",
+      "totalRow": "Total"
     },
     "pipelineLossReasonChart": {
       "title": "Perdidos por motivo",

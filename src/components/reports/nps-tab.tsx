@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { MessageCircleHeart, Percent, Send, Star } from "lucide-react"
 import { loadNpsReport } from "@/lib/reports/nps-queries"
 import { previousPeriod } from "@/lib/reports/period"
-import { relativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, withShortLabel, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
 import type { NpsReportBundle, NpsReportCards, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -33,6 +33,12 @@ export function NpsTab({ period }: { period: PeriodRange }) {
     vsPrevious: t("vsPreviousPeriod"),
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
+  }
+  const formatRatingAbsolute = (current: number, previous: number) =>
+    `${previous.toFixed(1)} → ${current.toFixed(1)}`
+  const formatCountAbsolute = (unit: string) => (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${diff.toLocaleString()} ${unit}`
   }
 
   useEffect(() => {
@@ -70,7 +76,7 @@ export function NpsTab({ period }: { period: PeriodRange }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {loading || !bundle ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -79,29 +85,51 @@ export function NpsTab({ period }: { period: PeriodRange }) {
               title={t("avgRating")}
               value={fmtRating(bundle.cards.avgRating)}
               icon={Star}
-              delta={relativeDelta(bundle.cards.avgRating, previousCards?.avgRating ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.avgRating,
+                previousCards?.avgRating ?? null,
+                previousCards?.totalSent ?? 0,
+                deltaLabels,
+                formatRatingAbsolute,
+              )}
             />
             <MetricCard
               title={t("surveysSent")}
               value={bundle.cards.totalSent.toLocaleString()}
               icon={Send}
-              delta={relativeDelta(bundle.cards.totalSent, previousCards?.totalSent ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.totalSent,
+                previousCards?.totalSent ?? null,
+                previousCards?.totalSent ?? 0,
+                deltaLabels,
+                formatCountAbsolute(t("surveysUnit")),
+              )}
             />
             <MetricCard
               title={t("surveysResponded")}
               value={bundle.cards.totalResponded.toLocaleString()}
               icon={MessageCircleHeart}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 bundle.cards.totalResponded,
                 previousCards?.totalResponded ?? null,
+                previousCards?.totalSent ?? 0,
                 deltaLabels,
+                formatCountAbsolute(t("responsesUnit")),
               )}
             />
             <MetricCard
               title={t("responseRate")}
               value={fmtPct(bundle.cards.responseRatePct)}
               icon={Percent}
-              delta={pointsDelta(bundle.cards.responseRatePct, previousCards?.responseRatePct ?? null, deltaLabels)}
+              delta={
+                (previousCards?.totalSent ?? 0) < 5
+                  ? undefined
+                  : withShortLabel(
+                      pointsDelta(bundle.cards.responseRatePct, previousCards?.responseRatePct ?? null, deltaLabels),
+                      deltaLabels.vsPrevious,
+                    )
+              }
+              subtitle={(previousCards?.totalSent ?? 0) < 5 ? t("noComparisonBase") : undefined}
             />
           </>
         )}

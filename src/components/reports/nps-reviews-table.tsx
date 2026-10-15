@@ -80,7 +80,7 @@ export function NpsReviewsTable({ reviews, loading }: { reviews: NpsReviewRow[];
                   {r.comment ?? "—"}
                 </TableCell>
                 <TableCell>{r.agentName ?? "—"}</TableCell>
-                <TableCell className="font-mono tabular-nums text-muted-foreground">{fmtDate(r.sentAt, locale)}</TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">{fmtDate(r.sentAt, locale)}</TableCell>
               </TableRow>
             ))
           )}

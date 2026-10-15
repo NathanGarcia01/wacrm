@@ -455,7 +455,10 @@ export interface NpsReviewRow {
 }
 
 export interface NpsAgentRankingRow {
-  userId: string
+  /** Null for the synthetic "Sem responsável" row — a rated survey
+   *  for a conversation with no assigned agent still counts toward
+   *  cards.totalResponded and must still show up here. */
+  userId: string | null
   name: string
   avgRating: number | null
   totalResponses: number

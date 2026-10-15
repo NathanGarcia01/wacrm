@@ -77,21 +77,24 @@ function SortableHead({
   active,
   dir,
   onSort,
+  align,
 }: {
   label: string
   sortKey: SortKey
   active: boolean
   dir: "asc" | "desc"
   onSort: (key: SortKey) => void
+  align?: "left" | "right"
 }) {
   const Icon = active ? (dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown
   return (
-    <TableHead>
+    <TableHead className={align === "right" ? "text-right" : undefined}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
         className={cn(
           "inline-flex items-center gap-1 whitespace-nowrap transition-colors hover:text-foreground",
+          align === "right" && "flex-row-reverse",
           active && "text-foreground",
         )}
       >
@@ -148,20 +151,20 @@ export function UserSummaryTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, sortKey, sortDir])
 
-  const columns: { key: SortKey; label: string }[] = [
+  const columns: { key: SortKey; label: string; align?: "left" | "right" }[] = [
     { key: "name", label: t("colAgent") },
-    { key: "received", label: t("colReceived") },
-    { key: "closed", label: t("colClosed") },
-    { key: "inProgress", label: t("colInProgress") },
-    { key: "tma", label: t("colTma") },
-    { key: "firstResponse", label: t("colFirstResponse") },
-    { key: "slaFirstResponse", label: t("colSlaFirstResponse") },
-    { key: "slaResolution", label: t("colSlaResolution") },
-    { key: "messages", label: t("colMessages") },
-    { key: "transfers", label: t("colTransfers") },
-    { key: "nps", label: t("colNps") },
-    { key: "deals", label: t("colDeals") },
-    { key: "salesGoal", label: t("colSalesGoal") },
+    { key: "received", label: t("colReceived"), align: "right" },
+    { key: "closed", label: t("colClosed"), align: "right" },
+    { key: "inProgress", label: t("colInProgress"), align: "right" },
+    { key: "tma", label: t("colTma"), align: "right" },
+    { key: "firstResponse", label: t("colFirstResponse"), align: "right" },
+    { key: "slaFirstResponse", label: t("colSlaFirstResponse"), align: "right" },
+    { key: "slaResolution", label: t("colSlaResolution"), align: "right" },
+    { key: "messages", label: t("colMessages"), align: "right" },
+    { key: "transfers", label: t("colTransfers"), align: "right" },
+    { key: "nps", label: t("colNps"), align: "right" },
+    { key: "deals", label: t("colDeals"), align: "right" },
+    { key: "salesGoal", label: t("colSalesGoal"), align: "right" },
   ]
 
   return (
@@ -180,6 +183,7 @@ export function UserSummaryTable({
                 active={sortKey === col.key}
                 dir={sortDir}
                 onSort={handleSort}
+                align={col.align}
               />
             ))}
           </TableRow>
@@ -198,7 +202,8 @@ export function UserSummaryTable({
               </TableCell>
             </TableRow>
           ) : (
-            sortedRows.map(({ row, name }) => (
+            <>
+            {sortedRows.map(({ row, name }) => (
               <TableRow key={row.userId ?? "none"}>
                 <TableCell className="font-medium text-foreground">
                   {row.userId == null ? (
@@ -212,30 +217,30 @@ export function UserSummaryTable({
                     </Link>
                   )}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">{row.receivedCount.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.closedCount.toLocaleString()}</TableCell>
-                <TableCell className="font-mono tabular-nums">{row.inProgressCount.toLocaleString()}</TableCell>
-                <TableCell className="whitespace-nowrap font-mono tabular-nums">{fmtMeanMedian(row.tma)}</TableCell>
-                <TableCell className="whitespace-nowrap font-mono tabular-nums">
+                <TableCell className="text-right tabular-nums">{row.receivedCount.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.closedCount.toLocaleString()}</TableCell>
+                <TableCell className="text-right tabular-nums">{row.inProgressCount.toLocaleString()}</TableCell>
+                <TableCell className="whitespace-nowrap text-right tabular-nums">{fmtMeanMedian(row.tma)}</TableCell>
+                <TableCell className="whitespace-nowrap text-right tabular-nums">
                   {fmtMeanMedian(row.firstResponse)}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">
+                <TableCell className="text-right tabular-nums">
                   {formatSlaCompliancePct(row.sla.firstResponse)}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">
+                <TableCell className="text-right tabular-nums">
                   {formatSlaCompliancePct(row.sla.resolution)}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">{row.messagesSent.toLocaleString()}</TableCell>
-                <TableCell className="whitespace-nowrap font-mono tabular-nums">
+                <TableCell className="text-right tabular-nums">{row.messagesSent.toLocaleString()}</TableCell>
+                <TableCell className="whitespace-nowrap text-right tabular-nums">
                   {row.transfersMade.toLocaleString()} / {row.transfersReceived.toLocaleString()}
                 </TableCell>
-                <TableCell className="font-mono tabular-nums">
+                <TableCell className="text-right tabular-nums">
                   {row.npsAvgRating == null ? "—" : row.npsAvgRating.toFixed(1)}
                 </TableCell>
-                <TableCell className="whitespace-nowrap font-mono tabular-nums">
+                <TableCell className="whitespace-nowrap text-right tabular-nums">
                   {row.dealsWonCount.toLocaleString()} ({formatCurrency(row.dealsWonValue, currency)})
                 </TableCell>
-                <TableCell className="whitespace-nowrap font-mono tabular-nums">
+                <TableCell className="whitespace-nowrap text-right tabular-nums">
                   {row.salesGoalValue == null && row.salesGoalCount == null ? (
                     <span className="text-muted-foreground">{t("salesGoalNotConfigured")}</span>
                   ) : (
@@ -254,7 +259,37 @@ export function UserSummaryTable({
                   )}
                 </TableCell>
               </TableRow>
-            ))
+            ))}
+            <TableRow className={cn("border-t-2 border-border font-semibold")}>
+              <TableCell className="text-foreground">{t("totalRow")}</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.receivedCount, 0).toLocaleString()}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.closedCount, 0).toLocaleString()}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.inProgressCount, 0).toLocaleString()}
+              </TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+              <TableCell className="text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.messagesSent, 0).toLocaleString()}
+              </TableCell>
+              <TableCell className="whitespace-nowrap text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.transfersMade, 0).toLocaleString()} /{" "}
+                {rows.reduce((s, r) => s + r.transfersReceived, 0).toLocaleString()}
+              </TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+              <TableCell className="whitespace-nowrap text-right tabular-nums">
+                {rows.reduce((s, r) => s + r.dealsWonCount, 0).toLocaleString()} (
+                {formatCurrency(rows.reduce((s, r) => s + r.dealsWonValue, 0), currency)})
+              </TableCell>
+              <TableCell className="text-right text-muted-foreground">—</TableCell>
+            </TableRow>
+            </>
           )}
         </TableBody>
       </Table>

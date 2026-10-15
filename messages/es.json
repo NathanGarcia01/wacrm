@@ -2813,7 +2813,10 @@
       "colAgent": "Agente",
       "colAverage": "Promedio",
       "colReviews": "Calificaciones",
-      "empty": "No hay calificaciones asignadas a un agente en el período."
+      "empty": "No hay calificaciones asignadas a un agente en el período.",
+      "unassigned": "Sin responsable",
+      "insightTop": "{name} lidera con {value} de promedio",
+      "totalRow": "Total"
     },
     "npsReviewsTable": {
       "title": "Últimas calificaciones",
@@ -2833,7 +2836,10 @@
       "responseRate": "Tasa de respuesta",
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Nuevo en el período",
-      "flatVsPreviousPeriod": "Sin variación"
+      "flatVsPreviousPeriod": "Sin variación",
+      "surveysUnit": "encuestas",
+      "responsesUnit": "respuestas",
+      "noComparisonBase": "Sin base de comparación"
     },
     "npsDistributionChart": {
       "title": "Distribución de calificaciones",
@@ -3009,7 +3015,10 @@
       "newVsPreviousPeriod": "Nuevo en el período",
       "flatVsPreviousPeriod": "Sin variación",
       "otherIndicators": "Otros indicadores",
-      "liveQueueSubtitle": "Cola en vivo (independiente del período)"
+      "liveQueueSubtitle": "Cola en vivo (independiente del período)",
+      "ticketsUnit": "tickets",
+      "contactsUnit": "contactos",
+      "agentsUnit": "agentes"
     },
     "ticketsPerDayChart": {
       "title": "Atenciones por día",
@@ -3061,7 +3070,8 @@
       "resolutionViolationsTooltip": "Atenciones aún abiertas que ya superaron la meta de resolución, o que cerraron fuera de plazo — cuenta de inmediato, aunque la atención siga abierta.",
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Nuevo en el período",
-      "flatVsPreviousPeriod": "Sin variación"
+      "flatVsPreviousPeriod": "Sin variación",
+      "noComparisonBase": "Sin base de comparación"
     },
     "slaComplianceTrendChart": {
       "title": "Evolución del cumplimiento de la meta",
@@ -3079,7 +3089,8 @@
       "colResolutionViolations": "Violaciones resolución",
       "empty": "Ninguna atención evaluada en el período seleccionado.",
       "noAgent": "Sin agente",
-      "unknownAgent": "Agente eliminado"
+      "unknownAgent": "Agente eliminado",
+      "totalRow": "Total"
     },
     "atRiskTicketsList": {
       "title": "En riesgo ahora",
@@ -3115,7 +3126,8 @@
       "salesGoalNotConfigured": "Sin meta",
       "empty": "Ninguna actividad de agentes en el período seleccionado.",
       "noAgent": "Sin agente",
-      "unknownAgent": "Agente eliminado"
+      "unknownAgent": "Agente eliminado",
+      "totalRow": "Total"
     },
     "pipelineLossReasonChart": {
       "title": "Perdidos por motivo",

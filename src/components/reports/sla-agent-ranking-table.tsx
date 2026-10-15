@@ -9,6 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { cn } from "@/lib/utils"
 import type { SlaAgentRankingRow } from "@/lib/reports/types"
 import { formatSlaCompliancePct, formatSlaViolations } from "@/lib/reports/format"
 
@@ -25,6 +26,15 @@ export function SlaAgentRankingTable({
 }) {
   const t = useTranslations("reports.slaAgentRankingTable")
   const tCommon = useTranslations("common")
+
+  // Compliance % isn't additive across agents (it's a ratio, not a
+  // count) — the Total row only sums the two violation counts, which
+  // are, and leaves the % columns blank rather than show a fake
+  // average.
+  const totalFrViolations = rows.reduce((s, r) => s + (r.firstResponse.total - r.firstResponse.withinGoal), 0)
+  const totalResViolations = rows.reduce((s, r) => s + (r.resolution.total - r.resolution.withinGoal), 0)
+  const hasAnyJudged = rows.some((r) => r.firstResponse.total > 0 || r.resolution.total > 0)
+
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
@@ -34,10 +44,10 @@ export function SlaAgentRankingTable({
         <TableHeader>
           <TableRow>
             <TableHead>{t("colAgent")}</TableHead>
-            <TableHead>{t("colFirstResponsePct")}</TableHead>
-            <TableHead>{t("colFirstResponseViolations")}</TableHead>
-            <TableHead>{t("colResolutionPct")}</TableHead>
-            <TableHead>{t("colResolutionViolations")}</TableHead>
+            <TableHead className="text-right">{t("colFirstResponsePct")}</TableHead>
+            <TableHead className="text-right">{t("colFirstResponseViolations")}</TableHead>
+            <TableHead className="text-right">{t("colResolutionPct")}</TableHead>
+            <TableHead className="text-right">{t("colResolutionViolations")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -54,21 +64,34 @@ export function SlaAgentRankingTable({
               </TableCell>
             </TableRow>
           ) : (
-            rows.map((row) => (
-              <TableRow key={row.userId ?? "none"}>
-                <TableCell className="font-medium text-foreground">
-                  {row.userId == null ? t("noAgent") : agentNames.get(row.userId) ?? t("unknownAgent")}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">{formatSlaCompliancePct(row.firstResponse)}</TableCell>
-                <TableCell className="font-mono tabular-nums text-destructive">
-                  {formatSlaViolations(row.firstResponse)}
-                </TableCell>
-                <TableCell className="font-mono tabular-nums">{formatSlaCompliancePct(row.resolution)}</TableCell>
-                <TableCell className="font-mono tabular-nums text-destructive">
-                  {formatSlaViolations(row.resolution)}
-                </TableCell>
-              </TableRow>
-            ))
+            <>
+              {rows.map((row) => (
+                <TableRow key={row.userId ?? "none"}>
+                  <TableCell className="font-medium text-foreground">
+                    {row.userId == null ? t("noAgent") : agentNames.get(row.userId) ?? t("unknownAgent")}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatSlaCompliancePct(row.firstResponse)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-destructive">
+                    {formatSlaViolations(row.firstResponse)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{formatSlaCompliancePct(row.resolution)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-destructive">
+                    {formatSlaViolations(row.resolution)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {hasAnyJudged && (
+                <TableRow className={cn("border-t-2 border-border font-semibold")}>
+                  <TableCell className="text-foreground">{t("totalRow")}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">—</TableCell>
+                  <TableCell className="text-right tabular-nums text-destructive">{totalFrViolations}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">—</TableCell>
+                  <TableCell className="text-right tabular-nums text-destructive">{totalResViolations}</TableCell>
+                </TableRow>
+              )}
+            </>
           )}
         </TableBody>
       </Table>

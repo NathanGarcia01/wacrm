@@ -27,7 +27,7 @@ import {
   type TicketDashboardPeriodKey,
 } from "@/lib/reports/ticket-dashboard-period"
 import { previousPeriod } from "@/lib/reports/period"
-import { relativeDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, type DeltaLabels } from "@/lib/reports/delta"
 import { formatDurationSeconds } from "@/lib/reports/format"
 import type { TicketDashboardBundle, TicketDashboardCards, TicketDashboardFilterOptions } from "@/lib/reports/types"
 
@@ -107,6 +107,18 @@ export function AttendanceTab() {
     vsPrevious: t("vsPreviousPeriod"),
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
+  }
+  /** Low-baseline gate (same rule as Vendas): every KPI here is gated
+   *  by the previous period's ticket volume — the common sample-size
+   *  driver for a ticket count, a time average, or an agent count
+   *  alike. */
+  const formatCountAbsolute = (unit: string) => (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : ""}${diff.toLocaleString()} ${unit}`
+  }
+  const formatDurationAbsolute = (current: number, previous: number) => {
+    const diff = current - previous
+    return `${diff > 0 ? "+" : diff < 0 ? "-" : ""}${formatDurationSeconds(Math.abs(diff))}`
   }
 
   useEffect(() => {
@@ -195,7 +207,7 @@ export function AttendanceTab() {
           see their tooltips), so they move to the secondary strip
           without a delta instead of comparing a live count to a
           window that doesn't apply to it. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {loading || !bundle ? (
           Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
@@ -205,38 +217,65 @@ export function AttendanceTab() {
               value={bundle.cards.totalTickets.toLocaleString()}
               icon={Inbox}
               tooltip={t("totalTicketsTooltip")}
-              delta={relativeDelta(bundle.cards.totalTickets, previousCards?.totalTickets ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.totalTickets,
+                previousCards?.totalTickets ?? null,
+                previousCards?.totalTickets ?? 0,
+                deltaLabels,
+                formatCountAbsolute(t("ticketsUnit")),
+              )}
             />
             <MetricCard
               title={t("contactsServed")}
               value={bundle.cards.contactsServed.toLocaleString()}
               icon={UserCheck}
               tooltip={t("contactsServedTooltip")}
-              delta={relativeDelta(bundle.cards.contactsServed, previousCards?.contactsServed ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.contactsServed,
+                previousCards?.contactsServed ?? null,
+                previousCards?.totalTickets ?? 0,
+                deltaLabels,
+                formatCountAbsolute(t("contactsUnit")),
+              )}
             />
             <MetricCard
               title={t("agentsCount")}
               value={bundle.cards.agentsCount.toLocaleString()}
               icon={Users}
               tooltip={t("agentsCountTooltip")}
-              delta={relativeDelta(bundle.cards.agentsCount, previousCards?.agentsCount ?? null, deltaLabels)}
+              delta={gatedRelativeDelta(
+                bundle.cards.agentsCount,
+                previousCards?.agentsCount ?? null,
+                previousCards?.totalTickets ?? 0,
+                deltaLabels,
+                formatCountAbsolute(t("agentsUnit")),
+              )}
             />
             <MetricCard
               title={t("tma")}
               value={formatDurationSeconds(bundle.cards.tmaSeconds)}
               icon={Timer}
               tooltip={t("tmaTooltip")}
-              delta={relativeDelta(bundle.cards.tmaSeconds, previousCards?.tmaSeconds ?? null, deltaLabels, false)}
+              delta={gatedRelativeDelta(
+                bundle.cards.tmaSeconds,
+                previousCards?.tmaSeconds ?? null,
+                previousCards?.totalTickets ?? 0,
+                deltaLabels,
+                formatDurationAbsolute,
+                false,
+              )}
             />
             <MetricCard
               title={t("firstResponse")}
               value={formatDurationSeconds(bundle.cards.firstResponseSeconds)}
               icon={Reply}
               tooltip={t("firstResponseTooltip")}
-              delta={relativeDelta(
+              delta={gatedRelativeDelta(
                 bundle.cards.firstResponseSeconds,
                 previousCards?.firstResponseSeconds ?? null,
+                previousCards?.totalTickets ?? 0,
                 deltaLabels,
+                formatDurationAbsolute,
                 false,
               )}
             />
