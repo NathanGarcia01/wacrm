@@ -438,6 +438,11 @@ export interface PipelineStage {
   position: number;
   color: string;
   created_at: string;
+  /** When true, a deal dragged into this stage is automatically
+   *  marked `won` (won_at = the stage-change moment) — migration 112's
+   *  `deals_apply_won_stage` trigger. One-directional: moving a deal
+   *  back OUT of this stage never un-wins it. */
+  is_won_stage: boolean;
 }
 
 export type DealStatus = 'open' | 'won' | 'lost';

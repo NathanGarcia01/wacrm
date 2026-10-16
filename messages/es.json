@@ -851,7 +851,9 @@
       "moveOrDeleteDealsFirst": "Mueve o elimina los negocios de esta etapa primero",
       "deleteStageFailed": "Error al eliminar la etapa",
       "deletePipelineFailed": "Error al eliminar el pipeline",
-      "pipelineDeleted": "Pipeline eliminado"
+      "pipelineDeleted": "Pipeline eliminado",
+      "markAsWonLabel": "Marcar negocio como Ganado al entrar en esta etapa",
+      "markAsWonHint": "El trofeo marca la etapa de ganado automático — mover un negocio a ella lo marca como Ganado de inmediato, sin confirmación manual."
     },
     "dealForm": {
       "titleContactStageRequired": "Título, contacto y etapa son obligatorios",

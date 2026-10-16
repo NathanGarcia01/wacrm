@@ -851,7 +851,9 @@
       "moveOrDeleteDealsFirst": "Mova ou exclua os negócios desta etapa primeiro",
       "deleteStageFailed": "Falha ao excluir etapa",
       "deletePipelineFailed": "Falha ao excluir pipeline",
-      "pipelineDeleted": "Pipeline excluído"
+      "pipelineDeleted": "Pipeline excluído",
+      "markAsWonLabel": "Marcar negócio como Ganho ao entrar nesta etapa",
+      "markAsWonHint": "O troféu marca a etapa de ganho automático — mover um negócio para ela marca como Ganho na hora, sem precisar confirmar manualmente."
     },
     "dealForm": {
       "titleContactStageRequired": "Título, contato e etapa são obrigatórios",

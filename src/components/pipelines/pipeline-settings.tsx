@@ -34,6 +34,7 @@ import {
   Plus,
   GripVertical,
   AlertTriangle,
+  Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -116,6 +117,7 @@ export function PipelineSettings({
       name: s.name,
       color: s.color,
       position: i,
+      is_won_stage: s.is_won_stage,
     }));
 
     const [renameRes, stagesRes] = await Promise.all([
@@ -250,6 +252,7 @@ export function PipelineSettings({
 
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">{t("stagesLabel")}</Label>
+                <p className="text-xs text-muted-foreground">{t("markAsWonHint")}</p>
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
@@ -272,6 +275,11 @@ export function PipelineSettings({
                           onColorChange={(v) => {
                             const updated = [...localStages];
                             updated[index] = { ...updated[index], color: v };
+                            setLocalStages(updated);
+                          }}
+                          onWonStageChange={(v) => {
+                            const updated = [...localStages];
+                            updated[index] = { ...updated[index], is_won_stage: v };
                             setLocalStages(updated);
                           }}
                           onRemove={() => handleRemoveStage(stage.id)}
@@ -368,12 +376,14 @@ function SortableStageRow({
   stage,
   onNameChange,
   onColorChange,
+  onWonStageChange,
   onRemove,
   colors,
 }: {
   stage: PipelineStage;
   onNameChange: (v: string) => void;
   onColorChange: (v: string) => void;
+  onWonStageChange: (v: boolean) => void;
   onRemove: () => void;
   colors: string[];
 }) {
@@ -408,6 +418,21 @@ function SortableStageRow({
         onChange={(e) => onNameChange(e.target.value)}
         className="h-7 flex-1 border-transparent bg-transparent text-sm text-foreground focus:border-border"
       />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        onClick={() => onWonStageChange(!stage.is_won_stage)}
+        title={t("markAsWonLabel")}
+        aria-pressed={stage.is_won_stage}
+        className={
+          stage.is_won_stage
+            ? "text-gold hover:text-gold"
+            : "text-muted-foreground/40 hover:text-muted-foreground"
+        }
+      >
+        <Trophy className="h-3.5 w-3.5" />
+      </Button>
       <Button
         variant="ghost"
         size="icon-xs"

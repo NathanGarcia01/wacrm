@@ -851,7 +851,9 @@
       "moveOrDeleteDealsFirst": "Move or delete deals in this stage first",
       "deleteStageFailed": "Failed to delete stage",
       "deletePipelineFailed": "Failed to delete pipeline",
-      "pipelineDeleted": "Pipeline deleted"
+      "pipelineDeleted": "Pipeline deleted",
+      "markAsWonLabel": "Mark deal as Won when it enters this stage",
+      "markAsWonHint": "The trophy marks the automatic-win stage — dragging a deal into it marks it Won right away, no manual confirmation needed."
     },
     "dealForm": {
       "titleContactStageRequired": "Title, contact, and stage are required",
