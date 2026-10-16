@@ -1,0 +1,33 @@
+-- ============================================================
+-- 109_enable_rls_password_reset_and_embedded_signup.sql
+--
+-- Security advisory: both tables had RLS disabled in production,
+-- fully readable/writable by the anon key. Neither has any app code
+-- touching it anymore (grepped the whole src/ tree — zero hits):
+--
+-- password_reset_tokens: table from an earlier custom password-reset
+-- implementation. That flow was replaced by Supabase Auth's own
+-- resetPasswordForEmail (PKCE, via /auth/callback) — see
+-- src/app/(auth)/forgot-password/page.tsx's comment on why the old
+-- server-side /api/auth/forgot-password route (the only thing that
+-- ever wrote here) was removed. Confirmed empty (0 rows) before this
+-- migration.
+--
+-- whatsapp_embedded_signup_sessions: holding table for an earlier
+-- version of the Meta Embedded Signup flow (session row + redirect to
+-- /whatsapp-connect?session=<id>, per migration 066's header comment).
+-- The flow was simplified to a single FB.login (JS SDK) popup that
+-- hands code+wabaId+phoneNumberId straight to
+-- /api/whatsapp/embedded-signup/complete in one POST — no session
+-- table involved anymore. Confirmed empty (0 rows) before this
+-- migration. Migration 066 already intended `enable row level
+-- security` with zero policies here; it just never took effect in
+-- production (relrowsecurity was false), so this re-asserts it.
+--
+-- Neither table is dropped (not asked for, and a leftover empty table
+-- is harmless once locked down) — just sealed: RLS enabled, zero
+-- policies, so only service_role (which bypasses RLS) can touch them.
+-- ============================================================
+
+alter table public.password_reset_tokens enable row level security;
+alter table public.whatsapp_embedded_signup_sessions enable row level security;
