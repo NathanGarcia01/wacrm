@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import { MessageTemplate } from '@/types';
+import { MessageTemplate, WhatsAppChannelOption } from '@/types';
 import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-template';
 import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audience';
 import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
@@ -37,6 +37,44 @@ export default function NewBroadcastPage() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
+
+  // Loaded once here (not inside Step1) because Step4 also needs it for
+  // the quality-rating check + Evolution-risk badge — both now keyed off
+  // whichever channel was picked in Step1, rather than Step4 running its
+  // own second channel picker.
+  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
+  const [channelId, setChannelId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadChannels() {
+      try {
+        const res = await fetch('/api/whatsapp/channels');
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const active: WhatsAppChannelOption[] = (data.channels ?? []).filter(
+          (c: { is_active: boolean }) => c.is_active,
+        );
+        setChannels(active);
+        const defaultChannel = active.find((c) => c.is_default) ?? active[0];
+        if (defaultChannel) setChannelId(defaultChannel.id);
+      } catch {
+        // Best-effort — leaving channels empty just hides the picker.
+      }
+    }
+    loadChannels();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // The number is chosen BEFORE the template — a template only belongs
+  // to one WABA (migration 105), so switching numbers must drop
+  // whatever template was already picked for the old one.
+  function handleChannelChange(id: string) {
+    setChannelId(id);
+    setTemplate(null);
+  }
   const [audience, setAudience] = useState<{
     type: 'all' | 'tags' | 'custom_field' | 'csv' | 'pipeline_stage';
     tagIds?: string[];
@@ -221,6 +259,9 @@ export default function NewBroadcastPage() {
         >
           {currentStep === 0 && (
             <Step1ChooseTemplate
+              channels={channels}
+              channelId={channelId}
+              onChannelChange={handleChannelChange}
               selectedTemplate={template}
               onSelect={setTemplate}
               onNext={() => setCurrentStep(1)}
@@ -250,6 +291,8 @@ export default function NewBroadcastPage() {
               onNameChange={setName}
               template={template}
               audience={audience}
+              channels={channels}
+              channelId={channelId}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
               onBack={() => setCurrentStep(2)}

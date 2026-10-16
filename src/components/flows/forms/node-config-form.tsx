@@ -2200,6 +2200,7 @@ interface ApprovedTemplate {
   name: string;
   language: string | null;
   body_text: string;
+  waba_id: string | null;
 }
 
 /**
@@ -2218,7 +2219,7 @@ function useApprovedTemplates(): ApprovedTemplate[] {
     (async () => {
       const { data } = await supabase
         .from("message_templates")
-        .select("id, name, language, body_text")
+        .select("id, name, language, body_text, waba_id")
         .eq("status", "APPROVED")
         .eq("orphaned", false)
         .order("name");
@@ -2229,6 +2230,50 @@ function useApprovedTemplates(): ApprovedTemplate[] {
     };
   }, []);
   return templates;
+}
+
+interface ActiveChannel {
+  id: string;
+  name: string;
+  display_phone_number: string | null;
+  waba_id: string | null;
+}
+
+/**
+ * Active WhatsApp numbers — used only to label each template option
+ * with the number(s) whose WABA it belongs to (migration 105). A
+ * send_template node has no number field of its own: the runner
+ * resolves the channel per-conversation at send time
+ * (src/lib/flows/meta-send.ts), so this is informational, not a
+ * filter — the real enforcement is the server-side WABA guard that
+ * runs right before every send.
+ */
+function useActiveChannels(): ActiveChannel[] {
+  const [channels, setChannels] = useState<ActiveChannel[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const { data } = await supabase
+        .from("whatsapp_channels")
+        .select("id, name, display_phone_number, waba_id")
+        .eq("is_active", true)
+        .order("is_default", { ascending: false });
+      if (!cancelled) setChannels((data as ActiveChannel[] | null) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return channels;
+}
+
+function numbersForWaba(channels: ActiveChannel[], wabaId: string | null | undefined): string {
+  if (!wabaId) return "";
+  return channels
+    .filter((c) => c.waba_id === wabaId)
+    .map((c) => c.display_phone_number || c.name)
+    .join(", ");
 }
 
 /** Counts the highest `{{N}}` placeholder in a template body — Meta's
@@ -2256,6 +2301,8 @@ function SendTemplateForm({
 }) {
   const t = useTranslations("flows.forms");
   const templates = useApprovedTemplates();
+  const channels = useActiveChannels();
+  const multiChannel = channels.length > 1;
 
   const templateName = cfg.template_name ?? "";
   const language = cfg.language ?? "";
@@ -2300,9 +2347,11 @@ function SendTemplateForm({
             <option value="">{t("selectTemplate")}</option>
             {templates.map((tpl) => {
               const lang = tpl.language ?? "";
+              const numbers = multiChannel ? numbersForWaba(channels, tpl.waba_id) : "";
               return (
                 <option key={tpl.id} value={toValue(tpl.name, lang)}>
                   {tpl.name} {lang ? `(${lang})` : ""}
+                  {numbers ? ` — ${numbers}` : ""}
                 </option>
               );
             })}

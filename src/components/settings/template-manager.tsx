@@ -124,6 +124,24 @@ function emptyButton(type: TemplateButton['type']): TemplateButton {
   }
 }
 
+interface ChannelOption {
+  id: string;
+  name: string;
+  display_phone_number: string | null;
+  waba_id: string | null;
+}
+
+/** Active number(s) sharing this template's WABA — "" when the
+ *  template's waba_id is null (never synced since migration 105) or
+ *  matches no currently-connected number. */
+function numbersForWaba(channels: ChannelOption[], wabaId: string | null | undefined): string {
+  if (!wabaId) return '';
+  return channels
+    .filter((c) => c.waba_id === wabaId)
+    .map((c) => c.display_phone_number || c.name)
+    .join(', ');
+}
+
 const CATEGORY_KEY: Record<(typeof CATEGORIES)[number], 'marketing' | 'utility' | 'authentication'> = {
   Marketing: 'marketing',
   Utility: 'utility',
@@ -161,6 +179,12 @@ export function TemplateManager() {
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  // Active WhatsApp numbers, keyed to their WABA (message_templates.waba_id,
+  // migration 105) — drives the "filtrar por número" dropdown below and the
+  // per-template "which number sends this" badge, since templates from
+  // different WABAs must never be confused just because they share a name.
+  const [channels, setChannels] = useState<ChannelOption[]>([]);
+  const [channelFilter, setChannelFilter] = useState<string>('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -216,6 +240,42 @@ export function TemplateManager() {
     fetchTemplates(user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    supabase
+      .from('whatsapp_channels')
+      .select('id, name, display_phone_number, waba_id')
+      .eq('is_active', true)
+      .order('is_default', { ascending: false })
+      .then(({ data }) => setChannels((data as ChannelOption[] | null) ?? []));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const channelItems = useMemo(
+    () => ({
+      '': t('allNumbers'),
+      ...Object.fromEntries(
+        channels.map((c) => [c.id, c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name]),
+      ),
+    }),
+    [channels, t],
+  );
+
+  const selectedFilterChannel = useMemo(
+    () => channels.find((c) => c.id === channelFilter) ?? null,
+    [channels, channelFilter],
+  );
+
+  // Filtering by number means filtering by its WABA (migration 105) —
+  // two numbers on the same WABA share a catalog, so both show the
+  // same templates; a template with no waba_id yet (not re-synced
+  // since 105 shipped) matches nothing until the next sync fills it in.
+  const filteredTemplates = useMemo(() => {
+    if (!channelFilter) return templates;
+    const wabaId = selectedFilterChannel?.waba_id ?? null;
+    if (!wabaId) return [];
+    return templates.filter((tpl) => tpl.waba_id === wabaId);
+  }, [templates, channelFilter, selectedFilterChannel]);
 
   async function fetchTemplates(userId: string) {
     try {
@@ -541,7 +601,31 @@ export function TemplateManager() {
         }
       />
 
-      {templates.length === 0 ? (
+      {/* Only worth showing once there's a real choice to disambiguate
+          between — same convention as the broadcast/inbox channel
+          pickers. */}
+      {channels.length > 1 && (
+        <div className="flex items-center gap-2">
+          <Label className="text-sm font-medium text-foreground shrink-0">
+            {t('filterByNumberLabel')}
+          </Label>
+          <Select items={channelItems} value={channelFilter} onValueChange={(v) => setChannelFilter(v ?? '')}>
+            <SelectTrigger className="w-auto min-w-48 border-border bg-muted text-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-border bg-popover">
+              <SelectItem value="">{t('allNumbers')}</SelectItem>
+              {channels.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {filteredTemplates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-muted-foreground text-sm">{t('empty')}</p>
@@ -552,9 +636,10 @@ export function TemplateManager() {
         </Card>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
-          {templates.map((template) => {
+          {filteredTemplates.map((template) => {
             const statusKey = template.status || 'DRAFT';
             const status = templateStatusConfig[statusKey];
+            const numbers = numbersForWaba(channels, template.waba_id);
             return (
               <Card key={template.id}>
                 <CardContent className="flex items-start justify-between pt-4">
@@ -589,6 +674,13 @@ export function TemplateManager() {
                         </span>
                       )}
                     </div>
+                    {channels.length > 1 && (
+                      <p className="text-xs text-muted-foreground">
+                        {numbers
+                          ? `${t('numberBadgePrefix')} ${numbers}`
+                          : t('numberBadgeNone')}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {template.body_text}
                     </p>

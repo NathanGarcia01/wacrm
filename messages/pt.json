@@ -1263,7 +1263,11 @@
       "noTemplates": "Nenhum template disponível.",
       "createTemplateHint": "Crie um template em Configurações primeiro.",
       "back": "Voltar",
-      "next": "Próximo"
+      "next": "Próximo",
+      "sendFromChannel": "Enviar pelo número",
+      "chooseChannelHint": "Escolha primeiro o número que vai enviar — a lista de templates abaixo mostra só os aprovados para esse número.",
+      "noChannelConfigured": "Nenhum número do WhatsApp conectado. Conecte um número em Configurações primeiro.",
+      "selectChannelPlaceholder": "Selecione um número"
     },
     "step2": {
       "title": "Selecionar Audiência",
@@ -2183,7 +2187,11 @@
         "disabled": "Desativado",
         "inAppeal": "Em recurso",
         "pendingDeletion": "Exclusão pendente"
-      }
+      },
+      "filterByNumberLabel": "Filtrar por número",
+      "allNumbers": "Todos os números",
+      "numberBadgeNone": "Nenhum número ativo usa este modelo",
+      "numberBadgePrefix": "Número:"
     },
     "whatsapp": {
       "title": "Conexão do WhatsApp",

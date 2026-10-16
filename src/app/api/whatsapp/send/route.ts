@@ -7,6 +7,7 @@ import {
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
 import { resolveChannelById } from '@/lib/whatsapp/channels'
+import { templateBelongsToWaba, templateWabaMismatchMessage } from '@/lib/whatsapp/template-waba-guard'
 import { sendEvolutionText } from '@/lib/whatsapp/evolution-client'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
@@ -291,6 +292,13 @@ export async function POST(request: Request) {
           )
         }
         templateRow = data ?? null
+
+        if (templateRow && !templateBelongsToWaba(templateRow.waba_id, config.wabaId)) {
+          return NextResponse.json(
+            { error: templateWabaMismatchMessage(template_name) },
+            { status: 400 },
+          )
+        }
       }
 
       const attempt = async (phone: string): Promise<string> => {

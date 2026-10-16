@@ -10,13 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -46,7 +39,7 @@ import {
   type CadenceSettings,
 } from '@/lib/broadcast-cadence';
 import { ImportTagMultiSelect } from '@/components/contacts/import-tag-multiselect';
-import type { Tag } from '@/types';
+import type { Tag, WhatsAppChannelOption } from '@/types';
 
 interface AudienceConfig {
   type: string;
@@ -62,6 +55,11 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
+  /** Loaded once by the wizard's root page and already fixed by Step1
+   *  (the number is chosen before the template, not here) — this step
+   *  only reads it for the quality check + Evolution-risk gate below. */
+  channels: WhatsAppChannelOption[];
+  channelId: string | null;
   onSend: (
     cadence: CadenceSettings,
     scheduledAt: Date | null,
@@ -72,14 +70,6 @@ interface Step4Props {
   onBack: () => void;
   isProcessing: boolean;
   progress: number;
-}
-
-interface WhatsAppChannelOption {
-  id: string;
-  name: string;
-  display_phone_number: string | null;
-  is_default: boolean;
-  channel_type: 'cloud_api' | 'evolution';
 }
 
 // "Per session" — sessionStorage clears when the tab/browser session
@@ -187,6 +177,8 @@ export function Step4ScheduleSend({
   onNameChange,
   template,
   audience,
+  channels,
+  channelId: selectedChannelId,
   onSend,
   onSaveDraft,
   onBack,
@@ -201,9 +193,6 @@ export function Step4ScheduleSend({
 
   const [quality, setQuality] = useState<QualityRating>('UNKNOWN');
   const [loadingQuality, setLoadingQuality] = useState(true);
-
-  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([]);
-  const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
 
   const [cadence, setCadence] = useState<CadenceSettings>(DEFAULT_CADENCE);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -265,46 +254,6 @@ export function Step4ScheduleSend({
 
     calculateReach();
   }, [audience]);
-
-  // Load the account's active WhatsApp channels once so the user can pick
-  // which number sends this broadcast. Pre-select the account's default
-  // channel — matches what a send would fall back to anyway if left
-  // unset (see src/lib/whatsapp/channels.ts's resolveDefaultChannel).
-  useEffect(() => {
-    let cancelled = false;
-    async function loadChannels() {
-      try {
-        const res = await fetch('/api/whatsapp/channels');
-        const data = await res.json();
-        if (cancelled || !res.ok) return;
-        const active: WhatsAppChannelOption[] = (data.channels ?? []).filter(
-          (c: { is_active: boolean }) => c.is_active,
-        );
-        setChannels(active);
-        const defaultChannel = active.find((c) => c.is_default) ?? active[0];
-        if (defaultChannel) setSelectedChannelId(defaultChannel.id);
-      } catch {
-        // Best-effort — leaving channels empty just hides the selector,
-        // and sends fall back to the account's default channel server-side.
-      }
-    }
-    loadChannels();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Base UI's <Select> only resolves the trigger's displayed label from
-  // its `items` map (or from the popup's <SelectItem> children once the
-  // popup has actually been opened) — without `items`, a freshly loaded
-  // list briefly shows the raw channel id instead of its name.
-  const channelItems = useMemo(
-    () =>
-      Object.fromEntries(
-        channels.map((c) => [c.id, c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name]),
-      ),
-    [channels],
-  );
 
   const selectedChannel = useMemo(
     () => channels.find((c) => c.id === selectedChannelId) ?? null,
@@ -386,40 +335,21 @@ export function Step4ScheduleSend({
         />
       </div>
 
-      {/* Channel selection — only worth showing when there's a real choice */}
-      {channels.length > 1 && (
-        <div className="space-y-2">
+      {/* Number was already fixed in Step1 (chosen before the template,
+          since a template only belongs to one WABA) — shown here
+          read-only rather than re-offered as a picker. */}
+      {selectedChannel && (
+        <div className="space-y-1">
           <Label className="text-sm font-medium text-foreground">{t('sendFromChannel')}</Label>
-          <Select
-            items={channelItems}
-            value={selectedChannelId ?? undefined}
-            onValueChange={(v) => v && setSelectedChannelId(v)}
-          >
-            <SelectTrigger className="w-full border-border bg-muted text-foreground">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="border-border bg-popover">
-              {channels.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  <span className="flex items-center gap-2">
-                    {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
-                    {c.channel_type === 'evolution' && <EvolutionChannelBadge />}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <p className="flex items-center gap-2 text-sm text-foreground">
+            {selectedChannel.display_phone_number
+              ? `${selectedChannel.name} (${selectedChannel.display_phone_number})`
+              : selectedChannel.name}
+            {selectedChannel.channel_type === 'evolution' && <EvolutionChannelBadge />}
+          </p>
         </div>
       )}
 
-      {/* Standalone warning for the channel that will actually send —
-          shown even with a single channel (and thus no picker above),
-          since that's the common case and the risk still applies. */}
-      {isEvolutionChannel && (
-        <div>
-          <EvolutionChannelBadge />
-        </div>
-      )}
 
       {/* Account quality */}
       <div className="space-y-2">

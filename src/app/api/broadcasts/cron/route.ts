@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { MetaApiError, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { resolveChannelById, resolveAccountOwnerUserId } from '@/lib/whatsapp/channels'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
+import { templateBelongsToWaba } from '@/lib/whatsapp/template-waba-guard'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -282,6 +283,22 @@ export async function GET(request: Request) {
       .eq('language', row.template_language || 'en_US')
       .maybeSingle()
     const templateRow = rawTemplateRow && isMessageTemplate(rawTemplateRow) ? rawTemplateRow : null
+
+    // The template must belong to the same WABA as the channel sending
+    // it (migration 105's waba_id) — a broadcast created before its
+    // template or channel changed WABA would otherwise 400 on every
+    // recipient. Same unrecoverable-until-admin-acts shape as the
+    // "no config" branch above: pause an hour rather than busy-loop.
+    if (templateRow && !templateBelongsToWaba(templateRow.waba_id, config.wabaId)) {
+      console.error(
+        `[broadcasts/cron] broadcast ${row.id} template "${row.template_name}" (waba ${templateRow.waba_id}) does not match channel waba ${config.wabaId} — pausing`,
+      )
+      await admin
+        .from('broadcasts')
+        .update({ next_batch_at: new Date(Date.now() + RATE_LIMIT_PAUSE_MS).toISOString() })
+        .eq('id', row.id)
+      continue
+    }
 
     const { data: recipients } = await admin
       .from('broadcast_recipients')

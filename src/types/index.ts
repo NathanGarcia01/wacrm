@@ -280,6 +280,10 @@ export interface WhatsAppChannelOption {
   display_phone_number: string | null;
   is_default: boolean;
   channel_type: WhatsAppChannelType;
+  /** WABA this number's templates come from (message_templates.waba_id,
+   *  migration 105) — drives the per-channel template filter so a
+   *  template from another WABA never shows for the wrong number. */
+  waba_id: string | null;
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';

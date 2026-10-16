@@ -1580,6 +1580,7 @@ export function MessageThread({
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
+        wabaId={activeChannel?.waba_id ?? null}
       />
 
       <Dialog

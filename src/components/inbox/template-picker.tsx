@@ -34,6 +34,13 @@ interface TemplatePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (template: MessageTemplate, values: TemplateSendValues) => void;
+  /** WABA of the conversation's active channel ("Enviando por") — only
+   *  templates from this WABA may be offered, since a template
+   *  approved on another WABA can't be sent through this number.
+   *  null while channels are still loading or none are configured,
+   *  in which case the list stays empty rather than showing anything
+   *  unfiltered. */
+  wabaId: string | null;
 }
 
 function renderBodyPreview(body: string, params: string[]): string {
@@ -78,6 +85,7 @@ export function TemplatePicker({
   open,
   onOpenChange,
   onSelect,
+  wabaId,
 }: TemplatePickerProps) {
   const t = useTranslations("inbox.templatePicker");
   const tCommon = useTranslations("common");
@@ -90,6 +98,15 @@ export function TemplatePicker({
 
   useEffect(() => {
     if (!open) return;
+
+    // No known WABA yet (channels still loading, or none configured) —
+    // stay empty rather than showing templates that might belong to a
+    // different number than the one about to send them.
+    if (!wabaId) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
@@ -115,6 +132,10 @@ export function TemplatePicker({
         // Templates no longer in any currently-connected WABA
         // (migration 105) must never be offered for a new send.
         .eq("orphaned", false)
+        // Only templates from the WABA of the number actually sending
+        // this message — a template approved on another WABA can't be
+        // dispatched through this channel even if the names match.
+        .eq("waba_id", wabaId)
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
@@ -130,7 +151,7 @@ export function TemplatePicker({
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, wabaId]);
 
   function resetSelection() {
     setSelected(null);

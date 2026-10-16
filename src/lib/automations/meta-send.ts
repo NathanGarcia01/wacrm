@@ -1,5 +1,6 @@
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { resolveChannelById } from '@/lib/whatsapp/channels'
+import { assertTemplateMatchesChannelWaba } from '@/lib/whatsapp/template-waba-guard'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -97,6 +98,15 @@ async function sendViaMeta(input: SendInput): Promise<{ whatsapp_message_id: str
   }
 
   const accessToken = config.accessToken
+
+  if (input.kind === 'template') {
+    await assertTemplateMatchesChannelWaba(db, {
+      accountId: input.accountId,
+      templateName: input.templateName,
+      templateLanguage: input.language,
+      channelWabaId: config.wabaId,
+    })
+  }
 
   const attempt = async (phone: string): Promise<string> => {
     if (input.kind === 'template') {

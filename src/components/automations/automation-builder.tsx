@@ -64,6 +64,7 @@ import type {
   Pipeline,
   PipelineStage,
   Tag as TagRecord,
+  WhatsAppChannelOption,
 } from "@/types"
 import { createClient } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
@@ -242,6 +243,14 @@ interface AutomationResources {
   tags: TagRecord[]
   members: AccountMember[]
   templates: MessageTemplate[]
+  /** Active WhatsApp channels — used only to label each template option
+   *  with the number(s) whose WABA it belongs to (migration 105). A
+   *  send_template step has no number field of its own: the engine
+   *  resolves the channel per-conversation at send time
+   *  (src/lib/automations/meta-send.ts), so this is informational,
+   *  not a filter — the real enforcement is the server-side WABA guard
+   *  that runs right before every send. */
+  channels: WhatsAppChannelOption[]
   customFields: CustomField[]
   pipelines: Pipeline[]
   stages: PipelineStage[]
@@ -252,6 +261,7 @@ const ResourcesContext = createContext<AutomationResources>({
   tags: [],
   members: [],
   templates: [],
+  channels: [],
   customFields: [],
   pipelines: [],
   stages: [],
@@ -266,6 +276,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
   const [tags, setTags] = useState<TagRecord[]>([])
   const [members, setMembers] = useState<AccountMember[]>([])
   const [templates, setTemplates] = useState<MessageTemplate[]>([])
+  const [channels, setChannels] = useState<WhatsAppChannelOption[]>([])
   const [customFields, setCustomFields] = useState<CustomField[]>([])
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [stages, setStages] = useState<PipelineStage[]>([])
@@ -281,7 +292,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
     // sent (anything else 400s at send time), matching the broadcast
     // picker.
     void (async () => {
-      const [tagsRes, templatesRes, customFieldsRes, pipelinesRes, stagesRes, automationsRes] =
+      const [tagsRes, templatesRes, channelsRes, customFieldsRes, pipelinesRes, stagesRes, automationsRes] =
         await Promise.all([
           supabase.from("tags").select("*").order("name"),
           supabase
@@ -290,6 +301,11 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
             .eq("status", "APPROVED")
             .eq("orphaned", false)
             .order("name"),
+          supabase
+            .from("whatsapp_channels")
+            .select("id, name, display_phone_number, is_default, channel_type, waba_id")
+            .eq("is_active", true)
+            .order("is_default", { ascending: false }),
           supabase.from("custom_fields").select("*").order("field_name"),
           supabase.from("pipelines").select("*").order("name"),
           supabase.from("pipeline_stages").select("*").order("position"),
@@ -298,6 +314,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setTags((tagsRes.data as TagRecord[] | null) ?? [])
       setTemplates((templatesRes.data as MessageTemplate[] | null) ?? [])
+      setChannels((channelsRes.data as WhatsAppChannelOption[] | null) ?? [])
       setCustomFields((customFieldsRes.data as CustomField[] | null) ?? [])
       setPipelines((pipelinesRes.data as Pipeline[] | null) ?? [])
       setStages((stagesRes.data as PipelineStage[] | null) ?? [])
@@ -325,7 +342,7 @@ function ResourcesProvider({ children }: { children: ReactNode }) {
 
   return (
     <ResourcesContext.Provider
-      value={{ tags, members, templates, customFields, pipelines, stages, automations }}
+      value={{ tags, members, templates, channels, customFields, pipelines, stages, automations }}
     >
       {children}
     </ResourcesContext.Provider>
@@ -467,6 +484,23 @@ function AgentSelect({
   )
 }
 
+/** Which active number(s) share the template's WABA (migration 105) —
+ *  purely informational label, not a filter: a send_template step has
+ *  no number field of its own (the engine resolves the conversation's
+ *  channel dynamically at send time), so this just helps the author
+ *  avoid picking a template that the server-side WABA guard would
+ *  later reject for whichever conversation this automation runs on. */
+function numbersForWaba(
+  channels: WhatsAppChannelOption[],
+  wabaId: string | null | undefined,
+): string {
+  if (!wabaId) return ""
+  return channels
+    .filter((c) => c.waba_id === wabaId)
+    .map((c) => c.display_phone_number || c.name)
+    .join(", ")
+}
+
 /** Template dropdown showing approved templates by name + language,
  *  storing both template_name and language. Falls back to manual name +
  *  language inputs when no approved templates are synced yet. */
@@ -480,7 +514,8 @@ function SendTemplateFields({
   onChange: (patch: { template_name: string; language: string }) => void
 }) {
   const t = useTranslations("automations.builder")
-  const { templates } = useResources()
+  const { templates, channels } = useResources()
+  const multiChannel = channels.length > 1
 
   if (templates.length === 0) {
     return (
@@ -528,9 +563,10 @@ function SendTemplateFields({
         <option value="">{t("selectTemplate")}</option>
         {templates.map((tpl) => {
           const lang = tpl.language ?? "en_US"
+          const numbers = multiChannel ? numbersForWaba(channels, tpl.waba_id) : ""
           return (
             <option key={tpl.id} value={toValue(tpl.name, lang)}>
-              {tpl.name} ({lang})
+              {tpl.name} ({lang}){numbers ? ` — ${numbers}` : ""}
             </option>
           )
         })}

@@ -1,10 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
-import { MessageTemplate } from '@/types';
+import { MessageTemplate, WhatsAppChannelOption } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2, FileText, ArrowRight } from 'lucide-react';
 
 const categoryColors: Record<string, string> = {
@@ -14,21 +22,61 @@ const categoryColors: Record<string, string> = {
 };
 
 interface Step1Props {
+  channels: WhatsAppChannelOption[];
+  channelId: string | null;
+  onChannelChange: (channelId: string) => void;
   selectedTemplate: MessageTemplate | null;
   onSelect: (template: MessageTemplate) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
-export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack }: Step1Props) {
+export function Step1ChooseTemplate({
+  channels,
+  channelId,
+  onChannelChange,
+  selectedTemplate,
+  onSelect,
+  onNext,
+  onBack,
+}: Step1Props) {
   const t = useTranslations('broadcasts.step1');
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const selectedChannel = useMemo(
+    () => channels.find((c) => c.id === channelId) ?? null,
+    [channels, channelId],
+  );
+  const wabaId = selectedChannel?.waba_id ?? null;
+
+  const channelItems = useMemo(
+    () =>
+      Object.fromEntries(
+        channels.map((c) => [
+          c.id,
+          c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name,
+        ]),
+      ),
+    [channels],
+  );
+
+  // Template list only loads once a number is chosen — and is scoped
+  // to that number's WABA (migration 105): a template approved on
+  // another WABA can't be sent through this number, so it must never
+  // even show up as an option here.
   useEffect(() => {
+    if (!wabaId) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     async function fetchTemplates() {
       try {
+        setLoading(true);
         const supabase = createClient();
         // Only APPROVED templates can be sent via Meta — anything else
         // would 400 at broadcast time. Hide them rather than letting
@@ -41,35 +89,23 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
           // broadcast picking it would fail the same way a deleted
           // template would.
           .eq('orphaned', false)
+          .eq('waba_id', wabaId)
           .order('created_at', { ascending: false });
 
         if (fetchError) throw fetchError;
-        setTemplates(data ?? []);
+        if (!cancelled) setTemplates(data ?? []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : t('loadFailed'));
+        if (!cancelled) setError(err instanceof Error ? err.message : t('loadFailed'));
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     fetchTemplates();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-destructive">{error}</p>
-      </div>
-    );
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [wabaId, t]);
 
   return (
     <div className="space-y-6">
@@ -80,7 +116,44 @@ export function Step1ChooseTemplate({ selectedTemplate, onSelect, onNext, onBack
         </p>
       </div>
 
-      {templates.length === 0 ? (
+      {/* Number first — the template list below only exists once this
+          is set, and is scoped to its WABA. */}
+      <div className="space-y-2">
+        <Label className="text-sm font-medium text-foreground">{t('sendFromChannel')}</Label>
+        {channels.length > 0 ? (
+          <>
+            <Select
+              items={channelItems}
+              value={channelId ?? undefined}
+              onValueChange={(v) => v && onChannelChange(v)}
+            >
+              <SelectTrigger className="w-full border-border bg-muted text-foreground">
+                <SelectValue placeholder={t('selectChannelPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-popover">
+                {channels.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.display_phone_number ? `${c.name} (${c.display_phone_number})` : c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t('chooseChannelHint')}</p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('noChannelConfigured')}</p>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex h-48 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      ) : error ? (
+        <div className="flex h-48 flex-col items-center justify-center gap-2">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      ) : templates.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-border bg-card/50">
           <FileText className="mb-2 h-8 w-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">{t('noTemplates')}</p>
