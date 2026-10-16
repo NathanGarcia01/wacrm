@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { useAuth } from "@/hooks/use-auth"
 import { formatCurrency } from "@/lib/currency"
+import { formatPercent } from "@/lib/reports/format"
 import type { BroadcastReportRow } from "@/lib/reports/types"
 import { localeToIntl, type Locale } from "@/i18n/locales"
 
@@ -53,10 +54,6 @@ const COLUMNS: {
 
 function fmtDate(iso: string, locale: Locale): string {
   return new Date(iso).toLocaleDateString(localeToIntl(locale), { day: "2-digit", month: "2-digit", year: "numeric" })
-}
-
-function fmtPct(v: number | null): string {
-  return v == null ? "—" : `${v.toFixed(0)}%`
 }
 
 function sortValue(row: BroadcastReportRow, key: SortKey): number | string {
@@ -167,14 +164,14 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                 <TableCell className="tabular-nums text-right">{b.sentCount.toLocaleString()}</TableCell>
                 <TableCell className="tabular-nums text-right">
                   {b.repliedCount.toLocaleString()}
-                  <span className="ml-1 text-muted-foreground">({fmtPct(b.replyRatePct)})</span>
+                  <span className="ml-1 text-muted-foreground">({formatPercent(b.replyRatePct)})</span>
                 </TableCell>
                 <TableCell className="text-right">
                   {b.button1 ? (
                     <span className="tabular-nums">
                       <span className="text-foreground">{b.button1.label}</span>{" "}
                       {b.button1.count.toLocaleString()}
-                      <span className="ml-1 text-muted-foreground">({fmtPct(b.button1.pct)})</span>
+                      <span className="ml-1 text-muted-foreground">({formatPercent(b.button1.pct)})</span>
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>
@@ -185,7 +182,7 @@ export function BroadcastsTable({ broadcasts, loading }: { broadcasts: Broadcast
                     <span className="tabular-nums">
                       <span className="text-foreground">{b.button2.label}</span>{" "}
                       {b.button2.count.toLocaleString()}
-                      <span className="ml-1 text-muted-foreground">({fmtPct(b.button2.pct)})</span>
+                      <span className="ml-1 text-muted-foreground">({formatPercent(b.button2.pct)})</span>
                     </span>
                   ) : (
                     <span className="text-muted-foreground">—</span>

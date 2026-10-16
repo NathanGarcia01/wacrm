@@ -2694,7 +2694,8 @@
       "flatVsPreviousPeriod": "No change",
       "otherIndicators": "Other indicators",
       "funnelInsight": "{pct}% of messages sent turned into a won deal",
-      "noComparisonBase": "No comparison base"
+      "noComparisonBase": "No comparison base",
+      "attributedShareSubtitle": "of {total} in the period ({pct})"
     },
     "broadcastsTable": {
       "title": "Broadcasts this period",
@@ -2751,7 +2752,8 @@
       "otherIndicators": "Other indicators",
       "funnelInsight": "{pct}% of sends turned into a won deal",
       "noComparisonBase": "No comparison base",
-      "colTotal": "Total"
+      "colTotal": "Total",
+      "attributedShareSubtitle": "of {total} in the period ({pct})"
     },
     "commissionAgentRankingTable": {
       "title": "Commission by agent",

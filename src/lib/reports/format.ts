@@ -29,3 +29,20 @@ export function formatSlaCompliancePct(m: SlaMetricCounts): string {
 export function formatSlaViolations(m: SlaMetricCounts): string {
   return m.total === 0 ? "—" : (m.total - m.withinGoal).toLocaleString()
 }
+
+/**
+ * Percent with at least one decimal place, in the VIEWER's locale
+ * (comma for pt-BR, period for en-US — same `Intl.NumberFormat(undefined, …)`
+ * convention as formatCurrency in src/lib/currency.ts) — a small
+ * conversion-rate like 0.3% used to round to "0%" with the old
+ * `.toFixed(0)}%` convention, which reads as "nothing converted" when
+ * something did. `value` is already on the 0-100 scale (not a 0-1
+ * fraction).
+ */
+export function formatPercent(value: number | null, decimals = 1): string {
+  if (value == null) return "—"
+  return `${new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value)}%`
+}

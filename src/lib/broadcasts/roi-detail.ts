@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { findLastTouch, loadTouchesByPhone, touchWindowFor } from './attribution'
 import { computeAndSaveBroadcastCost } from './meta-cost'
 import { computeRoiCards, costBreakdown } from './roi-metrics'
 import type { AttributedWonDeal } from './roi-metrics'
@@ -14,7 +15,7 @@ interface DealRow {
   status: string
   won_at: string | null
   created_at: string
-  contact: { name: string | null; phone: string | null } | { name: string | null; phone: string | null }[] | null
+  contact: { name: string | null; phone: string | null; phone_normalized: string | null } | { name: string | null; phone: string | null; phone_normalized: string | null }[] | null
   products: { commission_value: number | null }[] | null
 }
 
@@ -23,12 +24,14 @@ function one<T>(v: T | T[] | null): T | null {
 }
 
 /**
- * Expanded ROI for a single broadcast — used by /broadcasts/[id]. Same
- * attribution + commission math as loadBroadcastRoiReport (the period
- * aggregate in Reports), just scoped to one broadcast instead of
- * summed across many. Kept as a separate query (rather than calling
- * the aggregate one with a 1-broadcast period) because this needs the
- * per-deal table rows the aggregate report doesn't.
+ * Expanded ROI for a single broadcast — used by /broadcasts/[id].
+ * Same last-touch/30-day/phone attribution rule as the aggregate
+ * reports (src/lib/broadcasts/attribution.ts) and Pipeline & Vendas'
+ * campaign attribution, just scoped to "is THIS broadcast the last
+ * touch" instead of "which broadcast is the last touch" — kept as a
+ * separate query (rather than calling the aggregate one with a
+ * 1-broadcast period) because this needs the per-deal table rows the
+ * aggregate report doesn't.
  */
 export async function loadBroadcastRoiDetail(db: DB, broadcastId: string): Promise<BroadcastRoiDetail> {
   const { data: broadcast, error } = await db
@@ -75,37 +78,56 @@ export async function loadBroadcastRoiDetail(db: DB, broadcastId: string): Promi
     rateAuthentication: broadcast.meta_cost_authentication,
   })
 
+  // Phones this broadcast actually reached — the attribution key, not
+  // contact_id, so a contact re-imported under a new id after the
+  // send still resolves back to the same touch.
   const { data: recipients } = await db
     .from('broadcast_recipients')
-    .select('contact_id')
+    .select('contact:contacts(phone_normalized)')
     .eq('broadcast_id', broadcastId)
     .in('status', ['sent', 'delivered', 'read', 'replied'])
     .not('contact_id', 'is', null)
-  const contactIds = [...new Set((recipients ?? []).map((r) => r.contact_id as string))]
+  const reachedPhones = [
+    ...new Set(
+      ((recipients ?? []) as { contact: { phone_normalized: string | null } | { phone_normalized: string | null }[] | null }[])
+        .map((r) => one(r.contact)?.phone_normalized)
+        .filter((p): p is string => Boolean(p)),
+    ),
+  ]
 
   let deals: DealRow[] = []
-  if (contactIds.length > 0) {
-    const { data: dealsData } = await db
-      .from('deals')
-      .select(
-        'id, title, contact_id, value, status, won_at, created_at, contact:contacts(name, phone), products:deal_products(commission_value)',
-      )
-      .in('contact_id', contactIds)
-    deals = (dealsData ?? []) as unknown as DealRow[]
+  if (reachedPhones.length > 0) {
+    const { data: contactsData } = await db.from('contacts').select('id').in('phone_normalized', reachedPhones)
+    const candidateContactIds = [...new Set((contactsData ?? []).map((c) => c.id as string))]
+    if (candidateContactIds.length > 0) {
+      const { data: dealsData } = await db
+        .from('deals')
+        .select(
+          'id, title, contact_id, value, status, won_at, created_at, contact:contacts(name, phone, phone_normalized), products:deal_products(commission_value)',
+        )
+        .in('contact_id', candidateContactIds)
+      deals = (dealsData ?? []) as unknown as DealRow[]
+    }
   }
 
   const dealCommission = (d: DealRow) =>
     (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
 
-  // Deals created after the broadcast went out — feeds the "deals
-  // created" funnel step.
-  const dealsCreated = deals.filter((d) => d.created_at > broadcast.created_at)
+  // Resolve, for every candidate deal, whether THIS broadcast is its
+  // last touch within the attribution window — a deal only shows up
+  // here if no later broadcast to the same phone takes credit first.
+  const window = touchWindowFor(deals.map((d) => d.created_at))
+  const touchesByPhone = window ? await loadTouchesByPhone(db, window) : new Map()
+  const isAttributedToThisBroadcast = (d: DealRow): boolean => {
+    const phone = one(d.contact)?.phone_normalized
+    if (!phone) return false
+    const touch = findLastTouch(touchesByPhone.get(phone), d.created_at)
+    return touch?.broadcastId === broadcastId
+  }
 
-  // Won deals attributed to this broadcast: contact received it AND
-  // the deal closed on/after that date — independent of when the deal
-  // itself was created, so a pre-existing deal that closes after a
-  // follow-up broadcast still counts (see FIEB case).
-  const wonDealRows = deals.filter((d) => d.status === 'won' && d.won_at && d.won_at >= broadcast.created_at)
+  const dealsCreated = deals.filter(isAttributedToThisBroadcast)
+
+  const wonDealRows = dealsCreated.filter((d) => d.status === 'won' && d.won_at)
   const wonDeals: AttributedWonDeal[] = wonDealRows.map((d) => ({
     commission: dealCommission(d),
     wonAt: d.won_at!,
@@ -117,6 +139,8 @@ export async function loadBroadcastRoiDetail(db: DB, broadcastId: string): Promi
     leadsGenerated: broadcast.replied_count,
     dealsCreated: dealsCreated.length,
     wonDeals,
+    periodTotalDealsWon: wonDeals.length,
+    periodTotalCommission: wonDeals.reduce((sum, d) => sum + d.commission, 0),
   })
 
   const funnel = {

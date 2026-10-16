@@ -284,12 +284,21 @@ export interface BroadcastReportCards {
   uniqueContactsReached: number
   /** replied / sent × 100, 0-100. Null when totalSent is 0. */
   replyRatePct: number | null
-  /** Deals won whose contact received one of these broadcasts and the
-   *  deal was created after it went out — same attribution rule as the
-   *  ROI tab (src/lib/reports/broadcast-roi-queries.ts). */
+  /** Deals won in the period whose contact's last broadcast touch
+   *  (within 30 days before the deal was created) is one of these
+   *  broadcasts — src/lib/broadcasts/attribution.ts, same rule as
+   *  Pipeline & Vendas' campaign attribution. */
   dealsWon: number
   /** Sum of deal_products.commission_value across dealsWon. */
   commissionGenerated: number
+  /** ALL deals won in the period for the account, regardless of
+   *  attribution — the honest denominator for "dealsWon is only a
+   *  slice of this". Lets the UI show "de N no período (Y%)" instead
+   *  of implying dealsWon is the account's total win count. */
+  periodTotalDealsWon: number
+  /** Sum of deal_products.commission_value across periodTotalDealsWon —
+   *  same honesty denominator, for the commission card. */
+  periodTotalCommission: number
 }
 
 /** One quick-reply button's click count for a broadcast, ranked by
@@ -377,6 +386,11 @@ export interface BroadcastRoiCards {
   avgCommissionPerDeal: number | null
   /** Average won_at - broadcast.created_at, in days. Null when dealsWon is 0. */
   avgDaysToClose: number | null
+  /** ALL deals won in the period for the account, regardless of
+   *  attribution — see BroadcastReportCards.periodTotalDealsWon. */
+  periodTotalDealsWon: number
+  /** Sum of deal_products.commission_value across periodTotalDealsWon. */
+  periodTotalCommission: number
 }
 
 export interface BroadcastRoiRow {

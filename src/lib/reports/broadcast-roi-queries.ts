@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { findLastTouch, loadTouchesByPhone, touchWindowFor } from '@/lib/broadcasts/attribution'
 import { computeAndSaveBroadcastCost } from '@/lib/broadcasts/meta-cost'
 import { addCostBreakdown, computeRoiCards, costBreakdown, ZERO_COST } from '@/lib/broadcasts/roi-metrics'
 import type {
@@ -27,6 +28,7 @@ interface BroadcastRow {
 interface DealRow {
   id: string
   contact_id: string
+  phone_normalized: string | null
   value: number
   status: string
   won_at: string | null
@@ -34,15 +36,37 @@ interface DealRow {
   products: { commission_value: number | null }[] | null
 }
 
+function dealCommission(d: DealRow): number {
+  return (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
+}
+
+type ContactPhoneEmbed =
+  | { phone_normalized: string | null }
+  | { phone_normalized: string | null }[]
+  | null
+
+function phoneFromEmbed(contact: ContactPhoneEmbed): string | null {
+  const c = Array.isArray(contact) ? contact[0] ?? null : contact
+  return c?.phone_normalized ?? null
+}
+
 /**
- * Attribution rule mirrors the single-broadcast ROI card on
- * /broadcasts/[id]: a deal counts toward a broadcast's ROI when its
- * contact received that broadcast AND the deal was created after the
- * broadcast went out. A contact reached by several broadcasts before
- * converting can attribute the same deal to more than one of them —
- * there's no single source of truth for "which touch actually did
- * it", so this deliberately over-counts rather than arbitrarily
- * picking one.
+ * Attribution follows the shared last-touch/30-day/phone rule
+ * (src/lib/broadcasts/attribution.ts — same one Pipeline & Vendas
+ * uses for campaign attribution), not the cost/ROI math: cost is
+ * still exactly what was spent sending broadcasts IN the selected
+ * period, independent of which deals get credited to them.
+ *
+ * "Period" governs which broadcasts are listed as rows/cost and which
+ * won deals count toward the cards (won_at in period) — not which
+ * broadcast gets credit for a given win. A deal that closed inside
+ * the period can be attributed to a broadcast sent before the period
+ * started, as long as it's within 30 days of when the deal was
+ * CREATED (see broadcasts-queries.ts' doc comment for the concrete
+ * FIEB case this fixes). periodTotalDealsWon/periodTotalCommission on
+ * the cards are the period's full, unattributed totals — the honest
+ * denominator for "this ROI number only covers a slice of what
+ * actually closed."
  *
  * Return is measured in COMMISSION (sum of deal_products.commission_value
  * on won deals), not deal value — matches what the account actually
@@ -62,21 +86,50 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
   if (error) throw error
 
   const broadcasts = (data ?? []) as BroadcastRow[]
-  if (broadcasts.length === 0) {
+
+  // Won deals for the period — the primary driver for the honest
+  // totals, loaded regardless of whether any broadcast exists in the
+  // period (a deal can be attributed to a touch from before it).
+  const { data: wonDealsData, error: wonDealsError } = await db
+    .from('deals')
+    .select(
+      'id, contact_id, value, status, won_at, created_at, contact:contacts(phone_normalized), products:deal_products(commission_value)',
+    )
+    .eq('status', 'won')
+    .gte('won_at', startISO)
+    .lt('won_at', endISO)
+  if (wonDealsError) throw wonDealsError
+  const wonDeals: DealRow[] = (
+    (wonDealsData ?? []) as unknown as (Omit<DealRow, 'phone_normalized'> & { contact: ContactPhoneEmbed })[]
+  ).map((d) => ({ ...d, phone_normalized: phoneFromEmbed(d.contact) }))
+
+  const periodTotalDealsWon = wonDeals.length
+  const periodTotalCommission = wonDeals.reduce((sum, d) => sum + dealCommission(d), 0)
+
+  if (broadcasts.length === 0 && wonDeals.length === 0) {
     return {
-      cards: computeRoiCards({ cost: ZERO_COST, leadsGenerated: 0, dealsCreated: 0, wonDeals: [] }),
+      cards: computeRoiCards({
+        cost: ZERO_COST,
+        leadsGenerated: 0,
+        dealsCreated: 0,
+        wonDeals: [],
+        periodTotalDealsWon: 0,
+        periodTotalCommission: 0,
+      }),
       rows: [],
       funnel: { sent: 0, replied: 0, dealsCreated: 0, dealsWon: 0 },
     }
   }
 
   const categoryByKey = new Map<string, string>()
-  const { data: templates } = await db
-    .from('message_templates')
-    .select('name, language, category')
-    .in('name', [...new Set(broadcasts.map((b) => b.template_name))])
-  for (const t of (templates ?? []) as { name: string; language: string; category: string }[]) {
-    categoryByKey.set(`${t.name}::${t.language}`, t.category)
+  if (broadcasts.length > 0) {
+    const { data: templates } = await db
+      .from('message_templates')
+      .select('name, language, category')
+      .in('name', [...new Set(broadcasts.map((b) => b.template_name))])
+    for (const t of (templates ?? []) as { name: string; language: string; category: string }[]) {
+      categoryByKey.set(`${t.name}::${t.language}`, t.category)
+    }
   }
   const categoryFor = (b: BroadcastRow) => categoryByKey.get(`${b.template_name}::${b.template_language}`) ?? null
 
@@ -101,52 +154,52 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
   )
 
   const broadcastIds = broadcasts.map((b) => b.id)
-  const { data: recipients } = await db
-    .from('broadcast_recipients')
-    .select('broadcast_id, contact_id')
-    .in('broadcast_id', broadcastIds)
-    .in('status', ['sent', 'delivered', 'read', 'replied'])
-    .not('contact_id', 'is', null)
+  const periodBroadcastIds = new Set(broadcastIds)
 
-  const contactsByBroadcast = new Map<string, Set<string>>()
-  const allContactIds = new Set<string>()
-  for (const r of (recipients ?? []) as { broadcast_id: string; contact_id: string }[]) {
-    if (!contactsByBroadcast.has(r.broadcast_id)) contactsByBroadcast.set(r.broadcast_id, new Set())
-    contactsByBroadcast.get(r.broadcast_id)!.add(r.contact_id)
-    allContactIds.add(r.contact_id)
-  }
+  // Deals created in the period feed the "created" funnel step — same
+  // attribution rule, keyed off the deal's own created_at.
+  const { data: createdDealsData, error: createdDealsError } = await db
+    .from('deals')
+    .select('id, contact_id, value, status, won_at, created_at, contact:contacts(phone_normalized)')
+    .gte('created_at', startISO)
+    .lt('created_at', endISO)
+  if (createdDealsError) throw createdDealsError
+  const createdDeals: DealRow[] = (
+    (createdDealsData ?? []) as unknown as (Omit<DealRow, 'phone_normalized' | 'products'> & {
+      contact: ContactPhoneEmbed
+    })[]
+  ).map((d) => ({ ...d, phone_normalized: phoneFromEmbed(d.contact), products: null }))
 
-  // Chunked — an account with many contacts reached in the period can
-  // easily push a single `.in('contact_id', …)` past PostgREST's URL
-  // length limit (each UUID is ~37 bytes URL-encoded; a few hundred
-  // already blows past it and the request comes back 400 Bad Request).
-  const CONTACT_CHUNK = 200
-  const deals: DealRow[] = []
-  if (allContactIds.size > 0) {
-    const contactIdList = [...allContactIds]
-    for (let i = 0; i < contactIdList.length; i += CONTACT_CHUNK) {
-      const chunk = contactIdList.slice(i, i + CONTACT_CHUNK)
-      const { data: dealsData, error: dealsError } = await db
-        .from('deals')
-        .select('id, contact_id, value, status, won_at, created_at, products:deal_products(commission_value)')
-        .in('contact_id', chunk)
-      if (dealsError) throw dealsError
-      deals.push(...((dealsData ?? []) as unknown as DealRow[]))
+  const allCreatedAts = [...wonDeals.map((d) => d.created_at), ...createdDeals.map((d) => d.created_at)]
+  const window = touchWindowFor(allCreatedAts)
+  const touchesByPhone = window ? await loadTouchesByPhone(db, window) : new Map()
+
+  const wonByBroadcast = new Map<string, AttributedWonDeal[]>()
+  const allWonDeals: AttributedWonDeal[] = []
+  for (const d of wonDeals) {
+    const touch = d.phone_normalized ? findLastTouch(touchesByPhone.get(d.phone_normalized), d.created_at) : null
+    if (!touch) continue
+    const attributed: AttributedWonDeal = {
+      commission: dealCommission(d),
+      wonAt: d.won_at!,
+      broadcastCreatedAt: touch.createdAt,
+    }
+    allWonDeals.push(attributed)
+    if (periodBroadcastIds.has(touch.broadcastId)) {
+      if (!wonByBroadcast.has(touch.broadcastId)) wonByBroadcast.set(touch.broadcastId, [])
+      wonByBroadcast.get(touch.broadcastId)!.push(attributed)
     }
   }
-  const dealCommission = (d: DealRow) =>
-    (d.products ?? []).reduce((sum, p) => sum + (p.commission_value ?? 0), 0)
+
+  let dealsCreated = 0
+  for (const d of createdDeals) {
+    const touch = d.phone_normalized ? findLastTouch(touchesByPhone.get(d.phone_normalized), d.created_at) : null
+    if (touch) dealsCreated++
+  }
 
   const rows: BroadcastRoiRow[] = broadcasts.map((b) => {
-    const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
-    // Won deals attributed to this broadcast: contact received it AND
-    // the deal closed on/after that date — independent of when the
-    // deal itself was created, so a pre-existing deal that closes
-    // after a follow-up broadcast still counts (see FIEB case).
-    const wonDeals: AttributedWonDeal[] = deals
-      .filter((d) => contacts.has(d.contact_id) && d.status === 'won' && d.won_at && d.won_at >= b.created_at)
-      .map((d) => ({ commission: dealCommission(d), wonAt: d.won_at!, broadcastCreatedAt: b.created_at }))
-    const commissionGenerated = wonDeals.reduce((sum, d) => sum + d.commission, 0)
+    const won = wonByBroadcast.get(b.id) ?? []
+    const commissionGenerated = won.reduce((sum, d) => sum + d.commission, 0)
     const cost = b.meta_total_cost
     return {
       id: b.id,
@@ -154,25 +207,17 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
       templateCategory: categoryFor(b),
       sentCount: b.sent_count,
       cost,
-      dealsWon: wonDeals.length,
+      dealsWon: won.length,
       commissionGenerated,
       roiPct: cost > 0 ? ((commissionGenerated - cost) / cost) * 100 : null,
     }
   })
 
-  // Aggregate cards + funnel across every broadcast in the period.
+  // Aggregate cost + leads across every broadcast in the period —
+  // unrelated to attribution, this is just "what was spent".
   let totalCost = ZERO_COST
   let totalLeads = 0
-  let totalDealsCreated = 0
-  const allWonDeals: AttributedWonDeal[] = []
   for (const b of broadcasts) {
-    const contacts = contactsByBroadcast.get(b.id) ?? new Set<string>()
-    totalDealsCreated += deals.filter((d) => contacts.has(d.contact_id) && d.created_at > b.created_at).length
-    for (const d of deals) {
-      if (contacts.has(d.contact_id) && d.status === 'won' && d.won_at && d.won_at >= b.created_at) {
-        allWonDeals.push({ commission: dealCommission(d), wonAt: d.won_at, broadcastCreatedAt: b.created_at })
-      }
-    }
     totalLeads += b.replied_count
     // meta_cost_marketing/utility/authentication are always written
     // together with meta_total_cost by computeAndSaveBroadcastCost, so
@@ -192,15 +237,17 @@ export async function loadBroadcastRoiReport(db: DB, period: PeriodRange): Promi
   const cards = computeRoiCards({
     cost: totalCost,
     leadsGenerated: totalLeads,
-    dealsCreated: totalDealsCreated,
+    dealsCreated,
     wonDeals: allWonDeals,
+    periodTotalDealsWon,
+    periodTotalCommission,
   })
 
   const totalSent = broadcasts.reduce((sum, b) => sum + b.sent_count, 0)
   const funnel = {
     sent: totalSent,
     replied: totalLeads,
-    dealsCreated: totalDealsCreated,
+    dealsCreated,
     dealsWon: allWonDeals.length,
   }
 

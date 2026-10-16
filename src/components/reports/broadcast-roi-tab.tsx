@@ -8,7 +8,8 @@ import { formatCurrency } from "@/lib/currency"
 import { DollarSign, TrendingUp, TrendingDown, Users, Target, Percent, Ticket, Clock } from "lucide-react"
 import { loadBroadcastRoiReport } from "@/lib/reports/broadcast-roi-queries"
 import { previousPeriod } from "@/lib/reports/period"
-import { gatedRelativeDelta, withShortLabel, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { gatedRelativeDelta, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { formatPercent } from "@/lib/reports/format"
 import type { BroadcastRoiBundle, BroadcastRoiCards, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -31,6 +32,13 @@ function formatCountAbsolute(unit: string) {
   }
 }
 
+/** "de N no período (Y%)" honesty line — commissionGenerated/dealsWon
+ *  here are only ever the slice attributed to a broadcast touch,
+ *  never the account's full win count. */
+function sharePct(part: number, total: number): number | null {
+  return total > 0 ? (part / total) * 100 : null
+}
+
 export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
   const t = useTranslations("reports.broadcastRoiTab")
   const { defaultCurrency } = useAuth()
@@ -42,10 +50,6 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
     vsPrevious: t("vsPreviousPeriod"),
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
-  }
-  const formatCurrencyAbsolute = (current: number, previous: number) => {
-    const diff = current - previous
-    return `${diff > 0 ? "+" : ""}${formatCurrency(diff, defaultCurrency)}`
   }
   const gateCount = previousCards?.leadsGenerated ?? 0
 
@@ -104,7 +108,7 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
             <span className="text-sm font-medium text-muted-foreground">{t("roi")}</span>
           </div>
           <p className={`mt-1 text-4xl font-bold tabular-nums ${positive ? "text-primary" : "text-destructive"}`}>
-            {bundle.cards.roiPct == null ? "—" : `${bundle.cards.roiPct.toFixed(0)}%`}
+            {formatPercent(bundle.cards.roiPct, 0)}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
             <p className="text-xs text-muted-foreground">{t("roiSubtitle")}</p>
@@ -137,17 +141,18 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
+            {/* No `delta` here on purpose — the honesty disclosure (what
+                slice of the period's real total this is) matters more
+                than a vs-previous-period trend, and MetricCard only
+                renders one of the two (delta takes priority over subtitle). */}
             <MetricCard
               title={t("commissionGenerated")}
               value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
               icon={TrendingUp}
-              delta={gatedRelativeDelta(
-                bundle.cards.commissionGenerated,
-                previousCards?.commissionGenerated ?? null,
-                gateCount,
-                deltaLabels,
-                formatCurrencyAbsolute,
-              )}
+              subtitle={t("attributedShareSubtitle", {
+                total: formatCurrency(bundle.cards.periodTotalCommission, defaultCurrency),
+                pct: formatPercent(sharePct(bundle.cards.commissionGenerated, bundle.cards.periodTotalCommission)),
+              })}
             />
             <MetricCard
               title={t("leadsGenerated")}
@@ -161,21 +166,18 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
                 formatCountAbsolute(t("leadsGenerated")),
               )}
             />
+            {/* No `delta` here on purpose — same as commissionGenerated
+                above: the honesty disclosure for dealsWon always wins
+                over a vs-previous-period trend (MetricCard only renders
+                one of the two). */}
             <MetricCard
               title={t("conversionRate")}
-              value={bundle.cards.conversionRatePct == null ? "—" : `${bundle.cards.conversionRatePct.toFixed(0)}%`}
+              value={formatPercent(bundle.cards.conversionRatePct)}
               icon={Percent}
-              subtitle={
-                gateCount < 5 ? t("noComparisonBase") : t("dealsWon") + ": " + bundle.cards.dealsWon.toLocaleString()
-              }
-              delta={
-                gateCount < 5
-                  ? undefined
-                  : withShortLabel(
-                      pointsDelta(bundle.cards.conversionRatePct, previousCards?.conversionRatePct ?? null, deltaLabels),
-                      deltaLabels.vsPrevious,
-                    )
-              }
+              subtitle={`${t("dealsWon")}: ${bundle.cards.dealsWon.toLocaleString()} — ${t("attributedShareSubtitle", {
+                total: bundle.cards.periodTotalDealsWon.toLocaleString(),
+                pct: formatPercent(sharePct(bundle.cards.dealsWon, bundle.cards.periodTotalDealsWon)),
+              })}`}
             />
             <MetricCard
               title={t("costTotal")}
@@ -243,7 +245,11 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
         title={t("funnelTitle")}
         insight={
           bundle && bundle.funnel.sent > 0
-            ? t("funnelInsight", { pct: ((bundle.funnel.dealsWon / bundle.funnel.sent) * 100).toFixed(1) })
+            ? t("funnelInsight", {
+                pct: new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
+                  (bundle.funnel.dealsWon / bundle.funnel.sent) * 100,
+                ),
+              })
             : undefined
         }
       />
@@ -295,7 +301,7 @@ export function BroadcastRoiTab({ period }: { period: PeriodRange }) {
                     <TableCell
                       className={`text-right tabular-nums ${rowPositive ? "text-primary" : "text-destructive"}`}
                     >
-                      {row.roiPct == null ? "—" : `${row.roiPct.toFixed(0)}%`}
+                      {formatPercent(row.roiPct, 0)}
                     </TableCell>
                   </TableRow>
                 )

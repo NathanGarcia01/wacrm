@@ -9,6 +9,7 @@ import { DollarSign, Radio, Reply, Trophy, Users } from "lucide-react"
 import { loadBroadcastsReport } from "@/lib/reports/broadcasts-queries"
 import { previousPeriod } from "@/lib/reports/period"
 import { gatedRelativeDelta, withShortLabel, pointsDelta, type DeltaLabels } from "@/lib/reports/delta"
+import { formatPercent } from "@/lib/reports/format"
 import type { BroadcastReportCards, BroadcastsReportBundle, PeriodRange } from "@/lib/reports/types"
 import { MetricCard } from "@/components/dashboard/metric-card"
 import { SkeletonCard } from "@/components/dashboard/skeleton"
@@ -16,8 +17,12 @@ import { CompactStat } from "@/components/reports/compact-stat"
 import { BroadcastsTable } from "@/components/reports/broadcasts-table"
 import { BroadcastRoiFunnelChart } from "@/components/reports/broadcast-roi-funnel-chart"
 
-function fmtPct(v: number | null): string {
-  return v == null ? "—" : `${v.toFixed(0)}%`
+/** "de N no período (Y%)" honesty line for the dealsWon/commission
+ *  cards — both only ever show the slice attributed to a broadcast
+ *  touch, never the account's full win count, so every card next to
+ *  it must say what fraction of the real total it represents. */
+function sharePct(part: number, total: number): number | null {
+  return total > 0 ? (part / total) * 100 : null
 }
 
 function formatCountAbsolute(unit: string) {
@@ -38,10 +43,6 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
     vsPrevious: t("vsPreviousPeriod"),
     new: t("newVsPreviousPeriod"),
     flat: t("flatVsPreviousPeriod"),
-  }
-  const formatCurrencyAbsolute = (current: number, previous: number) => {
-    const diff = current - previous
-    return `${diff > 0 ? "+" : ""}${formatCurrency(diff, defaultCurrency)}`
   }
   const gateCount = previousCards?.totalSent ?? 0
 
@@ -111,7 +112,7 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
             />
             <MetricCard
               title={t("replyRate")}
-              value={fmtPct(bundle.cards.replyRatePct)}
+              value={formatPercent(bundle.cards.replyRatePct)}
               icon={Reply}
               delta={
                 gateCount < 5
@@ -123,29 +124,27 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
               }
               subtitle={gateCount < 5 ? t("noComparisonBase") : undefined}
             />
+            {/* No `delta` here on purpose — the honesty disclosure
+                (what slice of the period's real total this is) matters
+                more than a vs-previous-period trend, and MetricCard only
+                renders one of the two (delta takes priority over subtitle). */}
             <MetricCard
               title={t("dealsWon")}
               value={bundle.cards.dealsWon.toLocaleString()}
               icon={Trophy}
-              delta={gatedRelativeDelta(
-                bundle.cards.dealsWon,
-                previousCards?.dealsWon ?? null,
-                gateCount,
-                deltaLabels,
-                formatCountAbsolute(t("dealsWon")),
-              )}
+              subtitle={t("attributedShareSubtitle", {
+                total: bundle.cards.periodTotalDealsWon.toLocaleString(),
+                pct: formatPercent(sharePct(bundle.cards.dealsWon, bundle.cards.periodTotalDealsWon)),
+              })}
             />
             <MetricCard
               title={t("commissionGenerated")}
               value={formatCurrency(bundle.cards.commissionGenerated, defaultCurrency)}
               icon={DollarSign}
-              delta={gatedRelativeDelta(
-                bundle.cards.commissionGenerated,
-                previousCards?.commissionGenerated ?? null,
-                gateCount,
-                deltaLabels,
-                formatCurrencyAbsolute,
-              )}
+              subtitle={t("attributedShareSubtitle", {
+                total: formatCurrency(bundle.cards.periodTotalCommission, defaultCurrency),
+                pct: formatPercent(sharePct(bundle.cards.commissionGenerated, bundle.cards.periodTotalCommission)),
+              })}
             />
           </>
         )}
@@ -181,7 +180,11 @@ export function BroadcastsTab({ period }: { period: PeriodRange }) {
         title={t("funnelTitle")}
         insight={
           bundle && bundle.funnel.sent > 0
-            ? t("funnelInsight", { pct: ((bundle.funnel.dealsWon / bundle.funnel.sent) * 100).toFixed(1) })
+            ? t("funnelInsight", {
+                pct: new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
+                  (bundle.funnel.dealsWon / bundle.funnel.sent) * 100,
+                ),
+              })
             : undefined
         }
       />

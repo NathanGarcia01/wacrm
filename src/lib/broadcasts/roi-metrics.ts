@@ -61,8 +61,13 @@ export function computeRoiCards(args: {
   leadsGenerated: number
   dealsCreated: number
   wonDeals: AttributedWonDeal[]
+  /** ALL deals won in the period for the account, regardless of
+   *  attribution — the honest denominator. See
+   *  BroadcastReportCards.periodTotalDealsWon in reports/types.ts. */
+  periodTotalDealsWon: number
+  periodTotalCommission: number
 }): BroadcastRoiCards {
-  const { cost, leadsGenerated, dealsCreated, wonDeals } = args
+  const { cost, leadsGenerated, dealsCreated, wonDeals, periodTotalDealsWon, periodTotalCommission } = args
   const commissionGenerated = wonDeals.reduce((sum, d) => sum + d.commission, 0)
   const dealsWon = wonDeals.length
 
@@ -84,6 +89,8 @@ export function computeRoiCards(args: {
       daysToCloseSamples.length > 0
         ? daysToCloseSamples.reduce((sum, d) => sum + d, 0) / daysToCloseSamples.length
         : null,
+    periodTotalDealsWon,
+    periodTotalCommission,
   }
 }
 

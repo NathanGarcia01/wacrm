@@ -2687,14 +2687,15 @@
       "funnelTitle": "Embudo de conversión",
       "funnelSent": "Enviadas",
       "funnelReplied": "Respondieron",
-      "funnelDealsCreated": "Deals creados",
+      "funnelDealsCreated": "Negocios creados",
       "funnelDealsWon": "Ganados",
       "vsPreviousPeriod": "vs. período anterior",
       "newVsPreviousPeriod": "Nuevo en el período",
       "flatVsPreviousPeriod": "Sin variación",
       "otherIndicators": "Otros indicadores",
       "funnelInsight": "{pct}% de los mensajes enviados se convirtieron en un negocio ganado",
-      "noComparisonBase": "Sin base de comparación"
+      "noComparisonBase": "Sin base de comparación",
+      "attributedShareSubtitle": "de {total} en el período ({pct})"
     },
     "broadcastsTable": {
       "title": "Difusiones del período",
@@ -2751,7 +2752,8 @@
       "otherIndicators": "Otros indicadores",
       "funnelInsight": "{pct}% de los enviados se convirtieron en un negocio ganado",
       "noComparisonBase": "Sin base de comparación",
-      "colTotal": "Total"
+      "colTotal": "Total",
+      "attributedShareSubtitle": "de {total} en el período ({pct})"
     },
     "commissionAgentRankingTable": {
       "title": "Comisión por agente",
