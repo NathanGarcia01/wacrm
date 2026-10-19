@@ -62,6 +62,7 @@ import {
   type SendMessageNodeConfig,
   type SetTagNodeConfig,
   type StartNodeConfig,
+  type StartFlowNodeConfig,
   type KeywordTriggerConfig,
   type WaitForReplyNodeConfig,
 } from "./types";
@@ -138,9 +139,18 @@ export function isSuspending(node_type: string): boolean {
   );
 }
 
-/** Nodes that end the run. */
+/**
+ * Nodes that end the run. `start_flow` joins this list for the
+ * CONVERSATIONAL engine only (migration 114) — see
+ * `executeStartFlowNode`: it always ends the current run (success,
+ * self-reference, chain limit, or missing target all end it) and
+ * never advances via `next_node_key`, unlike workflow-mode's
+ * fire-and-continue `start_flow`.
+ */
 export function isTerminal(node_type: string): boolean {
-  return node_type === "handoff" || node_type === "end";
+  return (
+    node_type === "handoff" || node_type === "end" || node_type === "start_flow"
+  );
 }
 
 /**
@@ -212,6 +222,63 @@ export function shouldResendCollectInputPrompt(
   if (!isCollectInputTimeoutEnabled(cfg)) return false;
   const maxResends = cfg.timeout_max_resends ?? 0;
   return maxResends > 0 && repromptCount < maxResends;
+}
+
+// ============================================================
+// start_flow loop guard (conversational mode, migration 114) — a
+// chain of { flow_id, at } entries rides along in
+// `flow_runs.vars.__flow_chain__`, inherited by every chained run.
+// Mirrors workflow-engine.ts's `__flow_chain__` cycle guard, but adds
+// a time window: only entries from the last 24h count towards the
+// cap, so a contact who legitimately goes through several short
+// flows across different days never gets artificially capped.
+// ============================================================
+
+/** One flow-start in the chain, in the order they fired. */
+export interface FlowChainEntry {
+  flow_id: string;
+  /** ISO timestamp of when this flow was started via start_flow. */
+  at: string;
+}
+
+export const START_FLOW_CHAIN_LIMIT = 5;
+export const START_FLOW_CHAIN_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** A start_flow node pointing at the flow it's already running in. */
+export function isStartFlowSelfReference(
+  cfg: Pick<StartFlowNodeConfig, "flow_id">,
+  currentFlowId: string,
+): boolean {
+  return cfg.flow_id === currentFlowId;
+}
+
+/** How many chain entries fall inside the rolling 24h window. */
+export function countRecentChainEntries(
+  chain: FlowChainEntry[],
+  now: Date = new Date(),
+): number {
+  const cutoff = now.getTime() - START_FLOW_CHAIN_WINDOW_MS;
+  return chain.filter((e) => new Date(e.at).getTime() >= cutoff).length;
+}
+
+/** True once the rolling-window chain count has hit the cap. */
+export function isStartFlowChainLimitReached(
+  chain: FlowChainEntry[],
+  now: Date = new Date(),
+): boolean {
+  return countRecentChainEntries(chain, now) >= START_FLOW_CHAIN_LIMIT;
+}
+
+function parseFlowChain(vars: Record<string, unknown>): FlowChainEntry[] {
+  const raw = vars.__flow_chain__;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (e): e is FlowChainEntry =>
+      !!e &&
+      typeof e === "object" &&
+      typeof (e as FlowChainEntry).flow_id === "string" &&
+      typeof (e as FlowChainEntry).at === "string",
+  );
 }
 
 // ============================================================
@@ -655,6 +722,146 @@ async function executeHandoff(
 }
 
 /**
+ * Inserts a brand-new conversational run for `flow`, for the SAME
+ * contact/conversation the chain started with, seeded with the
+ * inherited `vars` (including the updated `__flow_chain__`). Mirrors
+ * `startNewRun`/`startManualRun`'s insert+advance shape, minus the
+ * trigger-matching/idempotency concerns neither applies here — this
+ * is never driven by an inbound Meta message.
+ */
+async function startChainedRun(
+  db: AdminClient,
+  flow: FlowRow,
+  contactId: string | null,
+  conversationId: string | null,
+  vars: Record<string, unknown>,
+): Promise<{ ok: true; run_id: string } | { ok: false; error: string }> {
+  if (!contactId || !conversationId) {
+    return { ok: false, error: "missing_contact_or_conversation" };
+  }
+  const { data: inserted, error: insErr } = await db
+    .from("flow_runs")
+    .insert({
+      flow_id: flow.id,
+      account_id: flow.account_id,
+      user_id: flow.user_id,
+      contact_id: contactId,
+      conversation_id: conversationId,
+      run_mode: flow.run_mode,
+      status: "active",
+      current_node_key: flow.entry_node_id,
+      vars,
+    })
+    .select("*")
+    .maybeSingle();
+  if (insErr || !inserted) {
+    const msg = insErr?.message ?? "insert failed";
+    // 23505 = unique_violation on idx_one_active_run_per_contact — a
+    // webhook reply raced us and started its own run for this contact
+    // between our end of the previous run and this insert.
+    if (msg.includes("23505") || msg.includes("duplicate key")) {
+      return { ok: false, error: "contact_has_active_run" };
+    }
+    console.error("[flows] startChainedRun insert error:", msg);
+    return { ok: false, error: msg };
+  }
+  const newRun = inserted as FlowRunRow;
+  await logEvent(db, newRun.id, "started", flow.entry_node_id, {
+    flow_id: flow.id,
+    trigger_type: "start_flow",
+  });
+  const { error: incErr } = await db.rpc("increment_flow_execution_count", {
+    p_flow_id: flow.id,
+  });
+  if (incErr) {
+    console.error("[flows] execution_count rpc error:", incErr.message);
+  }
+  if (!flow.entry_node_id) {
+    await endRun(db, newRun.id, "failed", "flow_has_no_entry_node");
+    return { ok: true, run_id: newRun.id };
+  }
+  const nodes = await loadAllNodes(db, flow.id);
+  await advanceFromNodeKey(db, newRun, flow.entry_node_id, nodes);
+  return { ok: true, run_id: newRun.id };
+}
+
+/**
+ * Executes a `start_flow` node for a CONVERSATIONAL run (migration
+ * 114) — always terminal. Ends the current run and, unless a guard
+ * trips, starts the target flow as a new run for the same contact/
+ * conversation. Every branch (success, self-reference, chain limit,
+ * unavailable target) logs a distinct `reason` on the CURRENT run's
+ * events so it shows up in Execuções — see runs/page.tsx's
+ * `REASON_LABELS`.
+ *
+ * Ordering matters: the current run is ended BEFORE the new one is
+ * inserted. `idx_one_active_run_per_contact` allows only one active/
+ * waiting_reply run per contact — inserting first would collide with
+ * the still-active current row.
+ */
+async function executeStartFlowNode(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+): Promise<void> {
+  const cfg = node.config as unknown as StartFlowNodeConfig;
+  const chain = parseFlowChain(run.vars);
+
+  if (isStartFlowSelfReference(cfg, run.flow_id)) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "start_flow_self_reference",
+      flow_id: cfg.flow_id,
+    });
+    await endRun(db, run.id, "failed", "start_flow_self_reference");
+    return;
+  }
+
+  if (isStartFlowChainLimitReached(chain)) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "start_flow_chain_limit_reached",
+      chain_length: countRecentChainEntries(chain),
+      limit: START_FLOW_CHAIN_LIMIT,
+    });
+    await endRun(db, run.id, "failed", "start_flow_chain_limit_reached");
+    return;
+  }
+
+  const target = await loadFlow(db, cfg.flow_id);
+  if (!target || target.status !== "active" || target.run_mode !== "conversational") {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "start_flow_target_unavailable",
+      flow_id: cfg.flow_id,
+    });
+    await endRun(db, run.id, "failed", "start_flow_target_unavailable");
+    return;
+  }
+
+  await logEvent(db, run.id, "completed", node.node_key, {
+    reason: "start_flow",
+    started_flow_id: cfg.flow_id,
+  });
+  await endRun(db, run.id, "completed", "start_flow");
+
+  const newChain: FlowChainEntry[] = [
+    ...chain,
+    { flow_id: run.flow_id, at: new Date().toISOString() },
+  ];
+  const result = await startChainedRun(
+    db,
+    target,
+    run.contact_id,
+    run.conversation_id,
+    { ...run.vars, __flow_chain__: newChain },
+  );
+  if (!result.ok) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "start_flow_chained_insert_failed",
+      detail: result.error,
+    });
+  }
+}
+
+/**
  * Resolve a condition node's subject value from DB / run state, then
  * call the pure `evaluateConditionPredicate`. Splits out so the
  * predicate itself stays unit-testable without a Supabase mock.
@@ -997,6 +1204,10 @@ async function advanceFromNodeKey(
     if (node.node_type === "end") {
       await logEvent(db, run.id, "completed", node.node_key);
       await endRun(db, run.id, "completed", "end_node");
+      return { outcome: "completed" };
+    }
+    if (node.node_type === "start_flow") {
+      await executeStartFlowNode(db, run, node);
       return { outcome: "completed" };
     }
     // The automation-style node types below (assign_conversation,

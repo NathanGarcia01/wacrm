@@ -48,6 +48,7 @@ import { toast } from "sonner";
 
 import {
   validateFlowForActivation,
+  type AvailableFlow,
   type ValidationIssue,
 } from "@/lib/flows/validate";
 import { unlinkNodeReferences } from "@/lib/flows/edges";
@@ -143,6 +144,13 @@ export interface FlowEditorContextValue {
    */
   pipelines: Pipeline[];
   pipelineStages: PipelineStage[];
+
+  /**
+   * Every flow in the caller's account (id/status/run_mode only) —
+   * feeds the start_flow target-availability warning (migration 114).
+   * Fetched once on mount alongside pipelines above.
+   */
+  availableFlows: AvailableFlow[];
 }
 
 // ============================================================
@@ -415,6 +423,24 @@ export function FlowEditorProvider({
     };
   }, []);
 
+  // ---- Account's other flows (start_flow target-availability check,
+  // migration 114 item 3) — RLS scopes this to the caller's account,
+  // same as pipelines above. Feeds validateFlowForActivation below so
+  // the live validation panel can warn about an inactive/missing
+  // start_flow target without waiting for the server activate call.
+  const [availableFlows, setAvailableFlows] = useState<AvailableFlow[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    void (async () => {
+      const { data } = await supabase.from("flows").select("id, status, run_mode");
+      if (!cancelled) setAvailableFlows((data as AvailableFlow[] | null) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Browser-level reload / tab-close / external-link guard. SPA
   // navigation (sidebar links, back button) isn't covered — Next 16
   // routes through the App Router and beforeunload doesn't fire on
@@ -437,6 +463,7 @@ export function FlowEditorProvider({
     () =>
       validateFlowForActivation(
         {
+          id: initialFlow.id,
           name: state.name,
           trigger_type: state.trigger_type,
           trigger_config: state.trigger_config,
@@ -444,8 +471,9 @@ export function FlowEditorProvider({
           run_mode: state.run_mode,
         },
         state.nodes,
+        availableFlows,
       ),
-    [state],
+    [state, initialFlow.id, availableFlows],
   );
   const canActivate = useMemo(
     () => issues.every((i) => i.severity !== "error"),
@@ -668,6 +696,7 @@ export function FlowEditorProvider({
       requestFlash,
       pipelines,
       pipelineStages,
+      availableFlows,
     }),
     [
       initialFlow,
@@ -691,6 +720,7 @@ export function FlowEditorProvider({
       requestFlash,
       pipelines,
       pipelineStages,
+      availableFlows,
     ],
   );
 

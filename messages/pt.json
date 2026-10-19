@@ -3416,6 +3416,8 @@
       "randomizerGroupBLabel": "Grupo B ({pct}%)",
       "startFlowLabel": "Fluxo a iniciar",
       "startFlowPlaceholder": "Escolha um fluxo",
+      "startFlowInactiveSuffix": "{name} (inativo)",
+      "startFlowConversationalHint": "Em fluxos conversacionais, este nó encerra a execução atual e inicia o fluxo escolhido para o mesmo contato — \"então avança para\" abaixo não é usado neste caso.",
       "stopFlowNodeHint": "Encerra esta execução do fluxo imediatamente.",
       "dealTitleLabel": "Título do negócio",
       "dealTitlePlaceholder": "ex: {{contact.name}}",

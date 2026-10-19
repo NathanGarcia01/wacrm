@@ -45,7 +45,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { type ValidationIssue } from "@/lib/flows/validate";
+import {
+  CONVERSATIONAL_UNSUPPORTED_NODE_TYPES,
+  type ValidationIssue,
+} from "@/lib/flows/validate";
 import {
   NODE_META,
   slugify,
@@ -637,7 +640,8 @@ function NodeConfigWithAdvanced({
 function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
   const tFlows = useTranslations("flows");
   const tNodeTypes = useTranslations("flows.nodeTypes");
-  const types: NodeType[] = [
+  const { state } = useFlowEditor();
+  const allTypes: NodeType[] = [
     "start",
     "send_buttons",
     "send_list",
@@ -668,6 +672,18 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "handoff",
     "end",
   ];
+  // Only offer node types the current flow's own engine can execute —
+  // engine.ts's conversational advanceFromNodeKey doesn't implement
+  // the workflow-only vocabulary (CONVERSATIONAL_UNSUPPORTED_NODE_TYPES,
+  // same set validate.ts blocks activation on). Without this filter a
+  // user could add e.g. "Enviar webhook" to a conversational flow and
+  // only find out it's impossible to activate afterwards — the exact
+  // bug report that motivated this (start_flow used to be in both
+  // places: offered here, rejected at activation).
+  const types =
+    state.run_mode === "conversational"
+      ? allTypes.filter((t) => !CONVERSATIONAL_UNSUPPORTED_NODE_TYPES.has(t))
+      : allTypes;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

@@ -1491,6 +1491,7 @@ interface StartFlowCfg {
 interface UserFlow {
   id: string;
   name: string;
+  status?: string;
 }
 
 function StartFlowForm({
@@ -1505,7 +1506,12 @@ function StartFlowForm({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
   const t = useTranslations("flows.forms");
-  const flows = useUserFlows();
+  const { flow, state } = useFlowEditor();
+  // Never offer the current flow as its own target (migration 114,
+  // item 2) — the validator still flags it as an error if typed in
+  // via the raw-UUID fallback input, but the picker shouldn't invite
+  // the mistake in the first place.
+  const flows = useUserFlows().filter((f) => f.id !== flow.id);
 
   return (
     <>
@@ -1522,9 +1528,11 @@ function StartFlowForm({
               <SelectValue placeholder={t("startFlowPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              {flows.map((flow) => (
-                <SelectItem key={flow.id} value={flow.id}>
-                  {flow.name}
+              {flows.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.status && f.status !== "active"
+                    ? t("startFlowInactiveSuffix", { name: f.name })
+                    : f.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1538,6 +1546,11 @@ function StartFlowForm({
           />
         )}
       </div>
+      {state.run_mode === "conversational" && (
+        <p className="text-[10px] text-muted-foreground">
+          {t("startFlowConversationalHint")}
+        </p>
+      )}
       <NextNodeRow
         value={cfg.next_node_key ?? ""}
         allNodes={allNodes}

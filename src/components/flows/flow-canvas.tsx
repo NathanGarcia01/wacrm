@@ -89,6 +89,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useFlowEditor } from "./flow-editor-state";
 import { NodeConfigForm } from "./forms/node-config-form";
+import { CONVERSATIONAL_UNSUPPORTED_NODE_TYPES } from "@/lib/flows/validate";
 
 // React-Flow node `data` payload — the bits our custom renderer needs.
 interface NodeData extends Record<string, unknown> {
@@ -666,7 +667,14 @@ function CanvasAddNodeButton() {
   const tFlows = useTranslations("flows");
   const tNodeTypes = useTranslations("flows.nodeTypes");
   const reactFlow = useReactFlow();
-  const { addNode, updateNodePosition } = useFlowEditor();
+  const { addNode, updateNodePosition, state } = useFlowEditor();
+  // Same filter as the list view's AddNodeButton — only offer node
+  // types this flow's own engine (conversational vs workflow) can
+  // execute. See CONVERSATIONAL_UNSUPPORTED_NODE_TYPES in validate.ts.
+  const types =
+    state.run_mode === "conversational"
+      ? ADD_NODE_TYPES.filter((t) => !CONVERSATIONAL_UNSUPPORTED_NODE_TYPES.has(t))
+      : ADD_NODE_TYPES;
 
   const handleAdd = (type: NodeType) => {
     const key = addNode(type);
@@ -698,7 +706,7 @@ function CanvasAddNodeButton() {
         {tFlows("addNode")}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="border-border bg-popover">
-        {ADD_NODE_TYPES.map((type) => {
+        {types.map((type) => {
           const meta = NODE_META[type];
           const Icon = meta.icon;
           return (

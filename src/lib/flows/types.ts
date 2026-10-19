@@ -324,12 +324,21 @@ export interface RandomizerNodeConfig {
 }
 
 /**
- * Fires another flow (by id) synchronously, then continues in THIS
- * flow at next_node_key — mirrors automations' `start_automation`
- * step (fire-and-continue in the caller, not a hand-off/suspend).
- * Cycle/depth-guarded the same way: a chain of already-started flow
- * ids rides along in flow_runs.vars so a loop of flows starting each
- * other can't recurse forever. Only meaningful on run_mode='workflow'.
+ * Starts another flow by id. Behavior differs by `run_mode` (migration
+ * 114):
+ *   - `run_mode='workflow'` (workflow-engine.ts): fire-and-continue —
+ *     fires the target, then keeps advancing THIS run at
+ *     `next_node_key`. Cycle/depth-guarded via a chain of already-
+ *     started flow ids riding along in `flow_runs.vars.__flow_chain__`.
+ *   - `run_mode='conversational'` (engine.ts): terminal — ENDS this
+ *     run (`status='completed'`, `end_reason='start_flow'`) and starts
+ *     the target as a brand-new run for the same contact/conversation,
+ *     inheriting `vars` (including the chain). `next_node_key` is
+ *     unused here — a conversational run can't both end and keep
+ *     advancing, and `idx_one_active_run_per_contact` only allows one
+ *     active run per contact anyway. Same guard, reused:
+ *     `isStartFlowSelfReference` / `isStartFlowChainLimitReached` in
+ *     engine.ts (`START_FLOW_CHAIN_LIMIT` = 5 per rolling 24h window).
  */
 export interface StartFlowNodeConfig {
   flow_id: string;

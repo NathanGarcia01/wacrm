@@ -9,6 +9,10 @@ import {
   isCollectInputTimeoutEnabled,
   isWaitForReplyTimeoutEnabled,
   shouldResendCollectInputPrompt,
+  isStartFlowSelfReference,
+  countRecentChainEntries,
+  isStartFlowChainLimitReached,
+  START_FLOW_CHAIN_LIMIT,
 } from "./engine";
 
 describe("matchReplyId", () => {
@@ -173,9 +177,10 @@ describe("node classification helpers", () => {
     expect(isSuspending("end")).toBe(false);
   });
 
-  it("isTerminal covers handoff + end", () => {
+  it("isTerminal covers handoff + end + start_flow (conversational is always terminal)", () => {
     expect(isTerminal("handoff")).toBe(true);
     expect(isTerminal("end")).toBe(true);
+    expect(isTerminal("start_flow")).toBe(true);
     expect(isTerminal("start")).toBe(false);
     expect(isTerminal("send_buttons")).toBe(false);
     expect(isTerminal("condition")).toBe(false);
@@ -194,6 +199,7 @@ describe("node classification helpers", () => {
       "set_tag",
       "handoff",
       "end",
+      "start_flow",
     ];
     for (const t of types) {
       const flags = [isAutoAdvancing(t), isSuspending(t), isTerminal(t)];
@@ -377,5 +383,65 @@ describe("shouldResendCollectInputPrompt — item 5, resend before giving up", (
         2,
       ),
     ).toBe(false);
+  });
+});
+
+describe("isStartFlowSelfReference — item 2, loop guard", () => {
+  it("is true when the node targets its own flow", () => {
+    expect(isStartFlowSelfReference({ flow_id: "flow-a" }, "flow-a")).toBe(true);
+  });
+
+  it("is false when the target differs", () => {
+    expect(isStartFlowSelfReference({ flow_id: "flow-b" }, "flow-a")).toBe(false);
+  });
+});
+
+describe("countRecentChainEntries / isStartFlowChainLimitReached", () => {
+  const now = new Date("2026-10-19T12:00:00.000Z");
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 3_600_000).toISOString();
+
+  it("counts zero on an empty chain", () => {
+    expect(countRecentChainEntries([], now)).toBe(0);
+    expect(isStartFlowChainLimitReached([], now)).toBe(false);
+  });
+
+  it("counts entries within the last 24h", () => {
+    const chain = [
+      { flow_id: "a", at: hoursAgo(1) },
+      { flow_id: "b", at: hoursAgo(23) },
+    ];
+    expect(countRecentChainEntries(chain, now)).toBe(2);
+  });
+
+  it("excludes entries older than 24h (sliding window)", () => {
+    const chain = [
+      { flow_id: "a", at: hoursAgo(1) },
+      { flow_id: "old", at: hoursAgo(25) },
+    ];
+    expect(countRecentChainEntries(chain, now)).toBe(1);
+  });
+
+  it(`is not reached below the ${START_FLOW_CHAIN_LIMIT}-chain cap`, () => {
+    const chain = Array.from({ length: START_FLOW_CHAIN_LIMIT - 1 }, (_, i) => ({
+      flow_id: `f${i}`,
+      at: hoursAgo(1),
+    }));
+    expect(isStartFlowChainLimitReached(chain, now)).toBe(false);
+  });
+
+  it(`is reached once ${START_FLOW_CHAIN_LIMIT} recent flows have fired in a row`, () => {
+    const chain = Array.from({ length: START_FLOW_CHAIN_LIMIT }, (_, i) => ({
+      flow_id: `f${i}`,
+      at: hoursAgo(1),
+    }));
+    expect(isStartFlowChainLimitReached(chain, now)).toBe(true);
+  });
+
+  it("a long-ago chain doesn't count against a fresh 24h window", () => {
+    const chain = Array.from({ length: START_FLOW_CHAIN_LIMIT }, (_, i) => ({
+      flow_id: `f${i}`,
+      at: hoursAgo(48),
+    }));
+    expect(isStartFlowChainLimitReached(chain, now)).toBe(false);
   });
 });

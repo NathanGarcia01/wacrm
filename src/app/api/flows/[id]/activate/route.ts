@@ -60,7 +60,7 @@ export async function POST(
     const [{ data: flow }, { data: nodes }] = await Promise.all([
       admin
         .from('flows')
-        .select('name, trigger_type, trigger_config, entry_node_id, run_mode')
+        .select('id, account_id, name, trigger_type, trigger_config, entry_node_id, run_mode')
         .eq('id', id)
         .maybeSingle(),
       admin
@@ -71,8 +71,16 @@ export async function POST(
     if (!flow) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+    // start_flow target-availability check (migration 114, item 3) —
+    // every other flow in this account, so checkStartFlowNodes can
+    // warn when the chosen target is inactive/missing/wrong run_mode.
+    const { data: accountFlows } = await admin
+      .from('flows')
+      .select('id, status, run_mode')
+      .eq('account_id', flow.account_id)
     const issues = validateFlowForActivation(
       flow as {
+        id: string
         name: string
         trigger_type: FlowTriggerType
         trigger_config: Record<string, unknown>
@@ -84,12 +92,17 @@ export async function POST(
         node_type: string
         config: Record<string, unknown>
       }>,
+      (accountFlows ?? []) as Array<{
+        id: string
+        status: string
+        run_mode: 'conversational' | 'workflow'
+      }>,
     )
     const blockers = issues.filter((i) => i.severity === 'error')
     if (blockers.length > 0) {
       return NextResponse.json(
         {
-          error: 'Cannot activate flow — fix the issues below first.',
+          error: 'Não é possível ativar o fluxo — corrija os problemas abaixo primeiro.',
           issues,
         },
         { status: 422 },
