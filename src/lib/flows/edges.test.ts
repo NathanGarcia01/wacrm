@@ -202,6 +202,55 @@ describe("deriveCanvasEdges — wait_for_reply (replied/timeout branches)", () =
   });
 });
 
+describe("deriveCanvasEdges — collect_input reply-timeout branches (migration 113)", () => {
+  it("produces a single unlabeled edge when the timeout is off (default)", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "ci",
+          node_type: "collect_input",
+          config: { prompt_text: "p", var_key: "v", next_node_key: "ok" },
+        },
+        { node_key: "ok", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({ sourceHandle: "next", target: "ok" });
+    expect(edges[0].label).toBeUndefined();
+  });
+
+  it("produces a labeled edge for each branch once the timeout is on", () => {
+    const edges = deriveCanvasEdges(
+      nodes(
+        {
+          node_key: "ci",
+          node_type: "collect_input",
+          config: {
+            prompt_text: "p",
+            var_key: "v",
+            next_node_key: "ok",
+            timeout_enabled: true,
+            timeout_amount: 10,
+            timeout_unit: "minutes",
+            timeout_node_key: "t",
+          },
+        },
+        { node_key: "ok", node_type: "end", config: {} },
+        { node_key: "t", node_type: "end", config: {} },
+      ),
+    );
+    expect(edges).toHaveLength(2);
+    expect(edges.find((e) => e.sourceHandle === "next")).toMatchObject({
+      target: "ok",
+      label: "Replied",
+    });
+    expect(edges.find((e) => e.sourceHandle === "timeout")).toMatchObject({
+      target: "t",
+      label: "No reply",
+    });
+  });
+});
+
 describe("deriveCanvasEdges — terminal node types have no outgoing edges", () => {
   it("stop_flow produces zero edges", () => {
     const edges = deriveCanvasEdges(
@@ -562,6 +611,33 @@ describe("outgoingSlots", () => {
     expect(slots.map((s) => s.id)).toEqual(["replied", "timeout"]);
   });
 
+  it("collapses wait_for_reply to a single slot once timeout_enabled is false", () => {
+    const slots = outgoingSlots({
+      node_key: "w",
+      node_type: "wait_for_reply",
+      config: { timeout_enabled: false },
+    });
+    expect(slots.map((s) => s.id)).toEqual(["replied"]);
+  });
+
+  it("returns a single slot for collect_input by default (timeout off)", () => {
+    const slots = outgoingSlots({
+      node_key: "ci",
+      node_type: "collect_input",
+      config: { prompt_text: "p", var_key: "v" },
+    });
+    expect(slots.map((s) => s.id)).toEqual(["next"]);
+  });
+
+  it("returns two slots for collect_input once timeout_enabled is true", () => {
+    const slots = outgoingSlots({
+      node_key: "ci",
+      node_type: "collect_input",
+      config: { prompt_text: "p", var_key: "v", timeout_enabled: true },
+    });
+    expect(slots.map((s) => s.id)).toEqual(["next", "timeout"]);
+  });
+
   it("returns one slot per button, labelled with the title", () => {
     const slots = outgoingSlots({
       node_key: "m",
@@ -743,6 +819,17 @@ describe("applyEdgeConnection", () => {
     });
     expect(applyEdgeConnection(node, "next", "z")).toBeNull();
   });
+
+  it("patches next_node_key or timeout_node_key on collect_input depending on the handle", () => {
+    const node: BuilderNode = {
+      node_key: "ci",
+      node_type: "collect_input",
+      config: { prompt_text: "p", var_key: "v", next_node_key: "", timeout_node_key: "" },
+    };
+    expect(applyEdgeConnection(node, "next", "ok")).toEqual({ next_node_key: "ok" });
+    expect(applyEdgeConnection(node, "timeout", "t")).toEqual({ timeout_node_key: "t" });
+    expect(applyEdgeConnection(node, "replied", "z")).toBeNull();
+  });
 });
 
 describe("unlinkNodeReferences", () => {
@@ -793,6 +880,25 @@ describe("unlinkNodeReferences", () => {
     const cfg = after[0].config as { next_node_key: string; timeout_node_key: string };
     expect(cfg.next_node_key).toBe("");
     expect(cfg.timeout_node_key).toBe("safe");
+  });
+
+  it("clears only the collect_input field(s) that point at the deleted node", () => {
+    const before: BuilderNode[] = [
+      {
+        node_key: "ci",
+        node_type: "collect_input",
+        config: {
+          prompt_text: "p",
+          var_key: "v",
+          next_node_key: "safe",
+          timeout_node_key: "victim",
+        },
+      },
+    ];
+    const after = unlinkNodeReferences(before, "victim");
+    const cfg = after[0].config as { next_node_key: string; timeout_node_key: string };
+    expect(cfg.next_node_key).toBe("safe");
+    expect(cfg.timeout_node_key).toBe("");
   });
 
   it("clears only the buttons that point at the deleted node", () => {

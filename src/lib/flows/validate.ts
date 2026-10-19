@@ -24,6 +24,7 @@
  */
 
 import { INTERACTIVE_LIMITS } from "@/lib/whatsapp/meta-api";
+import { SESSION_WINDOW_HOURS } from "@/lib/whatsapp/session-window";
 import type { FlowTriggerType } from "./types";
 
 // Node types `src/lib/flows/engine.ts` (conversational) doesn't
@@ -200,6 +201,134 @@ export function validateFlowForActivation(
           node_key: n.node_key,
           message: `Node "${n.node_key}" is unreachable from the entry node.`,
         });
+      }
+    }
+  }
+
+  // "No reply" branches that could outlive the 24h customer-service
+  // window (requirement: tempo limite de resposta, item 3).
+  issues.push(...checkTimeoutWindowWarnings(nodes));
+
+  return issues;
+}
+
+// ============================================================
+// Timeout-window warning — if the accumulated configured wait along
+// a "no reply" (timeout) branch could reach/exceed the 24h Meta
+// customer-service window (SESSION_WINDOW_HOURS, same constant the
+// runtime session-window badge uses) before landing on a
+// send_message/send_buttons/send_list node, that send would be
+// outside the window and fail — only send_template works there. Warns
+// (doesn't block activation — the elapsed time depends on when the
+// customer last wrote in, which isn't knowable at save time) and
+// suggests send_template.
+// ============================================================
+
+const HOURS_PER_UNIT: Record<"minutes" | "hours" | "days", number> = {
+  minutes: 1 / 60,
+  hours: 1,
+  days: 24,
+};
+
+/**
+ * This node's OWN configured wait, in hours — null when the node
+ * isn't a timed wait, or its timeout is off. Used both as the
+ * starting point (the origin's own deadline) and as the increment
+ * added while walking past other timed nodes further down the "no
+ * reply" branch.
+ */
+function configuredTimeoutHours(node: NodeInput): number | null {
+  if (node.node_type === "wait") {
+    const cfg = node.config as { amount?: number; unit?: "minutes" | "hours" | "days" };
+    if (typeof cfg.amount !== "number" || !cfg.unit) return null;
+    return cfg.amount * HOURS_PER_UNIT[cfg.unit];
+  }
+  if (node.node_type === "wait_for_reply") {
+    const cfg = node.config as {
+      timeout_enabled?: boolean;
+      amount?: number;
+      unit?: "minutes" | "hours" | "days";
+    };
+    if (cfg.timeout_enabled === false) return null;
+    if (typeof cfg.amount !== "number" || !cfg.unit) return null;
+    return cfg.amount * HOURS_PER_UNIT[cfg.unit];
+  }
+  if (node.node_type === "collect_input") {
+    const cfg = node.config as {
+      timeout_enabled?: boolean;
+      timeout_amount?: number;
+      timeout_unit?: "minutes" | "hours" | "days";
+    };
+    if (cfg.timeout_enabled !== true) return null;
+    if (typeof cfg.timeout_amount !== "number" || !cfg.timeout_unit) return null;
+    return cfg.timeout_amount * HOURS_PER_UNIT[cfg.timeout_unit];
+  }
+  return null;
+}
+
+/** The node_key this timed node resumes at if nobody replies — the
+ *  branch this whole check walks. */
+function timeoutTargetKey(node: NodeInput): string | null {
+  if (node.node_type === "wait_for_reply" || node.node_type === "collect_input") {
+    const cfg = node.config as { timeout_node_key?: string };
+    return cfg.timeout_node_key ?? null;
+  }
+  return null;
+}
+
+function checkTimeoutWindowWarnings(nodes: NodeInput[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const byKey = new Map<string, NodeInput>();
+  for (const n of nodes) byKey.set(n.node_key, n);
+
+  for (const origin of nodes) {
+    if (origin.node_type !== "wait_for_reply" && origin.node_type !== "collect_input") {
+      continue;
+    }
+    const startHours = configuredTimeoutHours(origin);
+    const startKey = timeoutTargetKey(origin);
+    if (startHours === null || !startKey || !byKey.has(startKey)) continue;
+
+    // DFS from the "no reply" branch, summing each further timed
+    // node's configured wait (worst case — see HOURS_PER_UNIT note
+    // above), warning the first time a real send lands at/after 24h.
+    // Bounded: `seen` keys on (node, rounded-up hour) so a cycle that
+    // keeps accumulating hours still terminates once it's clearly
+    // over the threshold either way.
+    const warnedSends = new Set<string>();
+    const seen = new Set<string>();
+    const queue: Array<{ key: string; hours: number }> = [
+      { key: startKey, hours: startHours },
+    ];
+    let guard = 0;
+    while (queue.length > 0 && guard < 500) {
+      guard += 1;
+      const { key, hours } = queue.shift()!;
+      const visitId = `${key}@${Math.min(Math.ceil(hours), SESSION_WINDOW_HOURS)}`;
+      if (seen.has(visitId)) continue;
+      seen.add(visitId);
+      const node = byKey.get(key);
+      if (!node) continue;
+
+      if (
+        (node.node_type === "send_message" ||
+          node.node_type === "send_buttons" ||
+          node.node_type === "send_list") &&
+        hours >= SESSION_WINDOW_HOURS &&
+        !warnedSends.has(node.node_key)
+      ) {
+        warnedSends.add(node.node_key);
+        issues.push({
+          severity: "warning",
+          scope: "node",
+          node_key: node.node_key,
+          message: `A espera acumulada no ramo "Sem resposta" (a partir do nó "${origin.node_key}") pode ultrapassar ${SESSION_WINDOW_HOURS}h antes deste envio, fora da janela de atendimento da Meta. Use "Enviar template" neste nó.`,
+        });
+      }
+
+      const extra = configuredTimeoutHours(node) ?? 0;
+      for (const next of outgoingEdges(node)) {
+        queue.push({ key: next, hours: hours + extra });
       }
     }
   }
@@ -654,6 +783,11 @@ function validateNode(
         prompt_text?: string;
         var_key?: string;
         next_node_key?: string;
+        timeout_enabled?: boolean;
+        timeout_amount?: number;
+        timeout_unit?: "minutes" | "hours" | "days";
+        timeout_node_key?: string;
+        timeout_max_resends?: number;
       };
       if (!cfg.prompt_text?.trim()) {
         issues.push({
@@ -697,6 +831,64 @@ function validateNode(
           field: "next_node_key",
           message: `Collect-input points to non-existent node "${cfg.next_node_key}".`,
         });
+      }
+      // Reply-timeout branch (migration 113) — only validated when the
+      // toggle is on; off (the default) keeps the original v1.5
+      // "wait forever" shape with no second branch to validate.
+      if (cfg.timeout_enabled === true) {
+        if (
+          typeof cfg.timeout_amount !== "number" ||
+          !Number.isFinite(cfg.timeout_amount) ||
+          cfg.timeout_amount <= 0
+        ) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_amount",
+            message: "Collect-input's reply timeout needs a positive amount.",
+          });
+        }
+        if (!cfg.timeout_unit || !["minutes", "hours", "days"].includes(cfg.timeout_unit)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_unit",
+            message: "Collect-input's reply timeout needs a unit (minutes / hours / days).",
+          });
+        }
+        if (!cfg.timeout_node_key) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_node_key",
+            message: "Collect-input's reply timeout must point to a node for when the customer doesn't reply in time.",
+          });
+        } else if (!knownKeys.has(cfg.timeout_node_key)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_node_key",
+            message: `Collect-input's "no reply" branch points to non-existent node "${cfg.timeout_node_key}".`,
+          });
+        }
+        if (
+          cfg.timeout_max_resends !== undefined &&
+          (typeof cfg.timeout_max_resends !== "number" ||
+            !Number.isFinite(cfg.timeout_max_resends) ||
+            cfg.timeout_max_resends < 0)
+        ) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_max_resends",
+            message: "Collect-input's resend count must be zero or a positive number.",
+          });
+        }
       }
       break;
     }
@@ -747,28 +939,36 @@ function validateNode(
 
     case "wait_for_reply": {
       const cfg = node.config as {
+        timeout_enabled?: boolean;
         amount?: number;
         unit?: "minutes" | "hours" | "days";
         next_node_key?: string;
         timeout_node_key?: string;
       };
-      if (typeof cfg.amount !== "number" || !Number.isFinite(cfg.amount) || cfg.amount <= 0) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "amount",
-          message: "Wait-for-reply needs a positive amount.",
-        });
-      }
-      if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "unit",
-          message: "Wait-for-reply needs a unit (minutes / hours / days).",
-        });
+      // Migration 113 — omitted `timeout_enabled` defaults to `true`
+      // (every pre-113 wait_for_reply node already has these fields
+      // populated; they were mandatory). Explicitly `false` relaxes
+      // amount/unit/timeout_node_key to "wait forever, single branch".
+      const timeoutOn = cfg.timeout_enabled !== false;
+      if (timeoutOn) {
+        if (typeof cfg.amount !== "number" || !Number.isFinite(cfg.amount) || cfg.amount <= 0) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "amount",
+            message: "Wait-for-reply needs a positive amount.",
+          });
+        }
+        if (!cfg.unit || !["minutes", "hours", "days"].includes(cfg.unit)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "unit",
+            message: "Wait-for-reply needs a unit (minutes / hours / days).",
+          });
+        }
       }
       if (!cfg.next_node_key) {
         issues.push({
@@ -787,22 +987,24 @@ function validateNode(
           message: `Wait-for-reply's "replied" branch points to non-existent node "${cfg.next_node_key}".`,
         });
       }
-      if (!cfg.timeout_node_key) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "timeout_node_key",
-          message: "Wait-for-reply must point to a node for when the customer doesn't reply in time.",
-        });
-      } else if (!knownKeys.has(cfg.timeout_node_key)) {
-        issues.push({
-          severity: "error",
-          scope: "node",
-          node_key: node.node_key,
-          field: "timeout_node_key",
-          message: `Wait-for-reply's "no reply" branch points to non-existent node "${cfg.timeout_node_key}".`,
-        });
+      if (timeoutOn) {
+        if (!cfg.timeout_node_key) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_node_key",
+            message: "Wait-for-reply must point to a node for when the customer doesn't reply in time.",
+          });
+        } else if (!knownKeys.has(cfg.timeout_node_key)) {
+          issues.push({
+            severity: "error",
+            scope: "node",
+            node_key: node.node_key,
+            field: "timeout_node_key",
+            message: `Wait-for-reply's "no reply" branch points to non-existent node "${cfg.timeout_node_key}".`,
+          });
+        }
       }
       break;
     }
@@ -1381,11 +1583,23 @@ export function reachableFromEntry(
 
 function outgoingEdges(node: NodeInput): string[] {
   switch (node.node_type) {
+    case "collect_input": {
+      const cfg = node.config as {
+        next_node_key?: string;
+        timeout_enabled?: boolean;
+        timeout_node_key?: string;
+      };
+      const out: string[] = [];
+      if (cfg.next_node_key) out.push(cfg.next_node_key);
+      if (cfg.timeout_enabled === true && cfg.timeout_node_key) {
+        out.push(cfg.timeout_node_key);
+      }
+      return out;
+    }
     case "start":
     case "send_message":
     case "send_media":
     case "send_template":
-    case "collect_input":
     case "set_tag":
     case "start_flow":
     case "create_deal":
@@ -1418,12 +1632,15 @@ function outgoingEdges(node: NodeInput): string[] {
     }
     case "wait_for_reply": {
       const cfg = node.config as {
+        timeout_enabled?: boolean;
         next_node_key?: string;
         timeout_node_key?: string;
       };
       const out: string[] = [];
       if (cfg.next_node_key) out.push(cfg.next_node_key);
-      if (cfg.timeout_node_key) out.push(cfg.timeout_node_key);
+      if (cfg.timeout_enabled !== false && cfg.timeout_node_key) {
+        out.push(cfg.timeout_node_key);
+      }
       return out;
     }
     case "send_buttons": {

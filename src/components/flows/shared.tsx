@@ -332,10 +332,28 @@ export function summarizeNode(
     case "collect_input": {
       const prompt = typeof cfg.prompt_text === "string" ? cfg.prompt_text : "";
       const varKey = typeof cfg.var_key === "string" ? cfg.var_key : "";
-      if (prompt.length > 0) {
-        return varKey ? `${truncate(prompt, 50)} → vars.${varKey}` : truncate(prompt);
+      const base =
+        prompt.length > 0
+          ? varKey
+            ? `${truncate(prompt, 50)} → vars.${varKey}`
+            : truncate(prompt)
+          : varKey
+            ? `→ vars.${varKey}`
+            : null;
+      if (cfg.timeout_enabled === true) {
+        const amount = typeof cfg.timeout_amount === "number" ? cfg.timeout_amount : null;
+        if (amount !== null) {
+          const unit =
+            cfg.timeout_unit === "hours" ? "hours" : cfg.timeout_unit === "days" ? "days" : "minutes";
+          const durationKey =
+            unit === "hours" ? "waitHours" : unit === "days" ? "waitDays" : "waitMinutes";
+          const suffix = t("collectInputTimeoutSuffix", {
+            duration: t(durationKey, { count: amount }),
+          });
+          return base ? `${base} ${suffix}` : suffix;
+        }
       }
-      return varKey ? `→ vars.${varKey}` : null;
+      return base;
     }
     case "wait": {
       const amount = typeof cfg.amount === "number" ? cfg.amount : null;
@@ -346,6 +364,9 @@ export function summarizeNode(
       return t("waitSummary", { duration: t(durationKey, { count: amount }) });
     }
     case "wait_for_reply": {
+      if (cfg.timeout_enabled === false) {
+        return t("waitForReplyNoTimeoutSummary");
+      }
       const amount = typeof cfg.amount === "number" ? cfg.amount : null;
       if (amount === null) return null;
       const unit = cfg.unit === "hours" ? "hours" : cfg.unit === "days" ? "days" : "minutes";

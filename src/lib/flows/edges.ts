@@ -68,7 +68,6 @@ export function deriveCanvasEdges(
       case "send_message":
       case "send_media":
     case "send_template":
-      case "collect_input":
       case "set_tag":
       case "start_flow":
       case "create_deal":
@@ -92,6 +91,34 @@ export function deriveCanvasEdges(
             source: node.node_key,
             target: next,
             sourceHandle: "next",
+          });
+        }
+        break;
+      }
+
+      case "collect_input": {
+        const c = cfg as {
+          next_node_key?: string;
+          timeout_enabled?: boolean;
+          timeout_node_key?: string;
+        };
+        const timeoutOn = c.timeout_enabled === true;
+        if (c.next_node_key && knownKeys.has(c.next_node_key)) {
+          edges.push({
+            id: `${node.node_key}--next--${c.next_node_key}`,
+            source: node.node_key,
+            target: c.next_node_key,
+            sourceHandle: "next",
+            label: timeoutOn ? t("replied") : undefined,
+          });
+        }
+        if (timeoutOn && c.timeout_node_key && knownKeys.has(c.timeout_node_key)) {
+          edges.push({
+            id: `${node.node_key}--timeout--${c.timeout_node_key}`,
+            source: node.node_key,
+            target: c.timeout_node_key,
+            sourceHandle: "timeout",
+            label: t("timeout"),
           });
         }
         break;
@@ -123,22 +150,26 @@ export function deriveCanvasEdges(
       }
 
       case "wait_for_reply": {
-        const replied = (cfg as { next_node_key?: string }).next_node_key;
-        const timeout = (cfg as { timeout_node_key?: string }).timeout_node_key;
-        if (replied && knownKeys.has(replied)) {
+        const c = cfg as {
+          next_node_key?: string;
+          timeout_enabled?: boolean;
+          timeout_node_key?: string;
+        };
+        const timeoutOn = c.timeout_enabled !== false;
+        if (c.next_node_key && knownKeys.has(c.next_node_key)) {
           edges.push({
-            id: `${node.node_key}--replied--${replied}`,
+            id: `${node.node_key}--replied--${c.next_node_key}`,
             source: node.node_key,
-            target: replied,
+            target: c.next_node_key,
             sourceHandle: "replied",
-            label: t("replied"),
+            label: timeoutOn ? t("replied") : undefined,
           });
         }
-        if (timeout && knownKeys.has(timeout)) {
+        if (timeoutOn && c.timeout_node_key && knownKeys.has(c.timeout_node_key)) {
           edges.push({
-            id: `${node.node_key}--timeout--${timeout}`,
+            id: `${node.node_key}--timeout--${c.timeout_node_key}`,
             source: node.node_key,
-            target: timeout,
+            target: c.timeout_node_key,
             sourceHandle: "timeout",
             label: t("timeout"),
           });
@@ -243,7 +274,6 @@ export function outgoingSlots(
     case "send_message":
     case "send_media":
     case "send_template":
-    case "collect_input":
     case "set_tag":
     case "start_flow":
     case "create_deal":
@@ -269,11 +299,25 @@ export function outgoingSlots(
         { id: "false", label: t("false") },
       ];
 
-    case "wait_for_reply":
-      return [
-        { id: "replied", label: t("replied") },
-        { id: "timeout", label: t("timeout") },
-      ];
+    case "collect_input": {
+      const timeoutOn = (cfg as { timeout_enabled?: boolean }).timeout_enabled === true;
+      return timeoutOn
+        ? [
+            { id: "next", label: t("replied") },
+            { id: "timeout", label: t("timeout") },
+          ]
+        : [{ id: "next", label: t("next") }];
+    }
+
+    case "wait_for_reply": {
+      const timeoutOn = (cfg as { timeout_enabled?: boolean }).timeout_enabled !== false;
+      return timeoutOn
+        ? [
+            { id: "replied", label: t("replied") },
+            { id: "timeout", label: t("timeout") },
+          ]
+        : [{ id: "replied", label: t("next") }];
+    }
 
     case "send_buttons": {
       const buttons = Array.isArray((cfg as { buttons?: unknown }).buttons)
@@ -341,7 +385,6 @@ export function applyEdgeConnection(
     case "send_message":
     case "send_media":
     case "send_template":
-    case "collect_input":
     case "set_tag":
     case "start_flow":
     case "create_deal":
@@ -365,6 +408,11 @@ export function applyEdgeConnection(
     case "randomizer":
       if (sourceHandle === "true") return { true_next: targetKey };
       if (sourceHandle === "false") return { false_next: targetKey };
+      return null;
+
+    case "collect_input":
+      if (sourceHandle === "next") return { next_node_key: targetKey };
+      if (sourceHandle === "timeout") return { timeout_node_key: targetKey };
       return null;
 
     case "wait_for_reply":
@@ -458,7 +506,6 @@ function patchedConfigWithoutKey(
     case "send_message":
     case "send_media":
     case "send_template":
-    case "collect_input":
     case "set_tag":
     case "start_flow":
     case "create_deal":
@@ -490,6 +537,18 @@ function patchedConfigWithoutKey(
         ...cfg,
         ...(trueMatch ? { true_next: "" } : {}),
         ...(falseMatch ? { false_next: "" } : {}),
+      };
+    }
+
+    case "collect_input": {
+      const c = cfg as { next_node_key?: string; timeout_node_key?: string };
+      const nextMatch = c.next_node_key === deletedKey;
+      const timeoutMatch = c.timeout_node_key === deletedKey;
+      if (!nextMatch && !timeoutMatch) return null;
+      return {
+        ...cfg,
+        ...(nextMatch ? { next_node_key: "" } : {}),
+        ...(timeoutMatch ? { timeout_node_key: "" } : {}),
       };
     }
 

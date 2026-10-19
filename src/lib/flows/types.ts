@@ -155,6 +155,33 @@ export interface CollectInputNodeConfig {
   regex?: string;
   /** Node to advance to after capture. */
   next_node_key: string;
+  /**
+   * Reply-timeout toggle (migration 113). Missing/false = original
+   * behavior: wait forever for the customer's text, no second branch
+   * — so existing saved flows (none of which have these fields) are
+   * unaffected. When true, the node also tracks a deadline
+   * (`flow_runs.waiting_reply_until`, same column `wait_for_reply`
+   * uses — see WaitForReplyNodeConfig) and advances to
+   * `timeout_node_key` if nobody replies in time. A reply that lands
+   * AFTER the cron already fired the timeout branch does not re-enter
+   * here — see the guarded UPDATE in engine.ts's
+   * handleReplyForActiveRun.
+   */
+  timeout_enabled?: boolean;
+  /** Only meaningful when `timeout_enabled`. */
+  timeout_amount?: number;
+  /** Only meaningful when `timeout_enabled`. */
+  timeout_unit?: "minutes" | "hours" | "days";
+  /** Node to advance to when the deadline passes with no reply.
+   *  Required when `timeout_enabled`. */
+  timeout_node_key?: string;
+  /**
+   * Optional — resend `prompt_text` up to this many times (each time
+   * resetting the deadline) before giving up and following
+   * `timeout_node_key`. 0/undefined = give up on the first timeout.
+   * Only meaningful when `timeout_enabled`.
+   */
+  timeout_max_resends?: number;
 }
 
 export type ConditionOperator =
@@ -258,12 +285,27 @@ export interface WaitNodeConfig {
  * send_buttons/send_list/collect_input. Migration 061.
  */
 export interface WaitForReplyNodeConfig {
-  amount: number;
-  unit: "minutes" | "hours" | "days";
-  /** Advance here when the customer replies within the window. */
+  /**
+   * Reply-timeout toggle (migration 113). Omitted = `true` — every
+   * `wait_for_reply` node saved before this migration already has
+   * `amount`/`unit`/`timeout_node_key` populated (they were mandatory),
+   * so treating "field absent" as "timeout on" keeps those flows
+   * running exactly as before. Set explicitly `false` to wait forever
+   * for any reply instead, collapsing to a single `next_node_key`
+   * output (no `timeout_node_key` branch) — see
+   * `isWaitForReplyTimeoutEnabled` in engine.ts.
+   */
+  timeout_enabled?: boolean;
+  /** Required when `timeout_enabled`. */
+  amount?: number;
+  /** Required when `timeout_enabled`. */
+  unit?: "minutes" | "hours" | "days";
+  /** Advance here when the customer replies within the window (or,
+   *  when `timeout_enabled` is false, whenever they reply at all). */
   next_node_key: string;
-  /** Advance here if no reply arrives before the deadline. */
-  timeout_node_key: string;
+  /** Advance here if no reply arrives before the deadline. Required
+   *  when `timeout_enabled`. */
+  timeout_node_key?: string;
 }
 
 /**
@@ -589,6 +631,7 @@ export interface FlowRunRow {
     | "completed"
     | "handed_off"
     | "timed_out"
+    | "cancelled"
     | "paused_by_agent"
     | "failed";
   current_node_key: string | null;

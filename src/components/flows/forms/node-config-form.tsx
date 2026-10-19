@@ -47,6 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { uploadAccountMedia, MEDIA_MAX_BYTES } from "@/lib/storage/upload-media";
@@ -145,45 +146,12 @@ export function NodeConfigForm({
 
     case "collect_input":
       return (
-        <>
-          <TextRow
-            label={t("collectInputPromptLabel")}
-            value={(cfg as { prompt_text?: string }).prompt_text ?? ""}
-            onChange={(v) => onUpdateConfig({ prompt_text: v })}
-            rows={2}
-          />
-          <div>
-            <label className="mb-1 block text-xs text-muted-foreground">
-              {t("collectInputVarKeyLabel")}
-            </label>
-            <Input
-              value={(cfg as { var_key?: string }).var_key ?? ""}
-              onChange={(e) =>
-                onUpdateConfig({
-                  var_key: e.target.value.replace(/[^a-zA-Z0-9_]/g, ""),
-                })
-              }
-              placeholder={t("collectInputVarKeyPlaceholder")}
-              className="bg-muted font-mono text-xs"
-            />
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              {t("collectInputVarKeyHintPart1")}{" "}
-              <code className="rounded bg-muted px-1">
-                {"{{vars."}
-                {(cfg as { var_key?: string }).var_key || "name"}
-                {"}}"}
-              </code>
-              .
-            </p>
-          </div>
-          <NextNodeRow
-            value={(cfg as { next_node_key?: string }).next_node_key ?? ""}
-            allNodes={allNodes}
-            currentKey={node.node_key}
-            onChange={(v) => onUpdateConfig({ next_node_key: v })}
-            label={t("collectInputAdvanceLabel")}
-          />
-        </>
+        <CollectInputForm
+          cfg={cfg as CollectInputCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
       );
 
     case "wait":
@@ -751,6 +719,171 @@ interface WaitCfg {
   next_node_key?: string;
 }
 
+// ============================================================
+// collect_input — "Coletar resposta". Optional reply-timeout
+// (migration 113): off (default) keeps the original "wait forever"
+// shape; on, a second "Sem resposta" output appears, the same
+// amount/unit picker wait_for_reply uses, plus an optional resend
+// count. See CollectInputNodeConfig in src/lib/flows/types.ts.
+// ============================================================
+
+interface CollectInputCfg {
+  prompt_text?: string;
+  var_key?: string;
+  next_node_key?: string;
+  timeout_enabled?: boolean;
+  timeout_amount?: number;
+  timeout_unit?: "minutes" | "hours" | "days";
+  timeout_node_key?: string;
+  timeout_max_resends?: number;
+}
+
+function CollectInputForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: CollectInputCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const t = useTranslations("flows.forms");
+  const timeoutOn = cfg.timeout_enabled === true;
+
+  const unitItems = useMemo(
+    () => ({
+      minutes: t("waitUnitMinutes"),
+      hours: t("waitUnitHours"),
+      days: t("waitUnitDays"),
+    }),
+    [t],
+  );
+
+  return (
+    <>
+      <TextRow
+        label={t("collectInputPromptLabel")}
+        value={cfg.prompt_text ?? ""}
+        onChange={(v) => onUpdateConfig({ prompt_text: v })}
+        rows={2}
+      />
+      <div>
+        <label className="mb-1 block text-xs text-muted-foreground">
+          {t("collectInputVarKeyLabel")}
+        </label>
+        <Input
+          value={cfg.var_key ?? ""}
+          onChange={(e) =>
+            onUpdateConfig({
+              var_key: e.target.value.replace(/[^a-zA-Z0-9_]/g, ""),
+            })
+          }
+          placeholder={t("collectInputVarKeyPlaceholder")}
+          className="bg-muted font-mono text-xs"
+        />
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          {t("collectInputVarKeyHintPart1")}{" "}
+          <code className="rounded bg-muted px-1">
+            {"{{vars."}
+            {cfg.var_key || "name"}
+            {"}}"}
+          </code>
+          .
+        </p>
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ""}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label={timeoutOn ? t("waitForReplyRepliedLabel") : t("collectInputAdvanceLabel")}
+      />
+
+      <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+        <label className="text-xs text-muted-foreground">
+          {t("replyTimeoutToggleLabel")}
+        </label>
+        <Switch
+          checked={timeoutOn}
+          onCheckedChange={(checked) => onUpdateConfig({ timeout_enabled: checked })}
+        />
+      </div>
+
+      {timeoutOn && (
+        <>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                {t("waitForReplyAmountLabel")}
+              </label>
+              <Input
+                type="number"
+                min={1}
+                value={cfg.timeout_amount ?? 10}
+                onChange={(e) =>
+                  onUpdateConfig({
+                    timeout_amount: Math.max(1, Number(e.target.value) || 1),
+                  })
+                }
+                className="bg-muted"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                {t("waitUnitLabel")}
+              </label>
+              <Select
+                items={unitItems}
+                value={cfg.timeout_unit ?? "minutes"}
+                onValueChange={(v) =>
+                  onUpdateConfig({ timeout_unit: v as CollectInputCfg["timeout_unit"] })
+                }
+              >
+                <SelectTrigger className="bg-muted">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="minutes">{t("waitUnitMinutes")}</SelectItem>
+                  <SelectItem value="hours">{t("waitUnitHours")}</SelectItem>
+                  <SelectItem value="days">{t("waitUnitDays")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <NextNodeRow
+            value={cfg.timeout_node_key ?? ""}
+            allNodes={allNodes}
+            currentKey={currentKey}
+            onChange={(v) => onUpdateConfig({ timeout_node_key: v })}
+            label={t("waitForReplyTimeoutLabel")}
+          />
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t("collectInputResendLabel")}
+            </label>
+            <Input
+              type="number"
+              min={0}
+              value={cfg.timeout_max_resends ?? 0}
+              onChange={(e) =>
+                onUpdateConfig({
+                  timeout_max_resends: Math.max(0, Number(e.target.value) || 0),
+                })
+              }
+              className="bg-muted"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              {t("collectInputResendHint")}
+            </p>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function WaitForm({
   cfg,
   allNodes,
@@ -832,6 +965,7 @@ function WaitForm({
 // ============================================================
 
 interface WaitForReplyCfg {
+  timeout_enabled?: boolean;
   amount?: number;
   unit?: "minutes" | "hours" | "days";
   next_node_key?: string;
@@ -850,6 +984,9 @@ function WaitForReplyForm({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
   const t = useTranslations("flows.forms");
+  // Migration 113 — omitted defaults to on (every node saved before
+  // this toggle existed already behaves this way).
+  const timeoutOn = cfg.timeout_enabled !== false;
 
   const unitItems = useMemo(
     () => ({
@@ -865,55 +1002,70 @@ function WaitForReplyForm({
       <p className="text-[10px] text-muted-foreground">
         {t("waitForReplyHint")}
       </p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">
-            {t("waitForReplyAmountLabel")}
-          </label>
-          <Input
-            type="number"
-            min={1}
-            value={cfg.amount ?? 2}
-            onChange={(e) =>
-              onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })
-            }
-            className="bg-muted"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs text-muted-foreground">
-            {t("waitUnitLabel")}
-          </label>
-          <Select
-            items={unitItems}
-            value={cfg.unit ?? "hours"}
-            onValueChange={(v) => onUpdateConfig({ unit: v as WaitForReplyCfg["unit"] })}
-          >
-            <SelectTrigger className="bg-muted">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="minutes">{t("waitUnitMinutes")}</SelectItem>
-              <SelectItem value="hours">{t("waitUnitHours")}</SelectItem>
-              <SelectItem value="days">{t("waitUnitDays")}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+
+      <div className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2">
+        <label className="text-xs text-muted-foreground">
+          {t("replyTimeoutToggleLabel")}
+        </label>
+        <Switch
+          checked={timeoutOn}
+          onCheckedChange={(checked) => onUpdateConfig({ timeout_enabled: checked })}
+        />
       </div>
+
+      {timeoutOn && (
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t("waitForReplyAmountLabel")}
+            </label>
+            <Input
+              type="number"
+              min={1}
+              value={cfg.amount ?? 2}
+              onChange={(e) =>
+                onUpdateConfig({ amount: Math.max(1, Number(e.target.value) || 1) })
+              }
+              className="bg-muted"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">
+              {t("waitUnitLabel")}
+            </label>
+            <Select
+              items={unitItems}
+              value={cfg.unit ?? "hours"}
+              onValueChange={(v) => onUpdateConfig({ unit: v as WaitForReplyCfg["unit"] })}
+            >
+              <SelectTrigger className="bg-muted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">{t("waitUnitMinutes")}</SelectItem>
+                <SelectItem value="hours">{t("waitUnitHours")}</SelectItem>
+                <SelectItem value="days">{t("waitUnitDays")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
       <NextNodeRow
         value={cfg.next_node_key ?? ""}
         allNodes={allNodes}
         currentKey={currentKey}
         onChange={(v) => onUpdateConfig({ next_node_key: v })}
-        label={t("waitForReplyRepliedLabel")}
+        label={timeoutOn ? t("waitForReplyRepliedLabel") : t("thenAdvanceLabel")}
       />
-      <NextNodeRow
-        value={cfg.timeout_node_key ?? ""}
-        allNodes={allNodes}
-        currentKey={currentKey}
-        onChange={(v) => onUpdateConfig({ timeout_node_key: v })}
-        label={t("waitForReplyTimeoutLabel")}
-      />
+      {timeoutOn && (
+        <NextNodeRow
+          value={cfg.timeout_node_key ?? ""}
+          allNodes={allNodes}
+          currentKey={currentKey}
+          onChange={(v) => onUpdateConfig({ timeout_node_key: v })}
+          label={t("waitForReplyTimeoutLabel")}
+        />
+      )}
     </>
   );
 }

@@ -216,11 +216,26 @@ export function defaultConfigFor(
         prompt_text: "",
         var_key: "answer",
         next_node_key: "",
+        // Reply-timeout off by default — matches collect_input's
+        // original "wait forever" behavior; the seeded amount/unit are
+        // just sane values ready to use the moment the toggle flips on.
+        timeout_enabled: false,
+        timeout_amount: 10,
+        timeout_unit: "minutes",
+        timeout_node_key: "",
       };
     case "wait":
       return { amount: 5, unit: "minutes", next_node_key: "" };
     case "wait_for_reply":
-      return { amount: 2, unit: "hours", next_node_key: "", timeout_node_key: "" };
+      // Reply-timeout on by default — matches wait_for_reply's
+      // pre-migration-113 behavior, where it was mandatory.
+      return {
+        timeout_enabled: true,
+        amount: 2,
+        unit: "hours",
+        next_node_key: "",
+        timeout_node_key: "",
+      };
     case "condition":
       return {
         subject: "var",

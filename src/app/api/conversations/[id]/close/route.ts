@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { closeTicketWithoutReason } from '@/lib/tickets/lifecycle'
 import { runTicketSideEffect } from '@/lib/tickets/safe-run'
+import { cancelWaitingFlowRunsForContact } from '@/lib/flows/engine'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -27,7 +28,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const { data: existing, error: existingError } = await supabase
       .from('conversations')
-      .select('id')
+      .select('id, contact_id')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -51,6 +52,19 @@ export async function POST(_request: Request, context: RouteContext) {
     await runTicketSideEffect('conversations/close route', async () => {
       await closeTicketWithoutReason(id, userId)
     })
+
+    // Encerra uma espera pendente num nó "Aguardar resposta"/"Coletar
+    // resposta" com prazo — sem isso, o cron resumiria o fluxo para uma
+    // conversa que o atendente já encerrou. Non-fatal: um run_run sem
+    // prazo não existe aqui, e uma falha de rede não deve bloquear o
+    // fechamento da conversa em si.
+    if (existing.contact_id) {
+      try {
+        await cancelWaitingFlowRunsForContact(existing.contact_id, 'conversation_closed')
+      } catch (err) {
+        console.error('Error cancelling waiting flow runs on conversation close:', err)
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {

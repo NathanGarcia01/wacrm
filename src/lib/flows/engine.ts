@@ -173,6 +173,47 @@ export function evaluateConditionPredicate(args: {
   }
 }
 
+/**
+ * Does this collect_input node have reply-timeout enabled? Mirrors
+ * (must stay in sync with) the save-time check in validate.ts.
+ * Migration 113 — missing/false = original v1.5 behavior: wait
+ * forever for a text reply, no second branch.
+ */
+export function isCollectInputTimeoutEnabled(
+  cfg: Pick<CollectInputNodeConfig, "timeout_enabled">,
+): boolean {
+  return cfg.timeout_enabled === true;
+}
+
+/**
+ * Does this wait_for_reply node have its deadline branch enabled?
+ * Omitted `timeout_enabled` defaults to `true` — every wait_for_reply
+ * node saved before migration 113 already has amount/unit/
+ * timeout_node_key populated (they were mandatory), so "field absent"
+ * must mean "timeout on" to keep those flows running unchanged.
+ */
+export function isWaitForReplyTimeoutEnabled(
+  cfg: Pick<WaitForReplyNodeConfig, "timeout_enabled">,
+): boolean {
+  return cfg.timeout_enabled !== false;
+}
+
+/**
+ * Should the cron sweep resend `prompt_text` instead of giving up and
+ * following `timeout_node_key`? True while the timeout is on, a
+ * resend budget is configured, and this node hasn't used it up yet.
+ * `reprompt_count` is the same per-node nudge counter the fallback
+ * policy uses for unknown replies — see resumeWaitForReplyTimeout.
+ */
+export function shouldResendCollectInputPrompt(
+  cfg: Pick<CollectInputNodeConfig, "timeout_enabled" | "timeout_max_resends">,
+  repromptCount: number,
+): boolean {
+  if (!isCollectInputTimeoutEnabled(cfg)) return false;
+  const maxResends = cfg.timeout_max_resends ?? 0;
+  return maxResends > 0 && repromptCount < maxResends;
+}
+
 // ============================================================
 // DB I/O — wrapped in tiny helpers so the dispatch flow stays
 // readable. Errors surface as thrown — the entry point catches.
@@ -280,6 +321,7 @@ export async function logEvent(
     | "fallback_fired"
     | "handoff"
     | "timeout"
+    | "cancelled"
     | "error"
     | "completed",
   node_key: string | null,
@@ -475,22 +517,38 @@ async function sendListAndSuspend(
  * advanceCurrentNodeKey's return contract) so the caller can log it
  * the same way.
  */
+/**
+ * Parks the run at a `wait_for_reply` node — status flips to
+ * 'waiting_reply' either way (it still means "suspended, matching ANY
+ * reply" per handleReplyForActiveRun), but the deadline fields only
+ * get set when the node's timeout branch is enabled; left null
+ * otherwise, which is exactly what makes the run wait forever (the
+ * cron sweep only ever selects rows with waiting_reply_until NOT
+ * NULL — see /api/flows/cron).
+ */
 async function waitForReplyAndSuspend(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
 ): Promise<boolean> {
   const cfg = node.config as unknown as WaitForReplyNodeConfig;
-  const ms = waitForReplyMs(cfg);
+  const timeoutOn = isWaitForReplyTimeoutEnabled(cfg);
+  const patch: Record<string, unknown> = {
+    current_node_key: node.node_key,
+    status: "waiting_reply",
+    last_advanced_at: new Date().toISOString(),
+  };
+  if (timeoutOn) {
+    const ms = waitForReplyMs({ amount: cfg.amount!, unit: cfg.unit! });
+    patch.waiting_reply_until = new Date(Date.now() + ms).toISOString();
+    patch.waiting_reply_timeout_node_key = cfg.timeout_node_key;
+  } else {
+    patch.waiting_reply_until = null;
+    patch.waiting_reply_timeout_node_key = null;
+  }
   let q = db
     .from("flow_runs")
-    .update({
-      current_node_key: node.node_key,
-      status: "waiting_reply",
-      waiting_reply_until: new Date(Date.now() + ms).toISOString(),
-      waiting_reply_timeout_node_key: cfg.timeout_node_key,
-      last_advanced_at: new Date().toISOString(),
-    })
+    .update(patch)
     .eq("id", run.id)
     .eq("status", "active");
   q = run.current_node_key === null
@@ -505,17 +563,59 @@ async function waitForReplyAndSuspend(
   if (ok) {
     await logEvent(db, run.id, "node_entered", node.node_key, {
       node_type: "wait_for_reply",
-      waiting_for: `${cfg.amount} ${cfg.unit}`,
-      timeout_node_key: cfg.timeout_node_key,
+      waiting_for: timeoutOn ? `${cfg.amount} ${cfg.unit}` : "forever",
+      timeout_node_key: timeoutOn ? cfg.timeout_node_key : null,
     });
   }
   return ok;
 }
 
-function waitForReplyMs(cfg: WaitForReplyNodeConfig): number {
+function waitForReplyMs(cfg: { amount: number; unit: "minutes" | "hours" | "days" }): number {
   const unitMs =
     cfg.unit === "hours" ? 3_600_000 : cfg.unit === "days" ? 86_400_000 : 60_000;
   return Math.max(1_000, cfg.amount * unitMs);
+}
+
+/**
+ * Parks the run at a `collect_input` node. Mirrors
+ * `waitForReplyAndSuspend`'s "deadline fields only when enabled"
+ * shape, but — unlike wait_for_reply, which ALWAYS suspends as
+ * 'waiting_reply' — stays `status='active'` when the node's timeout
+ * is off, preserving collect_input's original v1.5 on-the-wire shape
+ * exactly (no behavior change for the thousands of already-saved
+ * nodes that don't have these fields).
+ */
+async function collectInputAndSuspend(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+): Promise<boolean> {
+  const cfg = node.config as unknown as CollectInputNodeConfig;
+  const timeoutOn = isCollectInputTimeoutEnabled(cfg);
+  const patch: Record<string, unknown> = {
+    current_node_key: node.node_key,
+    last_advanced_at: new Date().toISOString(),
+  };
+  if (timeoutOn) {
+    const ms = waitForReplyMs({ amount: cfg.timeout_amount!, unit: cfg.timeout_unit! });
+    patch.status = "waiting_reply";
+    patch.waiting_reply_until = new Date(Date.now() + ms).toISOString();
+    patch.waiting_reply_timeout_node_key = cfg.timeout_node_key;
+  }
+  let q = db
+    .from("flow_runs")
+    .update(patch)
+    .eq("id", run.id)
+    .eq("status", "active");
+  q = run.current_node_key === null
+    ? q.is("current_node_key", null)
+    : q.eq("current_node_key", run.current_node_key);
+  const { data, error } = await q.select("id");
+  if (error) {
+    console.error("[flows] collectInputAndSuspend error:", error.message);
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
 }
 
 async function executeHandoff(
@@ -791,12 +891,7 @@ async function advanceFromNodeKey(
         await endRun(db, run.id, "failed", "collect_input_prompt_failed");
         return { outcome: "completed" };
       }
-      const advanced = await advanceCurrentNodeKey(
-        db,
-        run.id,
-        run.current_node_key,
-        node.node_key,
-      );
+      const advanced = await collectInputAndSuspend(db, run, node);
       if (!advanced) {
         await logEvent(db, run.id, "error", node.node_key, {
           reason: "lost_race_during_advance",
@@ -1202,6 +1297,15 @@ async function handleReplyForActiveRun(
   //
   // Everything else falls through to the fallback policy below.
   let matched: string | null = null;
+  // Set when a guarded clear/capture UPDATE below affects zero rows —
+  // the ONLY way that happens here (dispatchInboundToFlows already
+  // filtered out same-message-id Meta retries via isDuplicateInbound)
+  // is the /api/flows/cron sweep having already fired this node's
+  // timeout branch a moment earlier. Per spec: a reply that lands
+  // after the deadline fired must NOT resume the old branch — it
+  // falls through to whatever the normal (non-flow) message handling
+  // does, same as a reply with no active run at all.
+  let lostRaceToTimeout = false;
   if (currentNode.node_type === "wait_for_reply") {
     // The customer beat the clock — clear the deadline and flip back
     // to 'active' before advancing, so a subsequent suspending node
@@ -1219,14 +1323,11 @@ async function handleReplyForActiveRun(
       .eq("id", run.id)
       .eq("status", "waiting_reply")
       .select("id");
-    // Row-count check (not just error-is-null) — a duplicate delivery
-    // of the same inbound (Meta retry) arriving after a first delivery
-    // already flipped this run to 'active' would otherwise still fall
-    // through to `matched`, re-advancing the run a second time for one
-    // customer reply.
     if (!clearErr && Array.isArray(cleared) && cleared.length > 0) {
       run.status = "active";
       matched = cfg.next_node_key;
+    } else if (!clearErr) {
+      lostRaceToTimeout = true;
     }
   } else if (
     message.kind === "interactive_reply" &&
@@ -1241,28 +1342,50 @@ async function handleReplyForActiveRun(
     const cfg = currentNode.config as unknown as CollectInputNodeConfig;
     const captured = message.text.trim();
     if (captured.length > 0 && cfg.var_key) {
-      // Persist captured value + reset reprompt count atomically.
+      // Persist captured value + reset reprompt count atomically. When
+      // this node's timeout is on, run.status is 'waiting_reply' — the
+      // capture must also clear the deadline fields AND be guarded on
+      // that status, same race the wait_for_reply branch above guards
+      // against. When the timeout is off, run.status is plain
+      // 'active' (original v1.5 shape) and no guard is needed — there
+      // is no concurrent cron sweep that could touch this run.
       const newVars = { ...run.vars, [cfg.var_key]: captured };
-      const { error: capErr } = await db
-        .from("flow_runs")
-        .update({
-          vars: newVars,
-          reprompt_count: 0,
-        })
-        .eq("id", run.id);
-      if (!capErr) {
+      const waitingOnTimeout = run.status === "waiting_reply";
+      let q = db.from("flow_runs").update({
+        vars: newVars,
+        reprompt_count: 0,
+        ...(waitingOnTimeout
+          ? {
+              status: "active",
+              waiting_reply_until: null,
+              waiting_reply_timeout_node_key: null,
+            }
+          : {}),
+      }).eq("id", run.id);
+      if (waitingOnTimeout) q = q.eq("status", "waiting_reply");
+      const { data: capRows, error: capErr } = await q.select("id");
+      const capturedOk =
+        !capErr && (!waitingOnTimeout || (Array.isArray(capRows) && capRows.length > 0));
+      if (capturedOk) {
         // Mirror the UPDATE in-memory so downstream interpolation in
         // the advance loop sees the captured var without us having to
         // re-SELECT the whole row.
         run.vars = newVars;
         run.reprompt_count = 0;
+        if (waitingOnTimeout) run.status = "active";
         await logEvent(db, run.id, "node_entered", currentNode.node_key, {
           captured_key: cfg.var_key,
           captured_length: captured.length,
         });
         matched = cfg.next_node_key;
+      } else if (!capErr && waitingOnTimeout) {
+        lostRaceToTimeout = true;
       }
     }
+  }
+
+  if (lostRaceToTimeout) {
+    return { consumed: false, flow_run_id: run.id, outcome: "no_match" };
   }
 
   if (matched) {
@@ -1380,8 +1503,64 @@ export async function resumeWaitForReplyTimeout(runId: string): Promise<void> {
     return;
   }
   const typed = run as FlowRunRow;
-  const timeoutKey = typed.waiting_reply_timeout_node_key;
+  const nodes = await loadAllNodes(db, typed.flow_id);
+  const currentNode = typed.current_node_key
+    ? nodes.get(typed.current_node_key) ?? null
+    : null;
 
+  // Resend-before-timeout — collect_input only; it's the only
+  // suspending node type with its own prompt_text worth resending
+  // (wait_for_reply has none of its own — the question was sent by a
+  // preceding send_message node). Reuses `reprompt_count`, the same
+  // per-node nudge counter the fallback policy uses for unknown
+  // replies — it's reset to 0 whenever the run leaves this node via a
+  // match, so the two uses never bleed into each other.
+  if (currentNode?.node_type === "collect_input") {
+    const cfg = currentNode.config as unknown as CollectInputNodeConfig;
+    if (shouldResendCollectInputPrompt(cfg, typed.reprompt_count)) {
+      const ms = waitForReplyMs({ amount: cfg.timeout_amount!, unit: cfg.timeout_unit! });
+      const { data: claimed, error: claimErr } = await db
+        .from("flow_runs")
+        .update({
+          reprompt_count: typed.reprompt_count + 1,
+          waiting_reply_until: new Date(Date.now() + ms).toISOString(),
+          last_advanced_at: new Date().toISOString(),
+        })
+        .eq("id", runId)
+        .eq("status", "waiting_reply")
+        .select("id");
+      if (claimErr) {
+        console.error("[flows] resumeWaitForReplyTimeout resend-claim error:", claimErr.message);
+        return;
+      }
+      if (Array.isArray(claimed) && claimed.length > 0) {
+        try {
+          await engineSendText({
+            accountId: typed.account_id,
+            userId: typed.user_id,
+            conversationId: typed.conversation_id!,
+            contactId: typed.contact_id!,
+            text: interpolateVars(cfg.prompt_text, typed.vars),
+          });
+          await logEvent(db, runId, "message_sent", currentNode.node_key, {
+            node_type: "collect_input",
+            resend_attempt: typed.reprompt_count + 1,
+          });
+        } catch (err) {
+          await logEvent(db, runId, "error", currentNode.node_key, {
+            reason: "collect_input_resend_failed",
+            detail: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      // Claimed-and-resent, or lost the race to an incoming reply
+      // (handleReplyForActiveRun already has it) — either way, don't
+      // fall through to the timeout branch below.
+      return;
+    }
+  }
+
+  const timeoutKey = typed.waiting_reply_timeout_node_key;
   const { data: claimed, error: claimErr } = await db
     .from("flow_runs")
     .update({
@@ -1408,8 +1587,44 @@ export async function resumeWaitForReplyTimeout(runId: string): Promise<void> {
   typed.status = "active";
   typed.waiting_reply_until = null;
   typed.waiting_reply_timeout_node_key = null;
-  const nodes = await loadAllNodes(db, typed.flow_id);
   await advanceFromNodeKey(db, typed, timeoutKey, nodes);
+}
+
+/**
+ * Ends any run parked at a `wait_for_reply` / timeout-enabled
+ * `collect_input` node for this contact — called when the
+ * conversation closes or the contact opts out, so the cron sweep
+ * never resumes a stale wait into a conversation nobody is tracking
+ * anymore. Returns the number of runs cancelled (0 = nothing was
+ * waiting, the common case). Migration 113 added the 'cancelled'
+ * status + event_type.
+ */
+export async function cancelWaitingFlowRunsForContact(
+  contactId: string,
+  reason: "conversation_closed" | "opted_out",
+): Promise<number> {
+  const db = supabaseAdmin();
+  const { data, error } = await db
+    .from("flow_runs")
+    .update({
+      status: "cancelled",
+      ended_at: new Date().toISOString(),
+      end_reason: reason,
+      waiting_reply_until: null,
+      waiting_reply_timeout_node_key: null,
+    })
+    .eq("contact_id", contactId)
+    .eq("status", "waiting_reply")
+    .select("id");
+  if (error) {
+    console.error("[flows] cancelWaitingFlowRunsForContact error:", error.message);
+    return 0;
+  }
+  const rows = (data as { id: string }[] | null) ?? [];
+  for (const row of rows) {
+    await logEvent(db, row.id, "cancelled", null, { reason });
+  }
+  return rows.length;
 }
 
 async function startNewRun(

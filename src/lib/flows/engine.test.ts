@@ -6,6 +6,9 @@ import {
   isSuspending,
   isTerminal,
   evaluateConditionPredicate,
+  isCollectInputTimeoutEnabled,
+  isWaitForReplyTimeoutEnabled,
+  shouldResendCollectInputPrompt,
 } from "./engine";
 
 describe("matchReplyId", () => {
@@ -296,6 +299,83 @@ describe("evaluateConditionPredicate", () => {
         subjectValue: undefined,
         configValue: "anything",
       }),
+    ).toBe(false);
+  });
+});
+
+describe("isCollectInputTimeoutEnabled — migration 113 toggle", () => {
+  it("is off by default (original v1.5 'wait forever' shape, field absent)", () => {
+    expect(isCollectInputTimeoutEnabled({ timeout_enabled: undefined })).toBe(false);
+    expect(isCollectInputTimeoutEnabled({})).toBe(false);
+  });
+
+  it("is off when explicitly false", () => {
+    expect(isCollectInputTimeoutEnabled({ timeout_enabled: false })).toBe(false);
+  });
+
+  it("is on only when explicitly true", () => {
+    expect(isCollectInputTimeoutEnabled({ timeout_enabled: true })).toBe(true);
+  });
+});
+
+describe("isWaitForReplyTimeoutEnabled — migration 113 toggle", () => {
+  it("defaults to on when absent — every pre-113 node already behaves this way", () => {
+    expect(isWaitForReplyTimeoutEnabled({ timeout_enabled: undefined })).toBe(true);
+    expect(isWaitForReplyTimeoutEnabled({})).toBe(true);
+  });
+
+  it("is on when explicitly true", () => {
+    expect(isWaitForReplyTimeoutEnabled({ timeout_enabled: true })).toBe(true);
+  });
+
+  it("is off only when explicitly false", () => {
+    expect(isWaitForReplyTimeoutEnabled({ timeout_enabled: false })).toBe(false);
+  });
+});
+
+describe("shouldResendCollectInputPrompt — item 5, resend before giving up", () => {
+  it("never resends when the timeout itself is off", () => {
+    expect(
+      shouldResendCollectInputPrompt(
+        { timeout_enabled: false, timeout_max_resends: 3 },
+        0,
+      ),
+    ).toBe(false);
+  });
+
+  it("never resends when no resend budget is configured", () => {
+    expect(
+      shouldResendCollectInputPrompt({ timeout_enabled: true }, 0),
+    ).toBe(false);
+    expect(
+      shouldResendCollectInputPrompt(
+        { timeout_enabled: true, timeout_max_resends: 0 },
+        0,
+      ),
+    ).toBe(false);
+  });
+
+  it("resends while under the budget", () => {
+    expect(
+      shouldResendCollectInputPrompt(
+        { timeout_enabled: true, timeout_max_resends: 2 },
+        0,
+      ),
+    ).toBe(true);
+    expect(
+      shouldResendCollectInputPrompt(
+        { timeout_enabled: true, timeout_max_resends: 2 },
+        1,
+      ),
+    ).toBe(true);
+  });
+
+  it("stops once the budget is exhausted", () => {
+    expect(
+      shouldResendCollectInputPrompt(
+        { timeout_enabled: true, timeout_max_resends: 2 },
+        2,
+      ),
     ).toBe(false);
   });
 });

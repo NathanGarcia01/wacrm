@@ -1268,3 +1268,260 @@ describe("reachableFromEntry", () => {
     expect(set).toEqual(new Set(["a", "b"]));
   });
 });
+
+describe("validateFlowForActivation — collect_input reply-timeout (migration 113)", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "c" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    {
+      node_key: "c",
+      node_type: "collect_input",
+      config: { prompt_text: "Qual seu email?", var_key: "email", next_node_key: "ok", ...cfg },
+    },
+    { node_key: "ok", node_type: "handoff", config: {} },
+    { node_key: "timedout", node_type: "handoff", config: {} },
+  ];
+
+  // These two use just the "c"/"ok" pair (no "timedout" node) — with the
+  // timeout off there's no second branch, so an unused "timedout" node
+  // would correctly (if distractingly) trip the unreachable-node warning.
+  const twoNodeFlow = (cfg: Record<string, unknown>) => [
+    {
+      node_key: "c",
+      node_type: "collect_input",
+      config: { prompt_text: "Qual seu email?", var_key: "email", next_node_key: "ok", ...cfg },
+    },
+    { node_key: "ok", node_type: "handoff", config: {} },
+  ];
+
+  it("passes with the timeout off (default) and no timeout fields at all", () => {
+    expect(validateFlowForActivation(baseFlow, twoNodeFlow({}))).toEqual([]);
+  });
+
+  it("passes with the timeout off even if stray timeout fields are present but unused", () => {
+    // timeout_enabled explicitly false — the rest shouldn't be validated.
+    expect(
+      validateFlowForActivation(
+        baseFlow,
+        twoNodeFlow({ timeout_enabled: false, timeout_node_key: "ghost" }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("passes on a fully-populated enabled timeout", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        timeout_enabled: true,
+        timeout_amount: 10,
+        timeout_unit: "minutes",
+        timeout_node_key: "timedout",
+      }),
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("flags missing timeout_amount/timeout_unit/timeout_node_key once enabled", () => {
+    const issues = validateFlowForActivation(baseFlow, nodesWith({ timeout_enabled: true }));
+    expect(issues.some((i) => i.node_key === "c" && i.field === "timeout_amount")).toBe(true);
+    expect(issues.some((i) => i.node_key === "c" && i.field === "timeout_unit")).toBe(true);
+    expect(issues.some((i) => i.node_key === "c" && i.field === "timeout_node_key")).toBe(true);
+  });
+
+  it("flags timeout_node_key pointing at a non-existent node", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        timeout_enabled: true,
+        timeout_amount: 10,
+        timeout_unit: "minutes",
+        timeout_node_key: "ghost",
+      }),
+    );
+    expect(
+      issues.some(
+        (i) => i.node_key === "c" && i.field === "timeout_node_key" && i.message.includes("ghost"),
+      ),
+    ).toBe(true);
+  });
+
+  it("flags a negative timeout_max_resends", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      nodesWith({
+        timeout_enabled: true,
+        timeout_amount: 10,
+        timeout_unit: "minutes",
+        timeout_node_key: "timedout",
+        timeout_max_resends: -1,
+      }),
+    );
+    expect(issues.some((i) => i.node_key === "c" && i.field === "timeout_max_resends")).toBe(true);
+  });
+
+  it("contributes timeout_node_key to reachability only when enabled", () => {
+    const disabled = reachableFromEntry(
+      "c",
+      nodesWith({ timeout_enabled: false, timeout_node_key: "timedout" }),
+    );
+    expect(disabled.has("timedout")).toBe(false);
+
+    const enabled = reachableFromEntry(
+      "c",
+      nodesWith({
+        timeout_enabled: true,
+        timeout_amount: 10,
+        timeout_unit: "minutes",
+        timeout_node_key: "timedout",
+      }),
+    );
+    expect(enabled.has("timedout")).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — wait_for_reply optional timeout (migration 113)", () => {
+  const baseFlow = { ...validFlow, entry_node_id: "s" };
+  const nodesWith = (cfg: Record<string, unknown>) => [
+    { node_key: "s", node_type: "start", config: { next_node_key: "w" } },
+    { node_key: "w", node_type: "wait_for_reply", config: cfg },
+    { node_key: "replied", node_type: "handoff", config: {} },
+    { node_key: "timedout", node_type: "handoff", config: {} },
+  ];
+
+  it("still requires amount/unit/timeout_node_key when timeout_enabled is omitted (back-compat default: on)", () => {
+    const issues = validateFlowForActivation(baseFlow, nodesWith({ next_node_key: "replied" }));
+    expect(issues.some((i) => i.node_key === "w" && i.field === "amount")).toBe(true);
+    expect(issues.some((i) => i.node_key === "w" && i.field === "unit")).toBe(true);
+    expect(issues.some((i) => i.node_key === "w" && i.field === "timeout_node_key")).toBe(true);
+  });
+
+  it("relaxes amount/unit/timeout_node_key once timeout_enabled is explicitly false", () => {
+    const issues = validateFlowForActivation(
+      baseFlow,
+      // Only "s"/"w"/"replied" — no unused "timedout" node, so there's
+      // nothing left dangling once the timeout branch is off.
+      [
+        { node_key: "s", node_type: "start", config: { next_node_key: "w" } },
+        {
+          node_key: "w",
+          node_type: "wait_for_reply",
+          config: { timeout_enabled: false, next_node_key: "replied" },
+        },
+        { node_key: "replied", node_type: "handoff", config: {} },
+      ],
+    );
+    expect(issues).toEqual([]);
+  });
+
+  it("still requires next_node_key even with the timeout off", () => {
+    const issues = validateFlowForActivation(baseFlow, nodesWith({ timeout_enabled: false }));
+    expect(issues.some((i) => i.node_key === "w" && i.field === "next_node_key")).toBe(true);
+  });
+});
+
+describe("validateFlowForActivation — 24h reply-window warning (item 3)", () => {
+  it("warns when a collect_input timeout branch leads straight into a real send within 24h+", () => {
+    const flow = { ...validFlow, entry_node_id: "c" };
+    const nodes = [
+      {
+        node_key: "c",
+        node_type: "collect_input",
+        config: {
+          prompt_text: "Email?",
+          var_key: "email",
+          next_node_key: "ok",
+          timeout_enabled: true,
+          timeout_amount: 25,
+          timeout_unit: "hours",
+          timeout_node_key: "followup",
+        },
+      },
+      { node_key: "ok", node_type: "handoff", config: {} },
+      {
+        node_key: "followup",
+        node_type: "send_message",
+        config: { text: "Ainda por aí?", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "handoff", config: {} },
+    ];
+    const issues = validateFlowForActivation(flow, nodes);
+    expect(
+      issues.some(
+        (i) => i.severity === "warning" && i.node_key === "followup" && i.message.includes("template"),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not warn when the accumulated wait stays under 24h", () => {
+    const flow = { ...validFlow, entry_node_id: "w" };
+    const nodes = [
+      {
+        node_key: "w",
+        node_type: "wait_for_reply",
+        config: {
+          timeout_enabled: true,
+          amount: 2,
+          unit: "hours",
+          next_node_key: "ok",
+          timeout_node_key: "followup",
+        },
+      },
+      { node_key: "ok", node_type: "handoff", config: {} },
+      {
+        node_key: "followup",
+        node_type: "send_message",
+        config: { text: "Ainda por aí?", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "handoff", config: {} },
+    ];
+    const issues = validateFlowForActivation(flow, nodes);
+    expect(issues.some((i) => i.node_key === "followup" && i.severity === "warning")).toBe(false);
+  });
+
+  it("does not warn when the timeout branch uses send_template instead", () => {
+    const flow = { ...validFlow, entry_node_id: "w" };
+    const nodes = [
+      {
+        node_key: "w",
+        node_type: "wait_for_reply",
+        config: {
+          timeout_enabled: true,
+          amount: 30,
+          unit: "hours",
+          next_node_key: "ok",
+          timeout_node_key: "followup",
+        },
+      },
+      { node_key: "ok", node_type: "handoff", config: {} },
+      {
+        node_key: "followup",
+        node_type: "send_template",
+        config: { template_name: "reengage", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "handoff", config: {} },
+    ];
+    const issues = validateFlowForActivation(flow, nodes);
+    expect(issues.some((i) => i.node_key === "followup")).toBe(false);
+  });
+
+  it("does not warn when the timeout branch is off", () => {
+    const flow = { ...validFlow, entry_node_id: "w" };
+    const nodes = [
+      {
+        node_key: "w",
+        node_type: "wait_for_reply",
+        config: {
+          timeout_enabled: false,
+          next_node_key: "followup",
+        },
+      },
+      {
+        node_key: "followup",
+        node_type: "send_message",
+        config: { text: "Oi", next_node_key: "end" },
+      },
+      { node_key: "end", node_type: "handoff", config: {} },
+    ];
+    const issues = validateFlowForActivation(flow, nodes);
+    expect(issues.some((i) => i.node_key === "followup" && i.severity === "warning")).toBe(false);
+  });
+});

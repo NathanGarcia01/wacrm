@@ -13,7 +13,8 @@ import {
 } from '@/lib/whatsapp/inbound-message'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
-import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { dispatchInboundToFlows, cancelWaitingFlowRunsForContact } from '@/lib/flows/engine'
+import { findExistingContact } from '@/lib/contacts/dedupe'
 import { runFlowsForTrigger } from '@/lib/flows/workflow-engine'
 import { handleNpsResponse } from '@/lib/nps/webhook-handler'
 import {
@@ -440,6 +441,24 @@ function isValidStatusTransition(current: string, incoming: string): boolean {
   return ii > ci
 }
 
+/**
+ * Fase 5, Etapa 1 follow-up ("tempo limite de resposta", item 4) —
+ * Meta-driven opt-out signals (131050 delivery error, the account's
+ * own "stop promotions" toggle) fire independent of message content,
+ * so unlike the keyword-based opt-out in opt-out-handler.ts (which
+ * deliberately skips contacts mid wait_for_reply to avoid treating a
+ * menu reply as an opt-out), these CAN legitimately land while a flow
+ * is parked waiting on this contact. Resolve the contact by phone
+ * (same fuzzy match findOrCreateContact uses) and cancel any pending
+ * wait so the cron sweep doesn't resume it later. Best-effort: a
+ * lookup miss or a race is not worth failing the opt-out block over.
+ */
+async function cancelWaitingFlowRunForPhone(accountId: string, phone: string): Promise<void> {
+  const contact = await findExistingContact(supabaseAdmin(), accountId, phone)
+  if (!contact) return
+  await cancelWaitingFlowRunsForContact(contact.id, 'opted_out')
+}
+
 async function handleStatusUpdate(
   status: {
     id: string
@@ -460,6 +479,7 @@ async function handleStatusUpdate(
   if (accountId && status.status === 'failed' && status.errors?.some((e) => e.code === 131050)) {
     try {
       await blockPhone(supabaseAdmin(), accountId, status.recipient_id, 'cloud_api_error', 'error_131050')
+      await cancelWaitingFlowRunForPhone(accountId, status.recipient_id)
     } catch (err) {
       console.error('[webhook] opt-out block on error 131050 failed:', err)
     }
@@ -529,6 +549,7 @@ async function handleUserPreferenceUpdate(
   try {
     if (pref.value === 'stop') {
       await blockPhone(supabaseAdmin(), accountId, pref.wa_id, 'meta_stop_promotions', pref.detail ?? null)
+      await cancelWaitingFlowRunForPhone(accountId, pref.wa_id)
     } else if (pref.value === 'resume') {
       await unblockPhone(supabaseAdmin(), accountId, pref.wa_id, ['meta_stop_promotions'], 'meta_stop_promotions:resume')
     }
