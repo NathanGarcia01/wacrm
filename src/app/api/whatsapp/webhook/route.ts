@@ -416,6 +416,41 @@ const RECIPIENT_STATUS_LADDER = [
   'replied',
 ] as const
 
+/**
+ * PT-BR placeholder used as the flow engine's "reply text" when a
+ * customer answers a `collect_input`/`wait_for_reply` node with media
+ * that has no caption (image, document, audio, video, sticker,
+ * location, a shared contact card, …). Without this, `contentText`
+ * is null, the engine receives `kind: 'text', text: ''`, and
+ * `collect_input`'s `captured.length > 0` guard (engine.ts) treats an
+ * empty string as "no answer" — the run just sits at `waiting_reply`
+ * until its deadline, instead of treating the media as a real reply.
+ * This only affects what the FLOW ENGINE sees; the `messages` row
+ * keeps its honest `content_text`/`media_url` either way.
+ */
+function nonTextReplyFallback(type: string): string {
+  switch (type) {
+    case 'image':
+      return '[imagem]'
+    case 'video':
+      return '[vídeo]'
+    case 'document':
+      return '[documento]'
+    case 'audio':
+      return '[áudio]'
+    case 'sticker':
+      return '[sticker]'
+    case 'location':
+      return '[localização]'
+    case 'contacts':
+      return '[contato compartilhado]'
+    case 'reaction':
+      return '[reação]'
+    default:
+      return '[mídia]'
+  }
+}
+
 function ladderLevel(s: string): number {
   const idx = (RECIPIENT_STATUS_LADDER as readonly string[]).indexOf(s)
   return idx < 0 ? -1 : idx
@@ -1224,7 +1259,13 @@ async function processMessage(
           }
         : {
             kind: 'text',
-            text: contentText ?? message.text?.body ?? '',
+            // A media reply with no caption must still count as an
+            // answer for a pending collect_input/wait_for_reply node
+            // — see nonTextReplyFallback's header comment.
+            text:
+              contentText ??
+              message.text?.body ??
+              (message.type !== 'text' ? nonTextReplyFallback(message.type) : ''),
             meta_message_id: message.id,
           },
     isFirstInboundMessage,
