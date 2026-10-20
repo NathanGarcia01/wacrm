@@ -5,8 +5,17 @@ import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Contact, MessageTemplate } from '@/types';
-import type { VariableMapping } from '@/lib/broadcast-variables';
+import {
+  fetchCustomValueIndex,
+  findUnfilledVariableKeys,
+  type VariableMapping,
+} from '@/lib/broadcast-variables';
 import type { CadenceSettings } from '@/lib/broadcast-cadence';
+import type { MappedContactRow } from '@/lib/contacts/build-mapped-contact-rows';
+import {
+  resolveImportCustomFieldIds,
+  assignImportedCustomFieldValues,
+} from '@/lib/contacts/resolve-import-custom-fields';
 
 export type { VariableMapping };
 
@@ -22,7 +31,7 @@ export interface AudienceConfig {
   type: 'all' | 'tags' | 'custom_field' | 'csv' | 'pipeline_stage';
   tagIds?: string[];
   customField?: CustomFieldFilter;
-  csvContacts?: { phone: string; name?: string }[];
+  csvContacts?: MappedContactRow[];
   /** For type === 'pipeline_stage': contacts with an open deal in this stage. */
   pipelineId?: string;
   stageId?: string;
@@ -73,6 +82,10 @@ interface BroadcastPayload {
   template: MessageTemplate;
   audience: AudienceConfig;
   variables: Record<string, VariableMapping>;
+  /** Mapping for the template's TEXT header variable, if any. Migration 114. */
+  headerVariable?: VariableMapping | null;
+  /** Button-index → VariableMapping, for dynamic URL buttons. Migration 114. */
+  buttonVariables?: Record<string, VariableMapping>;
   cadence: CadenceSettings;
   /** null = send immediately. */
   scheduledAt: Date | null;
@@ -196,15 +209,23 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
   }
 
   /**
-   * CSV uploads arrive as raw phone/name pairs, not DB rows. Before we
-   * can insert broadcast_recipients (whose contact_id FKs contacts.id),
-   * we need real contacts.id UUIDs. So: look up each CSV phone in the
-   * caller's contacts table; insert any that don't exist; return the
-   * resolved set.
+   * CSV uploads arrive as mapped rows (phone/name/email/company/
+   * customValues — see build-mapped-contact-rows.ts), not DB rows.
+   * Before we can insert broadcast_recipients (whose contact_id FKs
+   * contacts.id), we need real contacts.id UUIDs. So: look up each
+   * CSV phone in the caller's contacts table; insert any that don't
+   * exist (with the full mapped fields, not just phone/name); for
+   * contacts that already existed, fill in `name` ONLY if it was
+   * blank (never overwrite an existing name) — this is the same rule
+   * the standalone backfill script applies, kept in one place so
+   * future CSV imports don't reintroduce "Desconhecido" contacts.
+   * Finally, resolve any mapped custom fields (cpf, cidade, ...)
+   * against the account's EXISTING custom_fields only — this importer
+   * never creates new custom field definitions on its own.
    */
   async function upsertCsvContacts(
     supabase: ReturnType<typeof createClient>,
-    csvRows: { phone: string; name?: string }[],
+    csvRows: MappedContactRow[],
   ): Promise<Contact[]> {
     if (csvRows.length === 0) return [];
 
@@ -220,7 +241,7 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     }
 
     // De-duplicate by phone within the CSV (users can paste duplicates).
-    const uniqueByPhone = new Map<string, { phone: string; name?: string }>();
+    const uniqueByPhone = new Map<string, MappedContactRow>();
     for (const row of csvRows) {
       if (row.phone) uniqueByPhone.set(row.phone, row);
     }
@@ -245,12 +266,17 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
     // has a default payload cap — 200 keeps individual requests small).
     const missing = phones
       .filter((p) => !byPhone.has(p))
-      .map((phone) => ({
-        user_id: user.id,
-        account_id: accountId,
-        phone,
-        name: uniqueByPhone.get(phone)?.name ?? null,
-      }));
+      .map((phone) => {
+        const row = uniqueByPhone.get(phone)!;
+        return {
+          user_id: user.id,
+          account_id: accountId,
+          phone,
+          name: row.name ?? null,
+          email: row.email ?? null,
+          company: row.company ?? null,
+        };
+      });
 
     const INSERT_CHUNK = 200;
     for (let i = 0; i < missing.length; i += INSERT_CHUNK) {
@@ -264,6 +290,48 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       }
       for (const c of (inserted ?? []) as Contact[]) {
         if (c.phone) byPhone.set(c.phone, c);
+      }
+    }
+
+    // Backfill name on PRE-EXISTING contacts only where it was blank —
+    // never overwrites a name the contact already had.
+    const nameBackfills = phones
+      .map((p) => ({ contact: byPhone.get(p), row: uniqueByPhone.get(p)! }))
+      .filter(
+        (x): x is { contact: Contact; row: MappedContactRow } =>
+          !!x.contact && !x.contact.name?.trim() && !!x.row.name?.trim(),
+      );
+    for (const { contact, row } of nameBackfills) {
+      const { error: fillErr } = await supabase
+        .from('contacts')
+        .update({ name: row.name })
+        .eq('id', contact.id)
+        .is('name', null);
+      if (!fillErr) contact.name = row.name;
+    }
+
+    // Custom fields (cpf, cidade, ...) — matched against the account's
+    // existing custom_fields only (canCreateFields: false): a CSV
+    // column with no matching field is a no-op here rather than
+    // silently creating a new field definition.
+    const customFieldNames = [
+      ...new Set(
+        csvRows.flatMap((row) => [...row.customValues.keys()]),
+      ),
+    ];
+    if (customFieldNames.length > 0) {
+      const { fieldIdByKey } = await resolveImportCustomFieldIds(supabase, {
+        accountId,
+        userId: user.id,
+        fieldNames: customFieldNames,
+        canCreateFields: false,
+      });
+      if (fieldIdByKey.size > 0) {
+        const assignments = phones
+          .map((p) => ({ contact: byPhone.get(p), row: uniqueByPhone.get(p)! }))
+          .filter((x): x is { contact: Contact; row: MappedContactRow } => !!x.contact)
+          .map(({ contact, row }) => ({ contactId: contact.id, values: row.customValues }));
+        await assignImportedCustomFieldValues(supabase, assignments, fieldIdByKey);
       }
     }
 
@@ -391,6 +459,41 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
       // future audience type combining multiple sources easily could.
       const uniqueContacts = [...new Map(contacts.map((c) => [c.id, c])).values()];
 
+      // Pre-send validation (migration 114) — block the campaign from
+      // starting if any recipient would resolve to an empty template
+      // parameter (after defaults). Catches exactly the class of bug
+      // that produced "(#131008) Required parameter is missing" in
+      // production: a {{1}} bound to contact field "name" with no
+      // default, sent to contacts whose name is null.
+      const hasVariableConfig =
+        Object.keys(payload.variables).length > 0 ||
+        !!payload.headerVariable ||
+        !!(payload.buttonVariables && Object.keys(payload.buttonVariables).length > 0);
+      if (hasVariableConfig) {
+        const customValueIndex = await fetchCustomValueIndex(
+          supabase,
+          uniqueContacts.map((c) => c.id),
+        );
+        let recipientsWithEmptyVariable = 0;
+        for (const contact of uniqueContacts) {
+          const unfilled = findUnfilledVariableKeys(
+            {
+              body: payload.variables,
+              header: payload.headerVariable,
+              buttons: payload.buttonVariables,
+            },
+            contact,
+            customValueIndex.get(contact.id),
+          );
+          if (unfilled.length > 0) recipientsWithEmptyVariable++;
+        }
+        if (recipientsWithEmptyVariable > 0) {
+          throw new Error(
+            t('unfilledVariablesBlock', { count: recipientsWithEmptyVariable }),
+          );
+        }
+      }
+
       setProgress(30);
       const startsNow = !payload.scheduledAt;
       const nextBatchAt = (payload.scheduledAt ?? new Date()).toISOString();
@@ -404,6 +507,8 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
           template_name: payload.template.name,
           template_language: payload.template.language ?? 'en_US',
           template_variables: payload.variables,
+          header_variable: payload.headerVariable ?? null,
+          button_variables: payload.buttonVariables ?? {},
           // Fase 5, Etapa 3 — straight from the template row already in
           // hand, no extra query. Lowercased to match
           // broadcasts.category's CHECK (migration 097); the source of

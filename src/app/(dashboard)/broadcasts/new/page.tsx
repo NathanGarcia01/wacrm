@@ -13,6 +13,7 @@ import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
 import type { CadenceSettings } from '@/lib/broadcast-cadence';
+import type { MappedContactRow } from '@/lib/contacts/build-mapped-contact-rows';
 import { Check } from 'lucide-react';
 
 const STEP_LABEL_KEYS = {
@@ -83,7 +84,7 @@ export default function NewBroadcastPage() {
       operator: 'is' | 'is_not' | 'contains';
       value: string;
     };
-    csvContacts?: { phone: string; name?: string }[];
+    csvContacts?: MappedContactRow[];
     pipelineId?: string;
     stageId?: string;
     stageTagIds?: string[];
@@ -93,7 +94,13 @@ export default function NewBroadcastPage() {
     excludeRecentDays?: number;
   }>({ type: 'all' });
   const [variables, setVariables] = useState<
-    Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
+    Record<string, { type: 'static' | 'field' | 'custom_field'; value: string; default?: string }>
+  >({});
+  const [headerVariable, setHeaderVariable] = useState<
+    { type: 'static' | 'field' | 'custom_field'; value: string; default?: string } | null
+  >(null);
+  const [buttonVariables, setButtonVariables] = useState<
+    Record<string, { type: 'static' | 'field' | 'custom_field'; value: string; default?: string }>
   >({});
   const [name, setName] = useState('');
 
@@ -123,6 +130,8 @@ export default function NewBroadcastPage() {
           excludeRecentDays: audience.excludeRecentDays,
         },
         variables,
+        headerVariable,
+        buttonVariables,
         cadence,
         scheduledAt,
         channelId,
@@ -281,6 +290,10 @@ export default function NewBroadcastPage() {
               template={template}
               variables={variables}
               onUpdate={setVariables}
+              headerVariable={headerVariable}
+              onUpdateHeaderVariable={setHeaderVariable}
+              buttonVariables={buttonVariables}
+              onUpdateButtonVariables={setButtonVariables}
               onNext={() => setCurrentStep(3)}
               onBack={() => setCurrentStep(1)}
             />

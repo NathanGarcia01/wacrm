@@ -21,12 +21,19 @@ type VariableType = 'static' | 'field' | 'custom_field';
 interface VariableMapping {
   type: VariableType;
   value: string;
+  /** Used when the resolved value is blank (migration 114) — e.g. a
+   *  contact with no name. Never sent as an empty template parameter. */
+  default?: string;
 }
 
 interface Step3Props {
   template: MessageTemplate;
   variables: Record<string, VariableMapping>;
   onUpdate: (variables: Record<string, VariableMapping>) => void;
+  headerVariable: VariableMapping | null;
+  onUpdateHeaderVariable: (mapping: VariableMapping | null) => void;
+  buttonVariables: Record<string, VariableMapping>;
+  onUpdateButtonVariables: (mapping: Record<string, VariableMapping>) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -52,10 +59,146 @@ const SAMPLE_CONTACT: Contact = {
   updated_at: new Date().toISOString(),
 };
 
+/** Shared card for one variable mapping — body placeholder, the
+ *  header text variable, or a button's dynamic URL suffix. Declared
+ *  at module scope (not nested inside Step3Personalize) so it isn't
+ *  recreated on every render. */
+function MappingCard({
+  label,
+  mapping,
+  onChange,
+  t,
+  mappingTypeItems,
+  customFields,
+  loadingFields,
+}: {
+  label: string;
+  mapping: VariableMapping;
+  onChange: (patch: Partial<VariableMapping>) => void;
+  t: ReturnType<typeof useTranslations>;
+  mappingTypeItems: Record<string, string>;
+  customFields: CustomField[];
+  loadingFields: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card/50 p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-mono font-medium text-primary">
+          {label}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            {t('mappingType')}
+          </label>
+          <Select
+            items={mappingTypeItems}
+            value={mapping.type}
+            onValueChange={(val) =>
+              onChange({ type: val as VariableType, value: '' })
+            }
+          >
+            <SelectTrigger className="w-full border-border bg-muted text-foreground">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-border bg-popover">
+              <SelectItem value="static">{t('staticValue')}</SelectItem>
+              <SelectItem value="field">{t('contactField')}</SelectItem>
+              <SelectItem value="custom_field">
+                {t('customFieldOption')}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            {mapping.type === 'static' ? t('valueLabel') : t('fieldLabel')}
+          </label>
+          {mapping.type === 'static' ? (
+            <Input
+              value={mapping.value}
+              onChange={(e) => onChange({ value: e.target.value })}
+              placeholder={t('enterValuePlaceholder')}
+              className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
+            />
+          ) : mapping.type === 'field' ? (
+            <Select
+              value={mapping.value || undefined}
+              onValueChange={(val) => onChange({ value: val || '' })}
+            >
+              <SelectTrigger className="w-full border-border bg-muted text-foreground">
+                <SelectValue placeholder={t('selectFieldPlaceholder')} />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-popover">
+                {contactFields.map((field) => (
+                  <SelectItem key={field.value} value={field.value}>
+                    {t(field.labelKey)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select
+              value={mapping.value || undefined}
+              onValueChange={(val) => onChange({ value: val || '' })}
+            >
+              <SelectTrigger className="w-full border-border bg-muted text-foreground">
+                <SelectValue
+                  placeholder={
+                    loadingFields
+                      ? t('loading')
+                      : customFields.length === 0
+                        ? t('noCustomFields')
+                        : t('selectCustomFieldPlaceholder')
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-popover">
+                {customFields.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.field_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+
+      {/* Default value (migration 114) — only meaningful for
+          field/custom_field mappings, since a static value is never
+          blank. Shown for both so switching types doesn't lose it. */}
+      {mapping.type !== 'static' && (
+        <div className="mt-3">
+          <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+            {t('defaultValueLabel')}
+          </label>
+          <Input
+            value={mapping.default ?? ''}
+            onChange={(e) => onChange({ default: e.target.value })}
+            placeholder={t('defaultValuePlaceholder')}
+            className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('defaultValueHint')}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Step3Personalize({
   template,
   variables,
   onUpdate,
+  headerVariable,
+  onUpdateHeaderVariable,
+  buttonVariables,
+  onUpdateButtonVariables,
   onNext,
   onBack,
 }: Step3Props) {
@@ -129,11 +272,36 @@ export function Step3Personalize({
     return [...new Set(matches)].sort();
   }, [template.body_text]);
 
+  /** Header has a TEXT variable when header_type is "text" and
+   *  header_content contains a {{N}} placeholder. */
+  const headerNeedsVariable = useMemo(
+    () =>
+      template.header_type === 'text' &&
+      /\{\{\d+\}\}/.test(template.header_content ?? ''),
+    [template.header_type, template.header_content],
+  );
+
+  /** URL buttons with a dynamic {{1}} suffix, keyed by their index in
+   *  template.buttons — that index is what the cron uses to build the
+   *  Meta button component, so it's the stable key here too. */
+  const dynamicButtons = useMemo(() => {
+    const result: { index: number; url: string }[] = [];
+    (template.buttons ?? []).forEach((btn, index) => {
+      if (btn.type === 'URL' && /\{\{\d+\}\}/.test(btn.url)) {
+        result.push({ index, url: btn.url });
+      }
+    });
+    return result;
+  }, [template.buttons]);
+
   /**
-   * A placeholder is "unmapped" if the user hasn't picked either a
-   * static value or a field/custom-field source. Blocks Next until
-   * every placeholder has something — otherwise the broadcast would
-   * ship with empty strings and confuse recipients.
+   * A placeholder/header/button is "unmapped" if the user hasn't
+   * picked either a static value or a field/custom-field source (a
+   * `default` alone doesn't count as mapped — defaults only cover the
+   * case where the *source* is empty, they're not meant to be the
+   * only value every recipient gets). Blocks Next until every one has
+   * something — otherwise the broadcast would ship with empty strings
+   * and confuse recipients.
    */
   const unmappedKeys = useMemo(() => {
     const missing: string[] = [];
@@ -144,8 +312,17 @@ export function Step3Personalize({
         missing.push(placeholder);
       }
     }
+    if (headerNeedsVariable && !headerVariable?.value?.trim()) {
+      missing.push(t('headerVariableLabel'));
+    }
+    for (const { index } of dynamicButtons) {
+      const mapping = buttonVariables[String(index)];
+      if (!mapping || !mapping.value?.trim()) {
+        missing.push(t('buttonVariableLabel', { number: index + 1 }));
+      }
+    }
     return missing;
-  }, [placeholders, variables]);
+  }, [placeholders, variables, headerNeedsVariable, headerVariable, dynamicButtons, buttonVariables, t]);
 
   function updateVariable(key: string, patch: Partial<VariableMapping>) {
     const current = variables[key] ?? { type: 'static' as VariableType, value: '' };
@@ -153,6 +330,17 @@ export function Step3Personalize({
       ...variables,
       [key]: { ...current, ...patch },
     });
+  }
+
+  function updateHeaderVariable(patch: Partial<VariableMapping>) {
+    const current = headerVariable ?? { type: 'static' as VariableType, value: '' };
+    onUpdateHeaderVariable({ ...current, ...patch });
+  }
+
+  function updateButtonVariable(index: number, patch: Partial<VariableMapping>) {
+    const key = String(index);
+    const current = buttonVariables[key] ?? { type: 'static' as VariableType, value: '' };
+    onUpdateButtonVariables({ ...buttonVariables, [key]: { ...current, ...patch } });
   }
 
   /**
@@ -204,6 +392,7 @@ export function Step3Personalize({
     ? firstContact.name || firstContact.phone
     : t('sampleData');
 
+
   return (
     <div className="space-y-6">
       <div>
@@ -213,7 +402,7 @@ export function Step3Personalize({
         </p>
       </div>
 
-      {placeholders.length === 0 ? (
+      {placeholders.length === 0 && !headerNeedsVariable && dynamicButtons.length === 0 ? (
         <div className="rounded-xl border border-border bg-card/50 p-6 text-center">
           <p className="text-sm text-muted-foreground">
             {t('noVariables')}
@@ -221,112 +410,47 @@ export function Step3Personalize({
         </div>
       ) : (
         <div className="space-y-4">
+          {headerNeedsVariable && (
+            <MappingCard
+              label={t('headerVariableLabel')}
+              mapping={headerVariable ?? { type: 'static', value: '' }}
+              onChange={updateHeaderVariable}
+              t={t}
+              mappingTypeItems={mappingTypeItems}
+              customFields={customFields}
+              loadingFields={loadingFields}
+            />
+          )}
+
           {placeholders.map((placeholder) => {
             const key = placeholder.replace(/^\{\{|\}\}$/g, '');
-            const mapping = variables[key] ?? { type: 'static', value: '' };
-
+            const mapping = variables[key] ?? { type: 'static' as VariableType, value: '' };
             return (
-              <div
+              <MappingCard
                 key={placeholder}
-                className="rounded-xl border border-border bg-card/50 p-4"
-              >
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-mono font-medium text-primary">
-                    {placeholder}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {t('mappingType')}
-                    </label>
-                    <Select
-                      items={mappingTypeItems}
-                      value={mapping.type}
-                      onValueChange={(val) =>
-                        updateVariable(key, {
-                          type: val as VariableType,
-                          value: '',
-                        })
-                      }
-                    >
-                      <SelectTrigger className="w-full border-border bg-muted text-foreground">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="border-border bg-popover">
-                        <SelectItem value="static">{t('staticValue')}</SelectItem>
-                        <SelectItem value="field">{t('contactField')}</SelectItem>
-                        <SelectItem value="custom_field">
-                          {t('customFieldOption')}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      {mapping.type === 'static' ? t('valueLabel') : t('fieldLabel')}
-                    </label>
-                    {mapping.type === 'static' ? (
-                      <Input
-                        value={mapping.value}
-                        onChange={(e) =>
-                          updateVariable(key, { value: e.target.value })
-                        }
-                        placeholder={t('enterValuePlaceholder')}
-                        className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
-                      />
-                    ) : mapping.type === 'field' ? (
-                      <Select
-                        value={mapping.value || undefined}
-                        onValueChange={(val) =>
-                          updateVariable(key, { value: val || '' })
-                        }
-                      >
-                        <SelectTrigger className="w-full border-border bg-muted text-foreground">
-                          <SelectValue placeholder={t('selectFieldPlaceholder')} />
-                        </SelectTrigger>
-                        <SelectContent className="border-border bg-popover">
-                          {contactFields.map((field) => (
-                            <SelectItem key={field.value} value={field.value}>
-                              {t(field.labelKey)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Select
-                        value={mapping.value || undefined}
-                        onValueChange={(val) =>
-                          updateVariable(key, { value: val || '' })
-                        }
-                      >
-                        <SelectTrigger className="w-full border-border bg-muted text-foreground">
-                          <SelectValue
-                            placeholder={
-                              loadingFields
-                                ? t('loading')
-                                : customFields.length === 0
-                                  ? t('noCustomFields')
-                                  : t('selectCustomFieldPlaceholder')
-                            }
-                          />
-                        </SelectTrigger>
-                        <SelectContent className="border-border bg-popover">
-                          {customFields.map((f) => (
-                            <SelectItem key={f.id} value={f.id}>
-                              {f.field_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                  </div>
-                </div>
-              </div>
+                label={placeholder}
+                mapping={mapping}
+                onChange={(patch) => updateVariable(key, patch)}
+                t={t}
+                mappingTypeItems={mappingTypeItems}
+                customFields={customFields}
+                loadingFields={loadingFields}
+              />
             );
           })}
+
+          {dynamicButtons.map(({ index }) => (
+            <MappingCard
+              key={`button-${index}`}
+              label={t('buttonVariableLabel', { number: index + 1 })}
+              mapping={buttonVariables[String(index)] ?? { type: 'static', value: '' }}
+              onChange={(patch) => updateButtonVariable(index, patch)}
+              t={t}
+              mappingTypeItems={mappingTypeItems}
+              customFields={customFields}
+              loadingFields={loadingFields}
+            />
+          ))}
         </div>
       )}
 

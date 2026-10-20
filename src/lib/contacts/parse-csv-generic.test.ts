@@ -35,4 +35,23 @@ describe('suggestColumnMappings', () => {
       { kind: 'custom', fieldName: 'telefone' },
     ]);
   });
+
+  it('maps "nome_completo" to name when there is no other name column', () => {
+    const mappings = suggestColumnMappings(['telefone', 'nome_completo', 'cpf', 'cidade']);
+    expect(mappings).toEqual([
+      { kind: 'system', field: 'phone' },
+      { kind: 'system', field: 'name' },
+      { kind: 'custom', fieldName: 'cpf' },
+      { kind: 'custom', fieldName: 'cidade' },
+    ]);
+  });
+
+  it('does not double-claim "name" when both nome and nome_completo are present', () => {
+    const mappings = suggestColumnMappings(['nome', 'nome_completo', 'telefone']);
+    expect(mappings).toEqual([
+      { kind: 'system', field: 'name' },
+      { kind: 'custom', fieldName: 'nome_completo' },
+      { kind: 'system', field: 'phone' },
+    ]);
+  });
 });

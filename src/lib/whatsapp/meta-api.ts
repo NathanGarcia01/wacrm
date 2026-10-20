@@ -529,7 +529,15 @@ export async function sendTemplateMessage(
       templatePayload.components = components
     }
   } else if (params && params.length > 0) {
-    // Legacy body-only path — no template row available.
+    // Legacy body-only path — no template row available. Same
+    // never-send-empty guard as buildBodyComponent in
+    // template-send-builder.ts, since this branch skips that helper
+    // entirely.
+    if (params.some((p) => !String(p ?? '').trim())) {
+      throw new Error(
+        'Parâmetro do corpo do template ficou vazio — defina um valor padrão para a variável antes de enviar.',
+      )
+    }
     templatePayload.components = [
       {
         type: 'body',

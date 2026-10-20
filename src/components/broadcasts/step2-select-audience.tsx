@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { CustomField, Pipeline, PipelineStage, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
-import { parseContactCsv } from '@/lib/contacts/parse-contact-csv';
+import {
+  parseCsvGeneric,
+  suggestColumnMappings,
+  type ColumnMapping,
+  type SystemFieldMapping,
+} from '@/lib/contacts/parse-csv-generic';
+import {
+  buildMappedContactRows,
+  type MappedContactRow,
+} from '@/lib/contacts/build-mapped-contact-rows';
 import { isValidE164, normalizePhone } from '@/lib/whatsapp/phone-utils';
 import {
   Users,
@@ -37,7 +46,7 @@ interface AudienceConfig {
   type: AudienceType;
   tagIds?: string[];
   customField?: CustomFieldFilter;
-  csvContacts?: { phone: string; name?: string }[];
+  csvContacts?: MappedContactRow[];
   /** For type === 'pipeline_stage': contacts with an open deal in this stage. */
   pipelineId?: string;
   stageId?: string;
@@ -130,6 +139,17 @@ export function Step2SelectAudience({
   const [csvInvalidCount, setCsvInvalidCount] = useState(0);
   const [csvError, setCsvError] = useState<string | null>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+  // Column-mapping preview (task: "mostrando o mapeamento antes de
+  // confirmar") — headers/rows are kept raw until the user confirms
+  // the mapping, at which point buildMappedContactRows produces the
+  // final rows that become audience.csvContacts.
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRawRows, setCsvRawRows] = useState<string[][]>([]);
+  const [csvMappings, setCsvMappings] = useState<ColumnMapping[]>([]);
+  const [csvMappingConfirmed, setCsvMappingConfirmed] = useState(false);
+  const [csvExistingCustomFieldNames, setCsvExistingCustomFieldNames] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Tags are used both by the primary "Filter by Tags" audience type
   // AND by the exclude-list below — so always load once on mount.
@@ -427,6 +447,16 @@ export function Step2SelectAudience({
     onUpdate({ ...audience, customField: { ...prev, ...patch } });
   }
 
+  /**
+   * Only parses headers + raw rows and suggests a column mapping —
+   * doesn't touch audience.csvContacts yet. The user reviews/adjusts
+   * the mapping below and explicitly confirms (confirmCsvMapping)
+   * before any contact data is accepted. This is what used to be
+   * missing: the previous version (parseContactCsv) only recognized
+   * the literal English headers "phone"/"name"/"email"/"company" and
+   * silently dropped anything else (including "nome", "cpf",
+   * "cidade") with no way for the user to see or fix that.
+   */
   async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0];
     if (!selected) return;
@@ -434,21 +464,71 @@ export function Step2SelectAudience({
     setCsvFileName(selected.name);
     setCsvError(null);
     setCsvInvalidCount(0);
+    setCsvMappingConfirmed(false);
+    onUpdate({ ...audience, csvContacts: [] });
 
     const text = await selected.text();
-    const { rows } = parseContactCsv(text);
+    const { headers, rows } = parseCsvGeneric(text);
 
-    if (rows.length === 0) {
+    if (headers.length === 0 || rows.length === 0) {
       setCsvError(t('csvNoHeaderError'));
-      onUpdate({ ...audience, csvContacts: [] });
+      setCsvHeaders([]);
+      setCsvRawRows([]);
+      setCsvMappings([]);
       return;
     }
 
+    // Existing custom fields decide whether an unrecognized column
+    // (cpf, cidade, ...) auto-maps to a custom field — only when one
+    // by that name already exists ("se existirem", per the task) —
+    // otherwise it defaults to ignored rather than silently creating
+    // a new field the user didn't ask for.
+    const supabase = createClient();
+    const { data: fields } = await supabase.from('custom_fields').select('field_name');
+    const existingNames = new Set(
+      (fields ?? []).map((f) => normalizeHeaderForMatch(f.field_name)),
+    );
+    setCsvExistingCustomFieldNames(existingNames);
+
+    const suggested = suggestColumnMappings(headers).map((m) =>
+      m.kind === 'custom' && !existingNames.has(normalizeHeaderForMatch(m.fieldName))
+        ? ({ kind: 'ignore' } as ColumnMapping)
+        : m,
+    );
+
+    setCsvHeaders(headers);
+    setCsvRawRows(rows);
+    setCsvMappings(suggested);
+  }
+
+  /** Same accent/case normalization on both sides so "Cidade" (CSV
+   *  header) matches "cidade" (custom_fields.field_name). */
+  function normalizeHeaderForMatch(value: string): string {
+    return value
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  function updateCsvMapping(index: number, mapping: ColumnMapping) {
+    setCsvMappings((prev) => prev.map((m, i) => (i === index ? mapping : m)));
+  }
+
+  /**
+   * Applies the (user-confirmed) mapping to the raw rows, validates
+   * phone numbers, dedupes, and is the ONLY point that writes to
+   * audience.csvContacts — mirrors the Contacts page's ImportModal
+   * confirm step.
+   */
+  function confirmCsvMapping() {
+    const mapped = buildMappedContactRows(csvRawRows, csvMappings);
+
     let invalid = 0;
     const seen = new Set<string>();
-    const contacts: { phone: string; name?: string }[] = [];
+    const contacts: MappedContactRow[] = [];
 
-    for (const row of rows) {
+    for (const row of mapped) {
       const normalized = normalizePhone(row.phone);
       if (!isValidE164(normalized)) {
         invalid++;
@@ -456,12 +536,18 @@ export function Step2SelectAudience({
       }
       if (seen.has(normalized)) continue;
       seen.add(normalized);
-      contacts.push({ phone: row.phone, name: row.name });
+      contacts.push(row);
     }
 
     setCsvInvalidCount(invalid);
+    setCsvMappingConfirmed(true);
     onUpdate({ ...audience, csvContacts: contacts });
   }
+
+  const csvPhoneMappingMissing = useMemo(
+    () => csvHeaders.length > 0 && !csvMappings.some((m) => m.kind === 'system' && m.field === 'phone'),
+    [csvHeaders, csvMappings],
+  );
 
   const isValid =
     audience.type === 'all' ||
@@ -497,6 +583,10 @@ export function Step2SelectAudience({
                   setCsvFileName(null);
                   setCsvInvalidCount(0);
                   setCsvError(null);
+                  setCsvHeaders([]);
+                  setCsvRawRows([]);
+                  setCsvMappings([]);
+                  setCsvMappingConfirmed(false);
                   if (csvInputRef.current) csvInputRef.current.value = '';
                 }
                 onUpdate({
@@ -686,26 +776,121 @@ export function Step2SelectAudience({
             </div>
           )}
 
-          {!csvError && audience.csvContacts && audience.csvContacts.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-primary">
-              <Users className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                {t('csvContactsFound', { count: audience.csvContacts.length })}
-              </span>
+          {/* Column-mapping preview — shown before any contact is
+              accepted, so the user sees exactly where each CSV column
+              is headed (e.g. "nome" → Nome do contato, "cpf" → campo
+              personalizado "cpf") and can fix it if the auto-guess is
+              wrong, instead of silently losing data. */}
+          {!csvError && csvHeaders.length > 0 && !csvMappingConfirmed && (
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-foreground">
+                {t('csvMappingTitle')}
+              </p>
+              {csvPhoneMappingMissing && (
+                <div className="flex items-center gap-2 text-xs text-destructive">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{t('csvMappingPhoneRequired')}</span>
+                </div>
+              )}
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50 text-left text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">{t('csvMappingColumn')}</th>
+                      <th className="px-3 py-2 font-medium">{t('csvMappingPreview')}</th>
+                      <th className="px-3 py-2 font-medium">{t('csvMappingTarget')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvHeaders.map((header, i) => {
+                      const mapping = csvMappings[i] ?? { kind: 'ignore' as const };
+                      const selectValue =
+                        mapping.kind === 'system' ? `system:${mapping.field}` : mapping.kind;
+                      const customUnmatched =
+                        mapping.kind === 'custom' &&
+                        !csvExistingCustomFieldNames.has(normalizeHeaderForMatch(mapping.fieldName));
+                      return (
+                        <tr key={header} className="border-b border-border last:border-0">
+                          <td className="px-3 py-2 font-mono text-foreground">{header}</td>
+                          <td className="max-w-[10rem] truncate px-3 py-2 text-muted-foreground">
+                            {csvRawRows[0]?.[i] ?? ''}
+                          </td>
+                          <td className="px-3 py-2">
+                            <select
+                              value={selectValue}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const next: ColumnMapping = val.startsWith('system:')
+                                  ? { kind: 'system', field: val.slice('system:'.length) as SystemFieldMapping }
+                                  : val === 'custom'
+                                    ? { kind: 'custom', fieldName: header }
+                                    : { kind: 'ignore' };
+                                updateCsvMapping(i, next);
+                              }}
+                              className="h-8 rounded-md border border-border bg-muted px-2 text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            >
+                              <option value="system:phone">{t('csvMappingPhone')}</option>
+                              <option value="system:name">{t('csvMappingName')}</option>
+                              <option value="system:email">{t('csvMappingEmail')}</option>
+                              <option value="system:company">{t('csvMappingCompany')}</option>
+                              <option value="system:tags">{t('csvMappingTags')}</option>
+                              <option value="custom">{t('csvMappingCustom')}</option>
+                              <option value="ignore">{t('csvMappingIgnore')}</option>
+                            </select>
+                            {customUnmatched && (
+                              <p className="mt-1 text-[11px] text-gold">
+                                {t('csvMappingCustomFieldMissing', { name: mapping.fieldName })}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <Button
+                onClick={confirmCsvMapping}
+                disabled={csvPhoneMappingMissing}
+                size="sm"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {t('csvMappingConfirm')}
+              </Button>
             </div>
           )}
 
-          {!csvError && csvFileName && (audience.csvContacts?.length ?? 0) === 0 && (
-            <div className="flex items-center gap-2 text-xs text-gold">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              <span>{t('csvNoValidRows')}</span>
-            </div>
-          )}
-
-          {csvInvalidCount > 0 && (
-            <div className="flex items-center gap-2 text-xs text-gold">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              <span>{t('csvInvalidNumbers', { count: csvInvalidCount })}</span>
+          {!csvError && csvMappingConfirmed && (
+            <div className="flex items-center justify-between gap-2">
+              <div className="space-y-1">
+                {audience.csvContacts && audience.csvContacts.length > 0 ? (
+                  <div className="flex items-center gap-2 text-xs text-primary">
+                    <Users className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      {t('csvContactsFound', { count: audience.csvContacts.length })}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-gold">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{t('csvNoValidRows')}</span>
+                  </div>
+                )}
+                {csvInvalidCount > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-gold">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{t('csvInvalidNumbers', { count: csvInvalidCount })}</span>
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCsvMappingConfirmed(false)}
+                className="border-border text-muted-foreground"
+              >
+                {t('csvMappingEdit')}
+              </Button>
             </div>
           )}
         </div>

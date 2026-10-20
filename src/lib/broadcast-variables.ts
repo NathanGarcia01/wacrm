@@ -13,10 +13,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * use-broadcast-sending.ts so a 'use client' hook file isn't the only
  * place this logic lives.
  */
+/**
+ * `default` (migration 114) — used when the resolved value is blank
+ * (e.g. a contact with no `name`, or no value for that custom field).
+ * Lets a campaign creator pick e.g. "cliente" as a fallback so a
+ * missing field never reaches Meta as an empty template parameter
+ * (which Meta rejects with "(#131008) Required parameter is
+ * missing"). Meaningless for `static` (always has a value) but kept
+ * on the shared type so the resolver doesn't need per-variant checks.
+ */
 export type VariableMapping =
-  | { type: 'static'; value: string }
-  | { type: 'field'; value: string }
-  | { type: 'custom_field'; value: string };
+  | { type: 'static'; value: string; default?: string }
+  | { type: 'field'; value: string; default?: string }
+  | { type: 'custom_field'; value: string; default?: string };
 
 /** contactId → (customFieldId → value). */
 export type CustomValueIndex = Map<string, Map<string, string>>;
@@ -61,40 +70,105 @@ export function extractNameParts(fullName: string | null | undefined) {
   };
 }
 
-export function resolveVariables(
-  variables: Record<string, VariableMapping>,
-  contact: VariableSourceContact,
-  customValues?: Map<string, string>,
-): string[] {
-  // Keys are typically "1","2",... — numeric-aware sort keeps
-  // {{1}} before {{10}}.
-  const keys = Object.keys(variables).sort((a, b) => {
+// Keys are typically "1","2",... — numeric-aware sort keeps
+// {{1}} before {{10}}.
+function sortVariableKeys(keys: string[]): string[] {
+  return [...keys].sort((a, b) => {
     const an = Number(a);
     const bn = Number(b);
     if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
     return a.localeCompare(b);
   });
+}
 
-  return keys.map((key) => {
-    const v = variables[key];
-    if (v.type === 'static') return v.value;
+/** Resolves one mapping's raw value, with no default applied. */
+function resolveRaw(
+  v: VariableMapping,
+  contact: VariableSourceContact,
+  customValues?: Map<string, string>,
+): string {
+  if (v.type === 'static') return v.value;
 
-    if (v.type === 'field') {
-      const { firstName, lastName, fullName } = extractNameParts(contact.name);
-      const fieldMap: Record<string, string | null | undefined> = {
-        name: fullName,
-        first_name: firstName,
-        last_name: lastName,
-        phone: contact.phone,
-        email: contact.email,
-        company: contact.company,
-      };
-      return fieldMap[v.value] ?? '';
-    }
+  if (v.type === 'field') {
+    const { firstName, lastName, fullName } = extractNameParts(contact.name);
+    const fieldMap: Record<string, string | null | undefined> = {
+      name: fullName,
+      first_name: firstName,
+      last_name: lastName,
+      phone: contact.phone,
+      email: contact.email,
+      company: contact.company,
+    };
+    return fieldMap[v.value] ?? '';
+  }
 
-    // custom_field
-    return customValues?.get(v.value) ?? '';
-  });
+  // custom_field
+  return customValues?.get(v.value) ?? '';
+}
+
+/**
+ * Resolves a single mapping to its final send-time value — the raw
+ * value if non-blank, otherwise `default` (migration 114), otherwise
+ * an empty string. Used for body variables, the header-text variable,
+ * and dynamic URL-button variables alike, since all three now share
+ * the same `VariableMapping` shape.
+ */
+export function resolveSingleVariable(
+  v: VariableMapping,
+  contact: VariableSourceContact,
+  customValues?: Map<string, string>,
+): string {
+  const raw = resolveRaw(v, contact, customValues);
+  if (raw.trim()) return raw;
+  return v.default?.trim() ? v.default : '';
+}
+
+export function resolveVariables(
+  variables: Record<string, VariableMapping>,
+  contact: VariableSourceContact,
+  customValues?: Map<string, string>,
+): string[] {
+  const keys = sortVariableKeys(Object.keys(variables));
+  return keys.map((key) => resolveSingleVariable(variables[key], contact, customValues));
+}
+
+/**
+ * Lists the keys (sorted, "1","2",… for body; "header"/"button:N" for
+ * the others) that would still resolve to an empty string for this
+ * contact even after applying each mapping's `default` — i.e. what
+ * would reach Meta as an empty parameter and trigger "(#131008)
+ * Required parameter is missing". Used both by the wizard's pre-send
+ * validation (block "Iniciar" with a count) and could be reused for a
+ * live per-recipient audit.
+ */
+export function findUnfilledVariableKeys(
+  config: {
+    body?: Record<string, VariableMapping>;
+    header?: VariableMapping | null;
+    buttons?: Record<string, VariableMapping>;
+  },
+  contact: VariableSourceContact,
+  customValues?: Map<string, string>,
+): string[] {
+  const unfilled: string[] = [];
+
+  const bodyKeys = sortVariableKeys(Object.keys(config.body ?? {}));
+  for (const key of bodyKeys) {
+    const value = resolveSingleVariable(config.body![key], contact, customValues);
+    if (!value.trim()) unfilled.push(key);
+  }
+
+  if (config.header) {
+    const value = resolveSingleVariable(config.header, contact, customValues);
+    if (!value.trim()) unfilled.push('header');
+  }
+
+  for (const key of Object.keys(config.buttons ?? {})) {
+    const value = resolveSingleVariable(config.buttons![key], contact, customValues);
+    if (!value.trim()) unfilled.push(`button:${key}`);
+  }
+
+  return unfilled;
 }
 
 /**

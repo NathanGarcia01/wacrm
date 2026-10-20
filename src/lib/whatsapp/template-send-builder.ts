@@ -138,6 +138,18 @@ function buildBodyComponent(
   // Trim to the variable count — extra values are dropped silently so
   // a legacy caller that passes too many doesn't error out.
   const values = body.slice(0, varCount);
+  // Meta rejects an empty body parameter with "(#131008) Required
+  // parameter is missing" — catch it here, before the network call,
+  // so the failure reason is unambiguous rather than a generic Meta
+  // 400. Callers (the broadcast cron) are expected to apply a
+  // per-variable default before reaching this point — see
+  // resolveSingleVariable in broadcast-variables.ts — so this is a
+  // last-resort guard, not the primary mechanism.
+  if (values.some((v) => !String(v ?? '').trim())) {
+    throw new Error(
+      'Parâmetro do corpo do template ficou vazio — defina um valor padrão para a variável antes de enviar.',
+    );
+  }
   return {
     type: 'body',
     parameters: values.map((text) => ({ type: 'text', text: String(text) })),

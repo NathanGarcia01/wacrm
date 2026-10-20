@@ -833,6 +833,14 @@ export interface Broadcast {
    *  Migration 097. Nullable: a future broadcast could end up without
    *  one if its template was deleted before creation. */
   category?: 'marketing' | 'utility' | 'authentication' | null;
+  /** Mapping for the template's TEXT header variable, if any — same
+   *  VariableMapping shape as template_variables' body entries, plus
+   *  an optional `default`. Null when the template has no header
+   *  variable to map. Migration 114. */
+  header_variable?: Record<string, unknown> | null;
+  /** Button-index → VariableMapping, for URL buttons with a dynamic
+   *  {{1}} suffix. Migration 114. */
+  button_variables?: Record<string, Record<string, unknown>> | null;
 }
 
 export interface BroadcastRecipient {
@@ -850,6 +858,14 @@ export interface BroadcastRecipient {
   read_at?: string;
   replied_at?: string;
   error_message?: string;
+  /**
+   * Meta's numeric error code (e.g. 131008), parsed from
+   * MetaApiError at send time — see meta-error-messages.ts for the
+   * PT-BR translation lookup. Null for rows that failed before
+   * reaching Meta (e.g. "Invalid phone number format") or that
+   * predate migration 114.
+   */
+  error_code?: number | null;
   /**
    * Meta's message id, persisted when the broadcast send succeeds so
    * the webhook can mirror status updates back onto the recipient row.

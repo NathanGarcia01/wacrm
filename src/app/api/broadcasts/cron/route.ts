@@ -13,9 +13,11 @@ import {
 import { isWithinBusinessHours, nextBusinessHoursStart } from '@/lib/broadcast-cadence'
 import {
   resolveVariables,
+  resolveSingleVariable,
   fetchCustomValueIndex,
   type VariableMapping,
 } from '@/lib/broadcast-variables'
+import { parseMetaErrorCode } from '@/lib/whatsapp/meta-error-messages'
 import { ensureContactTagByName } from '@/lib/contacts/auto-tag'
 import { computeAndSaveBroadcastCost } from '@/lib/broadcasts/meta-cost'
 import { isPhoneBlocked } from '@/lib/whatsapp/blocked-phones'
@@ -92,6 +94,11 @@ interface BroadcastRow {
   template_name: string
   template_language: string
   template_variables: Record<string, VariableMapping> | null
+  /** Mapping for the template's TEXT header variable. Migration 114. */
+  header_variable: VariableMapping | null
+  /** Button-index (string) → VariableMapping, for URL buttons with a
+   *  dynamic {{1}} suffix. Migration 114. */
+  button_variables: Record<string, VariableMapping> | null
   batch_size: number
   batch_interval_minutes: number
   message_delay_min_seconds: number
@@ -206,7 +213,7 @@ export async function GET(request: Request) {
   const { data: due, error } = await admin
     .from('broadcasts')
     .select(
-      'id, account_id, channel_id, template_name, template_language, template_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add, rate_limit_hits, stage_id, deal_status_filter',
+      'id, account_id, channel_id, template_name, template_language, template_variables, header_variable, button_variables, batch_size, batch_interval_minutes, message_delay_min_seconds, message_delay_max_seconds, respect_business_hours, current_batch, current_batch_sent, exclude_recent_days, tags_to_add, rate_limit_hits, stage_id, deal_status_filter',
     )
     .in('status', ['scheduled', 'sending'])
     .or(`next_batch_at.is.null,next_batch_at.lte.${nowIso()}`)
@@ -435,9 +442,21 @@ export async function GET(request: Request) {
         .update({ last_attempted_at: new Date().toISOString() })
         .eq('id', recipient.id)
 
+      const customValuesForContact = customValueIndex.get(contact.id)
       const params = row.template_variables
-        ? resolveVariables(row.template_variables, contact, customValueIndex.get(contact.id))
+        ? resolveVariables(row.template_variables, contact, customValuesForContact)
         : []
+      const headerText = row.header_variable
+        ? resolveSingleVariable(row.header_variable, contact, customValuesForContact)
+        : undefined
+      const buttonParams = row.button_variables
+        ? Object.fromEntries(
+            Object.entries(row.button_variables).map(([index, mapping]) => [
+              Number(index),
+              resolveSingleVariable(mapping, contact, customValuesForContact),
+            ]),
+          )
+        : undefined
 
       let sentMessageId: string | null = null
       let lastError: unknown = null
@@ -451,6 +470,9 @@ export async function GET(request: Request) {
             language: row.template_language || 'en_US',
             template: templateRow ?? undefined,
             params,
+            messageParams: templateRow
+              ? { body: params, headerText: headerText || undefined, buttonParams }
+              : undefined,
           })
           sentMessageId = result.messageId
           lastError = null
@@ -471,6 +493,7 @@ export async function GET(request: Request) {
             sent_at: new Date().toISOString(),
             whatsapp_message_id: sentMessageId,
             error_message: null,
+            error_code: null,
           })
           .eq('id', recipient.id)
         messagesSent++
@@ -558,9 +581,11 @@ export async function GET(request: Request) {
       }
 
       const message = lastError instanceof Error ? lastError.message : 'Unknown error'
+      const errorCode =
+        lastError instanceof MetaApiError ? lastError.code ?? parseMetaErrorCode(message) : null
       await admin
         .from('broadcast_recipients')
-        .update({ status: 'failed', error_message: message })
+        .update({ status: 'failed', error_message: message, error_code: errorCode })
         .eq('id', recipient.id)
       messagesFailed++
       batchSentDelta++

@@ -44,7 +44,9 @@ import type { Tag, WhatsAppChannelOption } from '@/types';
 interface AudienceConfig {
   type: string;
   tagIds?: string[];
-  csvContacts?: { phone: string; name?: string }[];
+  /** Only `.length` is read here — typed loosely so any MappedContactRow[]
+   *  (see build-mapped-contact-rows.ts) satisfies it structurally. */
+  csvContacts?: { phone: string }[];
   stageId?: string;
   stageTagIds?: string[];
   dealStatus?: 'all' | 'open' | 'won' | 'lost';

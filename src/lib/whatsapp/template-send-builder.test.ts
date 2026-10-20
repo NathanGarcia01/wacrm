@@ -54,6 +54,20 @@ describe('buildSendComponents — body', () => {
       { type: 'body', parameters: [{ type: 'text', text: 'John' }] },
     ]);
   });
+
+  it('never sends an empty body parameter — throws instead (the #131008 regression)', () => {
+    expect(() =>
+      buildSendComponents(row({ body_text: 'Hi {{1}}, order {{2}} confirmed.' }), {
+        body: ['', 'ORD-42'],
+      }),
+    ).toThrow(/vazio/);
+  });
+
+  it('treats a whitespace-only body value as empty too', () => {
+    expect(() =>
+      buildSendComponents(row({ body_text: 'Hi {{1}}' }), { body: ['   '] }),
+    ).toThrow(/vazio/);
+  });
 });
 
 describe('buildSendComponents — header', () => {

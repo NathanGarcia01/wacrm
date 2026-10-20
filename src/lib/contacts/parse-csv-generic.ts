@@ -60,7 +60,7 @@ export type ColumnMapping =
 
 const HEADER_ALIASES: Record<SystemFieldMapping, string[]> = {
   phone: ['phone', 'telefone', 'celular', 'whatsapp', 'numero', 'número'],
-  name: ['name', 'nome'],
+  name: ['name', 'nome', 'nome_completo', 'nome completo', 'full_name', 'fullname'],
   email: ['email', 'e-mail'],
   company: ['company', 'empresa'],
   tags: ['tags', 'tag', 'etiquetas'],

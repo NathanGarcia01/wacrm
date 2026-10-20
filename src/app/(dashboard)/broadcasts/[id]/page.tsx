@@ -36,6 +36,7 @@ import {
   Trash2,
   Pause,
   Play,
+  RotateCcw,
   Ban,
   Clock,
 } from 'lucide-react';
@@ -47,6 +48,13 @@ import {
 import { loadBroadcastRoiDetail } from '@/lib/broadcasts/roi-detail';
 import type { BroadcastRoiDetail } from '@/lib/reports/types';
 import { BroadcastRoiDetailPanel } from '@/components/broadcasts/broadcast-roi-detail-panel';
+import { translateMetaError } from '@/lib/whatsapp/meta-error-messages';
+
+/** Meta error code for a missing/empty template variable — the one
+ *  "Reenviar falhas" targets, since fixing it (a default value, or a
+ *  corrected contact field) genuinely makes the retry likely to
+ *  succeed, unlike e.g. an invalid phone number. */
+const RESENDABLE_ERROR_CODE = 131008;
 
 interface StatCardProps {
   label: string;
@@ -283,6 +291,7 @@ export default function BroadcastDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [pausing, setPausing] = useState(false);
+  const [resending, setResending] = useState(false);
 
   async function fetchData() {
     try {
@@ -374,6 +383,55 @@ export default function BroadcastDetailPage() {
     fetchData();
   }
 
+  const resendableCount = useMemo(
+    () =>
+      recipients.filter(
+        (r) => r.status === 'failed' && r.error_code === RESENDABLE_ERROR_CODE,
+      ).length,
+    [recipients],
+  );
+
+  /**
+   * "Reenviar falhas" — resets only the recipients that failed with
+   * (#131008) back to `pending` so the cron picks them up again. Only
+   * this error code is offered because it's the one the user is
+   * expected to have just fixed (a default value on the variable, or
+   * a corrected contact field) — other failures (invalid phone,
+   * opted-out, rate limit already retried) wouldn't resolve just by
+   * re-sending. error_code/error_message are cleared so a renewed
+   * failure doesn't look like a stale leftover; failed_count drops by
+   * itself via the broadcast_recipients aggregate trigger (migration
+   * 005) since it's keyed off status transitions.
+   */
+  async function handleResendFailed() {
+    if (!broadcast || resendableCount === 0) return;
+    setResending(true);
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from('broadcast_recipients')
+      .update({ status: 'pending', error_message: null, error_code: null })
+      .eq('broadcast_id', broadcastId)
+      .eq('status', 'failed')
+      .eq('error_code', RESENDABLE_ERROR_CODE);
+
+    if (updateError) {
+      setResending(false);
+      toast.error(t('resendFailedReason', { message: updateError.message }));
+      return;
+    }
+
+    if (broadcast.status !== 'sending') {
+      await supabase
+        .from('broadcasts')
+        .update({ status: 'sending', next_batch_at: new Date().toISOString() })
+        .eq('id', broadcastId);
+    }
+
+    setResending(false);
+    toast.success(t('resendQueued', { count: resendableCount }));
+    fetchData();
+  }
+
   const filteredRecipients = useMemo(
     () =>
       statusFilter === 'all'
@@ -402,7 +460,7 @@ export default function BroadcastDetailPage() {
       r.delivered_at ?? '',
       r.read_at ?? '',
       r.replied_at ?? '',
-      r.error_message ?? '',
+      r.error_message ? translateMetaError(r.error_message, r.error_code) : '',
     ]);
     const csv = toCsv([header, ...rows]);
     const safeName = broadcast.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
@@ -520,6 +578,19 @@ export default function BroadcastDetailPage() {
                 {pausing ? t('pausing') : t('pause')}
               </>
             )}
+          </Button>
+        )}
+
+        {resendableCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleResendFailed}
+            disabled={resending}
+            className="border-border text-muted-foreground hover:bg-muted"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {resending ? t('resending') : t('resendFailed', { count: resendableCount })}
           </Button>
         )}
 
@@ -761,8 +832,13 @@ export default function BroadcastDetailPage() {
                           ? new Date(recipient.read_at).toLocaleString()
                           : '-'}
                       </TableCell>
-                      <TableCell className="max-w-xs truncate text-xs text-destructive">
-                        {recipient.error_message ?? '-'}
+                      <TableCell
+                        className="max-w-xs truncate text-xs text-destructive"
+                        title={recipient.error_message ?? undefined}
+                      >
+                        {recipient.error_message
+                          ? translateMetaError(recipient.error_message, recipient.error_code)
+                          : '-'}
                       </TableCell>
                     </TableRow>
                   );
