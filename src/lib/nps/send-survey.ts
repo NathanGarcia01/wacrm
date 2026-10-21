@@ -75,19 +75,24 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
     return { sent: false, reason: "disabled" };
   }
 
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  // .limit(1) + length check rather than .maybeSingle() — pre-fix data
-  // (and any historical backlog) can legitimately have more than one
-  // qualifying row for a contact; .maybeSingle() throws on >1 row.
-  const { data: existing } = await db
-    .from("nps_surveys")
-    .select("id")
-    .eq("account_id", args.accountId)
-    .eq("contact_id", conversation.contact_id)
-    .in("status", ["sent", "responded"])
-    .gte("sent_at", twentyFourHoursAgo)
-    .limit(1);
-  if (existing && existing.length > 0) {
+  // Atomic claim (migration 115) — the dedup check and the placeholder
+  // row insert happen in one DB statement, serialized per account+contact
+  // via an advisory lock inside the RPC. Replaces the old check-then-act
+  // SELECT: two concurrent cron ticks could both pass that check before
+  // either inserted, and both send the WhatsApp message since the send
+  // happened before the insert. Only one caller gets a non-null id back.
+  const { data: claimedId, error: claimError } = await db.rpc("claim_nps_survey_slot", {
+    p_account_id: args.accountId,
+    p_contact_id: conversation.contact_id,
+    p_conversation_id: args.conversationId,
+    p_assigned_agent_id: conversation.assigned_agent_id ?? null,
+    p_trigger_type: args.triggerType,
+  });
+  if (claimError) {
+    console.error("[nps] claim_nps_survey_slot failed:", claimError.message);
+    return { sent: false, reason: "send_failed" };
+  }
+  if (!claimedId) {
     return { sent: false, reason: "already_sent" };
   }
 
@@ -103,22 +108,18 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
     });
   } catch (err) {
     console.error("[nps] failed to send survey:", err instanceof Error ? err.message : err);
+    // Release the claim — status 'failed' falls outside the dedup
+    // window so the next cron tick (or a manual resend) can retry.
+    await db.from("nps_surveys").update({ status: "failed" }).eq("id", claimedId);
     return { sent: false, reason: "send_failed" };
   }
 
-  const { error: insertError } = await db.from("nps_surveys").insert({
-    account_id: args.accountId,
-    conversation_id: args.conversationId,
-    contact_id: conversation.contact_id,
-    assigned_agent_id: conversation.assigned_agent_id ?? null,
-    trigger_type: args.triggerType,
-    status: "sent",
-  });
-  if (insertError) {
-    // Survey already landed on WhatsApp; log loudly so an operator can
-    // backfill the row manually rather than pretending the send failed.
-    console.error("[nps] survey sent but DB insert failed:", insertError.message);
-    return { sent: false, reason: "send_failed" };
+  const { error: updateError } = await db
+    .from("nps_surveys")
+    .update({ status: "sent" })
+    .eq("id", claimedId);
+  if (updateError) {
+    console.error("[nps] survey sent but status update failed:", updateError.message);
   }
 
   return { sent: true };

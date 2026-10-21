@@ -31,6 +31,24 @@ export async function GET(request: Request) {
   }
 
   const db = supabaseAdmin()
+
+  // Whole-route lock (migration 115) — the per-trigger dedup below is a
+  // check-then-act SELECT against automation_logs/flow_runs, which races
+  // under an overlapping invocation (slow previous tick + a new one
+  // firing on schedule): both could pass the dedup check before either
+  // writes its log/run row, double-dispatching the automation/flow. TTL
+  // matches the 5-minute schedule this route is meant to run on.
+  const { data: acquired, error: lockError } = await db.rpc('try_acquire_cron_lock', {
+    p_job_name: 'automations-inactivity-cron',
+    p_ttl_seconds: 240,
+  })
+  if (lockError) {
+    return NextResponse.json({ error: lockError.message }, { status: 500 })
+  }
+  if (!acquired) {
+    return NextResponse.json({ skipped: true, reason: 'locked' })
+  }
+
   // Count of stale conversations evaluated, not of automations that
   // actually fired — runAutomationsForTrigger() is void and decides
   // per-automation matches (threshold + dedup) internally.

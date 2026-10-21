@@ -23,6 +23,23 @@ export async function GET(request: Request) {
   }
 
   const db = supabaseAdmin();
+
+  // Whole-route lock (migration 115) — belt-and-suspenders on top of
+  // claim_nps_survey_slot's per-contact advisory lock (see
+  // src/lib/nps/send-survey.ts): prevents an overlapping invocation from
+  // re-scanning and re-dispatching the same stale-conversation batch at
+  // all. TTL matches the 15-minute schedule this route is meant to run on.
+  const { data: acquired, error: lockError } = await db.rpc("try_acquire_cron_lock", {
+    p_job_name: "nps-cron",
+    p_ttl_seconds: 840,
+  });
+  if (lockError) {
+    return NextResponse.json({ error: lockError.message }, { status: 500 });
+  }
+  if (!acquired) {
+    return NextResponse.json({ skipped: true, reason: "locked" });
+  }
+
   let dispatched = 0;
 
   // --- 1. Inactivity dispatch, per enabled account -----------------
