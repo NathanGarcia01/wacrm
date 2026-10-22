@@ -234,6 +234,14 @@ export interface Conversation {
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;
+  /** sender_type of the most recent message (migration 120), kept in
+   *  sync by a DB trigger on `messages` — drives the list row's status
+   *  line/color bar without loading each conversation's full thread. */
+  last_message_sender_type?: string | null;
+  /** Timestamp of the most recent message FROM THE CUSTOMER specifically
+   *  (migration 120) — distinct from last_message_at, which can be ours.
+   *  Used to compute the 24h Meta window for the list's status line. */
+  last_customer_message_at?: string | null;
   unread_count: number;
   created_at: string;
   updated_at: string;

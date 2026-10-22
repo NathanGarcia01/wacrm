@@ -207,7 +207,12 @@
       "unassignSelected": "Quitar asignación",
       "noMembersAvailable": "Ningún miembro disponible",
       "allChannels": "Todos los canales",
-      "selectAllLoaded": "Seleccionar todas las cargadas"
+      "selectAllLoaded": "Seleccionar todas las cargadas",
+      "waitingMinutes": "Esperando hace {minutes} min",
+      "waitingHours": "Esperando hace {hours}h {minutes}min",
+      "windowClosingIn": "⏳ La ventana cierra en {hours}h",
+      "respondedWaiting": "Respondido · esperando cliente",
+      "outsideWindow": "Fuera de la ventana · solo plantilla"
     },
     "filters": {
       "filters": "Filtros",
@@ -460,7 +465,9 @@
         "closed": "Cerrados",
         "noTicket": "Sin atención",
         "onlyMine": "Solo los míos",
-        "unreadOnly": "No leídas"
+        "unreadOnly": "No leídas",
+        "filterExpiring": "⏳ Expirando",
+        "filterAwaiting": "Esperando"
       },
       "header": {
         "assign": "Asignar",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Mail, MailOpen, User } from "lucide-react";
+import { Mail, MailOpen, User, Hourglass, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type TicketTab = "pending" | "in_progress" | "closed" | "no_ticket";
@@ -40,6 +40,10 @@ export function TicketStatusTabs({
   onToggleUnreadOnly,
   onlyMine,
   onToggleOnlyMine,
+  expiringOnly,
+  onToggleExpiringOnly,
+  awaitingOnly,
+  onToggleAwaitingOnly,
 }: {
   value: TicketTab;
   onChange: (tab: TicketTab) => void;
@@ -48,6 +52,14 @@ export function TicketStatusTabs({
   onToggleUnreadOnly: () => void;
   onlyMine: boolean;
   onToggleOnlyMine: () => void;
+  /** Caixa de entrada redesign (A+C), Parte 1 — "⏳ Expirando": janela
+   *  de 24h fechando em até 4h (status âmbar da lista). */
+  expiringOnly: boolean;
+  onToggleExpiringOnly: () => void;
+  /** "Aguardando": última mensagem é do cliente, sem resposta nossa
+   *  ainda (status vermelho da lista). */
+  awaitingOnly: boolean;
+  onToggleAwaitingOnly: () => void;
 }) {
   const t = useTranslations("inbox.tickets.tabs");
 
@@ -79,7 +91,7 @@ export function TicketStatusTabs({
           );
         })}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <button
           type="button"
           onClick={onToggleUnreadOnly}
@@ -107,6 +119,34 @@ export function TicketStatusTabs({
         >
           <User className="size-3" />
           {t("onlyMine")}
+        </button>
+        <button
+          type="button"
+          onClick={onToggleExpiringOnly}
+          aria-pressed={expiringOnly}
+          className={cn(
+            "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors",
+            expiringOnly
+              ? "bg-amber-500/15 text-amber-500"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+        >
+          <Hourglass className="size-3" />
+          {t("filterExpiring")}
+        </button>
+        <button
+          type="button"
+          onClick={onToggleAwaitingOnly}
+          aria-pressed={awaitingOnly}
+          className={cn(
+            "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors",
+            awaitingOnly
+              ? "bg-destructive/15 text-destructive"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+        >
+          <Clock className="size-3" />
+          {t("filterAwaiting")}
         </button>
       </div>
     </div>

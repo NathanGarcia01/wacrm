@@ -5,8 +5,15 @@ import { useTranslations, useLocale } from "next-intl";
 import { localeToDateFns, type Locale } from "@/i18n/locales";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useNow } from "@/hooks/use-now";
 import { usePaginatedInboxList } from "@/hooks/use-paginated-inbox-list";
 import { useInboxTabCounts } from "@/hooks/use-inbox-tab-counts";
+import {
+  computeConversationListStatus,
+  formatPhoneTail,
+  formatWaitingDuration,
+  type ConversationListStatus,
+} from "@/lib/inbox/conversation-list-status";
 import { resolveAllTabConversationIds } from "@/lib/inbox/resolve-tab-conversation-ids";
 import type { BulkAction } from "@/lib/inbox/bulk-action-client";
 import { cn } from "@/lib/utils";
@@ -78,12 +85,6 @@ interface ConversationListProps {
   inboxActivityToken?: number;
 }
 
-const STATUS_COLORS: Record<ConversationStatus, string> = {
-  open: "bg-primary",
-  pending: "bg-amber-500",
-  closed: "bg-muted-foreground",
-};
-
 type InboxFilter = ConversationStatus | "all" | "unread";
 
 /** Persists the selected channel filter across sessions, same key
@@ -134,6 +135,16 @@ export function ConversationList({
   const handleToggleUnreadOnly = useCallback(() => setUnreadOnly((v) => !v), []);
   const [onlyMine, setOnlyMine] = useState(false);
   const handleToggleOnlyMine = useCallback(() => setOnlyMine((v) => !v), []);
+  // Caixa de entrada redesign (A+C), Parte 1 — "⏳ Expirando" / "Aguardando".
+  // Unlike unreadOnly/onlyMine (passed as RPC params — server-filtered,
+  // see usePaginatedInboxList), these filter the status line computed
+  // client-side from last_message_sender_type/last_customer_message_at
+  // (migration 120), applied on top of whatever page is already loaded.
+  const [expiringOnly, setExpiringOnly] = useState(false);
+  const handleToggleExpiringOnly = useCallback(() => setExpiringOnly((v) => !v), []);
+  const [awaitingOnly, setAwaitingOnly] = useState(false);
+  const handleToggleAwaitingOnly = useCallback(() => setAwaitingOnly((v) => !v), []);
+  const now = useNow(60_000);
 
   const [advancedFilters, setAdvancedFilters] = useState<ConversationFiltersState>(
     EMPTY_CONVERSATION_FILTERS,
@@ -364,6 +375,22 @@ export function ConversationList({
     return result;
   }, [conversations, filter, search, advancedFilters, channelFilter, ticketsUiEnabled]);
 
+  // "⏳ Expirando" / "Aguardando" — applies on top of either path above.
+  const applyStatusToneFilter = useCallback(
+    (items: Conversation[]) => {
+      if (!expiringOnly && !awaitingOnly) return items;
+      return items.filter((c) => {
+        const status = computeConversationListStatus(c, now);
+        if (!status) return false;
+        if (expiringOnly && status.tone === "amber") return true;
+        if (awaitingOnly && status.tone === "red") return true;
+        return false;
+      });
+    },
+    [expiringOnly, awaitingOnly, now],
+  );
+  const filteredWithTone = useMemo(() => applyStatusToneFilter(filtered), [applyStatusToneFilter, filtered]);
+
   // Fase 1 (atendimento) — the four ticket tabs, server-paginated via
   // migration 075's RPCs (see the hooks' own doc comments for why:
   // the old "fetch everything, filter in memory" model silently
@@ -381,6 +408,10 @@ export function ConversationList({
     resyncToken,
     activityToken: inboxActivityToken,
   });
+  const visibleTicketItems = useMemo(
+    () => applyStatusToneFilter(paginatedList.items),
+    [applyStatusToneFilter, paginatedList.items],
+  );
   const inboxCounts = useInboxTabCounts({
     enabled: ticketsUiEnabled,
     accountId,
@@ -428,14 +459,14 @@ export function ConversationList({
   const selectionActive = selectedIds.size > 0 || selectAllMatching;
 
   const currentLoadedIds = useMemo(
-    () => (ticketsUiEnabled ? paginatedList.items.map((c) => c.id) : filtered.map((c) => c.id)),
-    [ticketsUiEnabled, paginatedList.items, filtered],
+    () => (ticketsUiEnabled ? visibleTicketItems.map((c) => c.id) : filteredWithTone.map((c) => c.id)),
+    [ticketsUiEnabled, visibleTicketItems, filteredWithTone],
   );
   const allLoadedSelected =
     currentLoadedIds.length > 0 && currentLoadedIds.every((id) => selectedIds.has(id));
   const totalForActiveTab = ticketsUiEnabled
     ? inboxCounts.counts[filter as TicketTab]
-    : filtered.length;
+    : filteredWithTone.length;
 
   const handleToggleSelectAllLoaded = useCallback(() => {
     setSelectAllMatching(false);
@@ -649,6 +680,10 @@ export function ConversationList({
               onToggleUnreadOnly={handleToggleUnreadOnly}
               onlyMine={onlyMine}
               onToggleOnlyMine={handleToggleOnlyMine}
+              expiringOnly={expiringOnly}
+              onToggleExpiringOnly={handleToggleExpiringOnly}
+              awaitingOnly={awaitingOnly}
+              onToggleAwaitingOnly={handleToggleAwaitingOnly}
             />
           )}
 
@@ -742,13 +777,13 @@ export function ConversationList({
             <div className="flex items-center justify-center py-12">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          ) : paginatedList.items.length === 0 ? (
+          ) : visibleTicketItems.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
             </div>
           ) : (
             <div className="flex flex-col">
-              {paginatedList.items.map((conv) => (
+              {visibleTicketItems.map((conv) => (
                 <ConversationItem
                   key={conv.id}
                   conversation={conv}
@@ -758,6 +793,7 @@ export function ConversationList({
                   selected={selectedIds.has(conv.id)}
                   onToggleSelect={handleToggleSelect}
                   showChannel={multiChannel}
+                  now={now}
                 />
               ))}
               {paginatedList.loadingMore && (
@@ -774,13 +810,13 @@ export function ConversationList({
             <div className="flex items-center justify-center py-12">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : filteredWithTone.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
             </div>
           ) : (
             <div className="flex flex-col">
-              {filtered.map((conv) => (
+              {filteredWithTone.map((conv) => (
                 <ConversationItem
                   key={conv.id}
                   conversation={conv}
@@ -790,6 +826,7 @@ export function ConversationList({
                   selected={selectedIds.has(conv.id)}
                   onToggleSelect={handleToggleSelect}
                   showChannel={multiChannel}
+                  now={now}
                 />
               ))}
             </div>
@@ -825,7 +862,24 @@ interface ConversationItemProps {
   /** Only render the per-row channel badge when the account has more
    *  than one active WhatsApp number. */
   showChannel: boolean;
+  /** Ticks every 60s (useNow) so the status line's elapsed/remaining
+   *  time updates on its own without a data refetch. */
+  now: Date;
 }
+
+/** 3px status bar + status-line text color, per tone. `null` (no
+ *  classifiable status yet — e.g. brand-new conversation, no messages)
+ *  renders a transparent bar and no status line, same as before this
+ *  redesign. */
+const STATUS_TONE_CLASSES: Record<
+  ConversationListStatus["tone"],
+  { bar: string; text: string }
+> = {
+  red: { bar: "bg-destructive", text: "text-destructive" },
+  amber: { bar: "bg-amber-500", text: "text-amber-500" },
+  green: { bar: "bg-primary", text: "text-primary" },
+  gray: { bar: "bg-muted-foreground/40", text: "text-muted-foreground" },
+};
 
 function ConversationItem({
   conversation,
@@ -834,7 +888,7 @@ function ConversationItem({
   selectionActive,
   selected,
   onToggleSelect,
-  showChannel,
+  now,
 }: ConversationItemProps) {
   const t = useTranslations("inbox.list");
   const locale = useLocale() as Locale;
@@ -859,14 +913,45 @@ function ConversationItem({
 
   const isUnread = conversation.unread_count > 0;
 
+  // Caixa de entrada redesign (A+C), Parte 1 — status line + 3px bar.
+  const status = useMemo(
+    () => computeConversationListStatus(conversation, now),
+    [conversation, now],
+  );
+  const toneClasses = status ? STATUS_TONE_CLASSES[status.tone] : null;
+  const statusLabel = (() => {
+    if (!status) return null;
+    switch (status.key) {
+      case "waitingSince": {
+        const { hours, minutes } = formatWaitingDuration(status.waitingMinutes ?? 0);
+        return hours > 0
+          ? t("waitingHours", { hours, minutes })
+          : t("waitingMinutes", { minutes });
+      }
+      case "windowClosingIn":
+        return t("windowClosingIn", { hours: status.hoursLeft ?? 0 });
+      case "respondedWaiting":
+        return t("respondedWaiting");
+      case "outsideWindow":
+        return t("outsideWindow");
+    }
+  })();
+  const phoneTag = formatPhoneTail(
+    conversation.channel?.display_phone_number ?? null,
+  );
+
   return (
     <div
       className={cn(
         "group relative flex w-full items-stretch transition-colors hover:bg-muted/50",
         isUnread && !isActive && "bg-primary/[0.04]",
-        isActive && "border-l-2 border-primary bg-muted/70"
+        isActive && "bg-muted/70",
       )}
     >
+      {/* 3px status bar — always rendered (transparent when there's no
+          classifiable status yet) so every row's content lines up. */}
+      <div className={cn("w-[3px] shrink-0", toneClasses?.bar ?? "bg-transparent")} />
+
       {/* Selection checkbox — hidden until hover, unless the row (or
           any other row) is already selected, in which case it stays
           visible so the checked state is always legible. Kept as a
@@ -931,38 +1016,38 @@ function ConversationItem({
           )}
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p
-            className={cn(
-              "truncate text-xs",
-              isUnread ? "font-medium text-foreground" : "text-muted-foreground"
-            )}
-          >
-            {conversation.last_message_text || t("noMessagesYet")}
-          </p>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {showChannel && conversation.channel?.name && (
-              <span
-                className="flex items-center gap-0.5 rounded-full border border-border bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground"
-                title={conversation.channel.display_phone_number ?? conversation.channel.name}
-              >
-                <Smartphone className="h-2.5 w-2.5" />
-                {conversation.channel.name}
-              </span>
-            )}
-            {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
-                {conversation.unread_count}
-              </span>
-            )}
+        <p
+          className={cn(
+            "mt-0.5 truncate text-xs",
+            isUnread ? "font-medium text-foreground" : "text-muted-foreground"
+          )}
+        >
+          {conversation.last_message_text || t("noMessagesYet")}
+        </p>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          {phoneTag && (
+            <span
+              className="shrink-0 whitespace-nowrap rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              title={conversation.channel?.name ?? undefined}
+            >
+              {phoneTag}
+            </span>
+          )}
+          {statusLabel && (
             <span
               className={cn(
-                "h-2 w-2 rounded-full",
-                STATUS_COLORS[conversation.status]
+                "truncate text-[10px] font-semibold whitespace-nowrap",
+                toneClasses?.text,
               )}
-              title={conversation.status}
-            />
-          </div>
+            >
+              {statusLabel}
+            </span>
+          )}
+          {conversation.unread_count > 0 && (
+            <span className="ml-auto flex h-[19px] min-w-[19px] shrink-0 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-bold text-primary-foreground">
+              {conversation.unread_count}
+            </span>
+          )}
         </div>
       </div>
       </button>

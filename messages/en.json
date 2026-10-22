@@ -207,7 +207,12 @@
       "unassignSelected": "Remove assignment",
       "noMembersAvailable": "No members available",
       "allChannels": "All channels",
-      "selectAllLoaded": "Select all loaded"
+      "selectAllLoaded": "Select all loaded",
+      "waitingMinutes": "Waiting {minutes} min",
+      "waitingHours": "Waiting {hours}h {minutes}min",
+      "windowClosingIn": "⏳ Window closes in {hours}h",
+      "respondedWaiting": "Replied · awaiting customer",
+      "outsideWindow": "Outside window · template only"
     },
     "filters": {
       "filters": "Filters",
@@ -460,7 +465,9 @@
         "closed": "Closed",
         "noTicket": "No ticket",
         "onlyMine": "Only mine",
-        "unreadOnly": "Unread"
+        "unreadOnly": "Unread",
+        "filterExpiring": "⏳ Expiring",
+        "filterAwaiting": "Awaiting"
       },
       "header": {
         "assign": "Assign",
