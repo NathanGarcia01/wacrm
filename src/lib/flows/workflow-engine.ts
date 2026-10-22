@@ -1315,6 +1315,14 @@ async function triggerMatches(
     const hoursCfg = Number(cfg?.hours) || 24;
     const elapsed = ctx?.vars?.inactive_hours;
     if (typeof elapsed !== "number" || elapsed < hoursCfg) return false;
+    // Backlog guard — never fire for a quiet period that started
+    // before this flow was (re)activated. Mirrors automations/engine.ts's
+    // identical guard; activated_at (migration 119) is bumped by a DB
+    // trigger whenever status transitions into 'active'.
+    const lastMessageAtGuard = ctx?.vars?.last_message_at;
+    if (flow.activated_at && typeof lastMessageAtGuard === "string") {
+      if (new Date(lastMessageAtGuard) < new Date(flow.activated_at)) return false;
+    }
     // Dedup: don't re-fire for the same contact on every cron tick —
     // mirrors automations' automation_logs check, adapted to flow_runs
     // (flows has no per-trigger log table; a started run for this

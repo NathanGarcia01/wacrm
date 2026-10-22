@@ -17,8 +17,22 @@ export type SendNpsSurveyResult =
   | { sent: true }
   | {
       sent: false;
-      reason: "disabled" | "already_sent" | "conversation_not_found" | "no_contact" | "send_failed";
+      reason:
+        | "disabled"
+        | "already_sent"
+        | "conversation_not_found"
+        | "no_contact"
+        | "send_failed"
+        | "skipped_backlog";
     };
+
+/** Meta's customer-service window for free-text (non-template) sends —
+ *  NPS uses engineSendText, not a template, so a contact silent longer
+ *  than this can't be reached at all. Incident 2026-10-22: funilly-nps
+ *  had never run, so its first tick treated months of quiet
+ *  conversations as "due now" and fired 158 free-text sends in one
+ *  pass — 150 failed because the window had long since closed. */
+const META_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Single entry point for sending a post-conversation NPS survey.
@@ -94,6 +108,26 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
   }
   if (!claimedId) {
     return { sent: false, reason: "already_sent" };
+  }
+
+  // Backlog guard — re-checks the REAL Meta window (last inbound from
+  // the customer), not conversations.last_message_at, which gets
+  // overwritten by the bot's own messages (including this one) and so
+  // can't be trusted to reflect customer silence.
+  const { data: lastCustomerMsg } = await db
+    .from("messages")
+    .select("created_at")
+    .eq("conversation_id", args.conversationId)
+    .eq("sender_type", "customer")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const withinWindow =
+    !!lastCustomerMsg?.created_at &&
+    Date.now() - new Date(lastCustomerMsg.created_at).getTime() < META_WINDOW_MS;
+  if (!withinWindow) {
+    await db.from("nps_surveys").update({ status: "skipped_backlog" }).eq("id", claimedId);
+    return { sent: false, reason: "skipped_backlog" };
   }
 
   const messageTemplate = settings?.message_template || DEFAULT_MESSAGE_TEMPLATE;

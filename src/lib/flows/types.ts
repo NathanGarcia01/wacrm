@@ -604,6 +604,11 @@ export interface FlowRow {
   trigger_config: KeywordTriggerConfig | FirstInboundTriggerConfig | Record<string, unknown>;
   entry_node_id: string | null;
   fallback_policy: FlowFallbackPolicy;
+  /** Bumped by a DB trigger whenever status transitions into 'active'
+   *  (migration 119) — the inactivity trigger's backlog guard compares
+   *  against this so a long-inactive flow doesn't fire its entire
+   *  backlog the moment it's reactivated. */
+  activated_at: string;
   execution_count: number;
   last_executed_at: string | null;
   created_at: string;

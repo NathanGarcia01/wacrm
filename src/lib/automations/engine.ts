@@ -972,6 +972,16 @@ async function triggerMatches(
     const hoursCfg = Number(cfg?.hours) || 24
     const elapsed = ctx?.vars?.inactive_hours
     if (typeof elapsed !== 'number' || elapsed < hoursCfg) return false
+    // Backlog guard — never fire for a quiet period that started
+    // before this automation was (re)activated. Without this, an
+    // automation that was off for weeks/months fires its entire
+    // backlog the moment it (or the cron driving it) turns back on.
+    // activated_at (migration 119) is bumped by a DB trigger whenever
+    // is_active flips false→true.
+    const lastMessageAtGuard = ctx?.vars?.last_message_at
+    if (automation.activated_at && typeof lastMessageAtGuard === 'string') {
+      if (new Date(lastMessageAtGuard) < new Date(automation.activated_at)) return false
+    }
     // Dedup: don't re-fire for the same contact on every cron tick —
     // only once per quiet period, reset when a new message lands (the
     // cron passes the conversation's current last_message_at, so a

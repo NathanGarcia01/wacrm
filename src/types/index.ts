@@ -1110,6 +1110,11 @@ export interface Automation {
   trigger_type: AutomationTriggerType;
   trigger_config: AutomationTriggerConfig;
   is_active: boolean;
+  /** Bumped by a DB trigger whenever is_active flips false→true
+   *  (migration 119) — the inactivity trigger's backlog guard compares
+   *  against this so a long-off automation doesn't fire its entire
+   *  backlog the moment it's reactivated. */
+  activated_at: string;
   execution_count: number;
   last_executed_at?: string | null;
   created_at: string;
