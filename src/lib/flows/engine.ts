@@ -390,7 +390,8 @@ export async function logEvent(
     | "timeout"
     | "cancelled"
     | "error"
-    | "completed",
+    | "completed"
+    | "deal_created_by_flow",
   node_key: string | null,
   payload: Record<string, unknown> = {},
 ): Promise<void> {
@@ -946,6 +947,67 @@ async function resolveOpenDealId(db: AdminClient, run: FlowRunRow): Promise<stri
   return data.id as string;
 }
 
+/**
+ * `update_deal_stage`-only fallback: a contact with no open deal (never
+ * had one, or their previous deal was won/lost) hits this instead of
+ * failing the run. Creates a fresh deal in the account's default
+ * pipeline (oldest by `created_at` — same resolution workflow-engine.ts's
+ * `executeCreateDeal` uses) at the node's target stage, so the flow can
+ * keep going. Deliberately does NOT look at closed deals at all — a
+ * won/lost deal is never reopened, a new one is always created instead.
+ */
+async function createDealForUpdateStage(
+  db: AdminClient,
+  run: FlowRunRow,
+  stageId: string,
+): Promise<string> {
+  if (!run.contact_id) throw new Error("update_deal_stage needs a contact");
+
+  const { data: defaultPipeline } = await db
+    .from("pipelines")
+    .select("id")
+    .eq("account_id", run.account_id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!defaultPipeline?.id) throw new Error("update_deal_stage: account has no pipeline");
+
+  const [{ data: contact }, { data: acct }, { data: conversation }] = await Promise.all([
+    db.from("contacts").select("name, phone").eq("id", run.contact_id).maybeSingle(),
+    db.from("accounts").select("default_currency").eq("id", run.account_id).maybeSingle(),
+    run.conversation_id
+      ? db
+          .from("conversations")
+          .select("assigned_agent_id")
+          .eq("id", run.conversation_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const { data: inserted, error } = await db
+    .from("deals")
+    .insert({
+      account_id: run.account_id,
+      user_id: run.user_id,
+      pipeline_id: defaultPipeline.id,
+      stage_id: stageId,
+      contact_id: run.contact_id,
+      // Responsável da conversa — null is fine (unassigned), the deal
+      // still gets created and the flow still advances.
+      assigned_to: conversation?.assigned_agent_id ?? null,
+      title: contact?.name || contact?.phone || "",
+      value: 0,
+      currency: (acct as { default_currency?: string } | null)?.default_currency ?? "USD",
+      status: "open",
+    })
+    .select("id")
+    .single();
+  if (error || !inserted?.id) {
+    throw new Error(`update_deal_stage: failed to create deal: ${error?.message}`);
+  }
+  return inserted.id as string;
+}
+
 export async function endRun(
   db: AdminClient,
   runId: string,
@@ -1289,12 +1351,27 @@ async function advanceFromNodeKey(
       const cfg = node.config as unknown as UpdateDealStageNodeConfig;
       try {
         if (!cfg.stage_id) throw new Error("update_deal_stage needs stage_id");
-        const dealId = await resolveOpenDealId(db, run);
-        await db
-          .from("deals")
-          .update({ stage_id: cfg.stage_id, updated_at: new Date().toISOString() })
-          .eq("id", dealId)
-          .eq("account_id", run.account_id);
+        let dealId: string;
+        let created = false;
+        try {
+          dealId = await resolveOpenDealId(db, run);
+        } catch (err) {
+          if (!(err instanceof Error) || err.message !== "no open deal for contact") throw err;
+          dealId = await createDealForUpdateStage(db, run, cfg.stage_id);
+          created = true;
+        }
+        if (created) {
+          await logEvent(db, run.id, "deal_created_by_flow", node.node_key, {
+            deal_id: dealId,
+            stage_id: cfg.stage_id,
+          });
+        } else {
+          await db
+            .from("deals")
+            .update({ stage_id: cfg.stage_id, updated_at: new Date().toISOString() })
+            .eq("id", dealId)
+            .eq("account_id", run.account_id);
+        }
       } catch (err) {
         await logEvent(db, run.id, "error", node.node_key, {
           reason: "update_deal_stage_failed",
