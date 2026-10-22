@@ -86,7 +86,6 @@ export async function GET(request: Request) {
     console.error('[flows-cron] active-run scan failed:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  if (!runs?.length) return NextResponse.json({ swept: 0 })
 
   type Row = {
     id: string
@@ -98,7 +97,7 @@ export async function GET(request: Request) {
   }
 
   let swept = 0
-  for (const r of runs as Row[]) {
+  for (const r of (runs ?? []) as Row[]) {
     const flowsField = Array.isArray(r.flows) ? r.flows[0] : r.flows
     const policy = resolveFallbackPolicy(flowsField?.fallback_policy ?? null)
     const lastAdvanced = new Date(r.last_advanced_at)
