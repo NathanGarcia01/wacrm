@@ -951,6 +951,8 @@ function ConversationItem({
           ? t("waitingHours", { hours, minutes })
           : t("waitingMinutes", { minutes });
       }
+      case "awaitingAgent":
+        return t("awaitingAgent");
       case "windowClosingIn":
         return t("windowClosingIn", { hours: status.hoursLeft ?? 0 });
       case "respondedWaiting":

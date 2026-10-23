@@ -213,7 +213,8 @@
       "windowClosingIn": "⏳ Janela fecha em {hours}h",
       "respondedWaiting": "Respondido · aguardando",
       "outsideWindow": "Fora da janela",
-      "yesterday": "Ontem"
+      "yesterday": "Ontem",
+      "awaitingAgent": "Esperando atendente"
     },
     "filters": {
       "filters": "Filtros",

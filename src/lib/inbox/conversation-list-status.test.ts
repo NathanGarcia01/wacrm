@@ -45,6 +45,32 @@ describe("computeConversationListStatus", () => {
     expect(result).toEqual({ tone: "gray", key: "outsideWindow" });
   });
 
+  it("is red (awaitingAgent) when a bot/flow replied but the flow has since ended", () => {
+    const result = computeConversationListStatus(
+      {
+        last_message_sender_type: "bot",
+        last_message_at: hoursAgo(0.1),
+        last_customer_message_at: hoursAgo(0.2),
+        bot_awaiting_human: true,
+      },
+      NOW,
+    );
+    expect(result).toEqual({ tone: "red", key: "awaitingAgent" });
+  });
+
+  it("is green (respondedWaiting) when a bot replied and its flow is still in play", () => {
+    const result = computeConversationListStatus(
+      {
+        last_message_sender_type: "bot",
+        last_message_at: hoursAgo(0.1),
+        last_customer_message_at: hoursAgo(0.2),
+        bot_awaiting_human: false,
+      },
+      NOW,
+    );
+    expect(result).toEqual({ tone: "green", key: "respondedWaiting" });
+  });
+
   it("is green (respondedWaiting) well inside the 24h window", () => {
     const result = computeConversationListStatus(
       {

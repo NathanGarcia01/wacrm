@@ -213,7 +213,8 @@
       "windowClosingIn": "⏳ Window closes in {hours}h",
       "respondedWaiting": "Replied · awaiting",
       "outsideWindow": "Outside window",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "awaitingAgent": "Awaiting agent"
     },
     "filters": {
       "filters": "Filters",

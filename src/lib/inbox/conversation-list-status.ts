@@ -20,8 +20,9 @@ export interface ConversationListStatus {
   /** Translation key — callers resolve to display text via next-intl so
    *  this module stays locale-agnostic, same pattern session-window.ts's
    *  consumer (message-thread.tsx) uses for its own status strings. */
-  key: "waitingSince" | "windowClosingIn" | "respondedWaiting" | "outsideWindow";
-  /** Minutes elapsed since the customer's message, only set for `red`. */
+  key: "waitingSince" | "awaitingAgent" | "windowClosingIn" | "respondedWaiting" | "outsideWindow";
+  /** Minutes elapsed since the customer's message, only set for `red`
+   *  `waitingSince` (not `awaitingAgent` — see that key's doc comment). */
   waitingMinutes?: number;
   /** Hours left in the 24h window, only set for `amber`. */
   hoursLeft?: number;
@@ -31,6 +32,13 @@ export interface ConversationListStatusInput {
   last_message_sender_type?: string | null;
   last_message_at?: string | null;
   last_customer_message_at?: string | null;
+  /** Migration 123 — true when the last message was from a bot/flow
+   *  AND the flow that sent it has since ended (completed/cancelled/
+   *  failed/timed_out) with no human reply after. A bot message alone
+   *  doesn't mean "we're legitimately waiting on the customer" — only
+   *  an IN-PLAY flow does; once it's over, the ball is back on a
+   *  human, same as if the customer had never gotten a reply. */
+  bot_awaiting_human?: boolean | null;
 }
 
 export function computeConversationListStatus(
@@ -47,7 +55,15 @@ export function computeConversationListStatus(
     return { tone: "red", key: "waitingSince", waitingMinutes: minutes };
   }
 
-  // Last message was ours (agent/bot) — status depends on how much of
+  if (conv.last_message_sender_type === "bot" && conv.bot_awaiting_human) {
+    // No natural "waiting since" instant here — last_message_at is when
+    // the BOT spoke, not when the customer went quiet, so (unlike
+    // `waitingSince`) this key carries no duration.
+    return { tone: "red", key: "awaitingAgent" };
+  }
+
+  // Last message was ours (agent, or bot with an in-play flow) —
+  // status depends on how much of
   // the customer's 24h window is left, which is tracked independently
   // of last_message_at (that's OUR message, not theirs).
   if (!conv.last_customer_message_at) {

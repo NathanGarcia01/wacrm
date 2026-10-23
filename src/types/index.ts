@@ -242,6 +242,10 @@ export interface Conversation {
    *  (migration 120) — distinct from last_message_at, which can be ours.
    *  Used to compute the 24h Meta window for the list's status line. */
   last_customer_message_at?: string | null;
+  /** True when the last message was from a bot/flow AND that flow has
+   *  since ended with no human reply after (migration 123) — the list's
+   *  status line shows red "Esperando atendente" instead of green. */
+  bot_awaiting_human?: boolean | null;
   unread_count: number;
   created_at: string;
   updated_at: string;
