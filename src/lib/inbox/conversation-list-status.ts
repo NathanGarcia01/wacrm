@@ -41,10 +41,41 @@ export interface ConversationListStatusInput {
   bot_awaiting_human?: boolean | null;
 }
 
+export interface ConversationClosedInput {
+  status?: string | null;
+  ticket?: { status?: string | null } | null;
+}
+
+/**
+ * A conversation's closed-ness, for the status line's `isClosed` gate.
+ * `ticket.status` is authoritative when present (ticketsUiEnabled
+ * accounts) — `conversations.status` tracks something independent of
+ * the ticket lifecycle and can read 'open' for a closed ticket (e.g.
+ * right after an NPS-survey auto-close). Falls back to
+ * `conversations.status` only when there's no ticket at all (legacy
+ * accounts, or the "Sem atendimento" tab).
+ */
+export function isConversationClosed(conv: ConversationClosedInput): boolean {
+  if (conv.ticket) return conv.ticket.status === "closed";
+  return conv.status === "closed";
+}
+
 export function computeConversationListStatus(
   conv: ConversationListStatusInput,
   now: Date = new Date(),
+  /**
+   * True for a closed ticket (ticketsUiEnabled accounts: ticket.status
+   * === 'closed'; legacy: conversation.status === 'closed'). A closed
+   * thread never shows a status line — in particular never red: an
+   * auto-closing message (NPS survey, "estamos encerrando") sent by a
+   * flow that then ends is exactly the bot_awaiting_human case above,
+   * and conversations.status stays 'open' independent of the ticket
+   * being closed, so without this a resolved ticket could still read
+   * "Esperando atendente".
+   */
+  isClosed: boolean = false,
 ): ConversationListStatus | null {
+  if (isClosed) return null;
   if (!conv.last_message_at || !conv.last_message_sender_type) return null;
 
   if (conv.last_message_sender_type === "customer") {

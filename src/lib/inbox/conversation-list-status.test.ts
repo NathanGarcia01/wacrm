@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeConversationListStatus,
+  isConversationClosed,
   formatPhoneTail,
   formatWaitingDuration,
   formatListTimestamp,
@@ -107,6 +108,46 @@ describe("computeConversationListStatus", () => {
       NOW,
     );
     expect(result).toEqual({ tone: "gray", key: "outsideWindow" });
+  });
+});
+
+describe("computeConversationListStatus — closed gate", () => {
+  it("is null (no status line) when closed, even if the raw signals would read red", () => {
+    const result = computeConversationListStatus(
+      {
+        last_message_sender_type: "bot",
+        last_message_at: hoursAgo(0.1),
+        last_customer_message_at: hoursAgo(0.2),
+        bot_awaiting_human: true, // would be red "awaitingAgent" if open
+      },
+      NOW,
+      true, // isClosed
+    );
+    expect(result).toBeNull();
+  });
+
+  it("is null when closed even for a customer-last-message red case", () => {
+    const result = computeConversationListStatus(
+      { last_message_sender_type: "customer", last_message_at: hoursAgo(1) },
+      NOW,
+      true,
+    );
+    expect(result).toBeNull();
+  });
+});
+
+describe("isConversationClosed", () => {
+  it("trusts ticket.status when a ticket is present, ignoring conversations.status", () => {
+    expect(isConversationClosed({ status: "open", ticket: { status: "closed" } })).toBe(true);
+    expect(isConversationClosed({ status: "closed", ticket: { status: "in_progress" } })).toBe(
+      false,
+    );
+  });
+
+  it("falls back to conversations.status when there's no ticket", () => {
+    expect(isConversationClosed({ status: "closed", ticket: null })).toBe(true);
+    expect(isConversationClosed({ status: "open", ticket: null })).toBe(false);
+    expect(isConversationClosed({ status: "closed" })).toBe(true);
   });
 });
 

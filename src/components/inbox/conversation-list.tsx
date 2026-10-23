@@ -9,6 +9,7 @@ import { usePaginatedInboxList } from "@/hooks/use-paginated-inbox-list";
 import { useInboxTabCounts } from "@/hooks/use-inbox-tab-counts";
 import {
   computeConversationListStatus,
+  isConversationClosed,
   formatPhoneTail,
   formatWaitingDuration,
   formatListTimestamp,
@@ -383,7 +384,7 @@ export function ConversationList({
     (items: Conversation[]) => {
       if (!expiringOnly && !awaitingOnly) return items;
       return items.filter((c) => {
-        const status = computeConversationListStatus(c, now);
+        const status = computeConversationListStatus(c, now, isConversationClosed(c));
         if (!status) return false;
         if (expiringOnly && status.tone === "amber") return true;
         if (awaitingOnly && status.tone === "red") return true;
@@ -938,7 +939,7 @@ function ConversationItem({
 
   // Caixa de entrada redesign (A+C), Parte 1 — status line + 3px bar.
   const status = useMemo(
-    () => computeConversationListStatus(conversation, now),
+    () => computeConversationListStatus(conversation, now, isConversationClosed(conversation)),
     [conversation, now],
   );
   const toneClasses = status ? STATUS_TONE_CLASSES[status.tone] : null;
