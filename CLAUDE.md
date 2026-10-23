@@ -10,6 +10,9 @@ git add -A && git commit -m "descrição" && git push origin main
 git config user.name "Nathan Garcia"
 git config user.email "nathan.gaarcia01@gmail.com"
 
+## Regra de agentes auxiliares (subagents)
+Agentes auxiliares (subagents) NUNCA fazem commit, push, migration ou escrita no banco. Só leem e reportam. Commit/push só pelo agente principal, depois de revisar.
+
 ## Contexto
 - Produto: Funilly (antigo wacrm)
 - Stack: Next.js 16 + Supabase + Stripe + WhatsApp Cloud API
