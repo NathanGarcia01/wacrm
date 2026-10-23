@@ -80,7 +80,19 @@ export async function loadTouchesByPhone(
   const phoneByContact = new Map<string, string>()
   for (let i = 0; i < contactIds.length; i += CHUNK) {
     const chunk = contactIds.slice(i, i + CHUNK)
-    const { data, error } = await db.from('contacts').select('id, phone_normalized').in('id', chunk)
+    // is_internal (migration 127) excludes internal/test contacts (e.g.
+    // the team's own number used to test flows/broadcasts) from ever
+    // populating a phone's touch history — a deal on that same contact
+    // can then never resolve a touch and never gets attributed to a
+    // broadcast's revenue. Found after an internal test contact
+    // accumulated 11 real-customer-named deals with no actual broadcast
+    // touch of its own; this guards the case where it (or another
+    // internal contact) someday does receive one.
+    const { data, error } = await db
+      .from('contacts')
+      .select('id, phone_normalized')
+      .in('id', chunk)
+      .eq('is_internal', false)
     if (error) throw error
     for (const c of (data ?? []) as { id: string; phone_normalized: string | null }[]) {
       if (c.phone_normalized) phoneByContact.set(c.id, c.phone_normalized)

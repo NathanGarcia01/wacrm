@@ -129,6 +129,9 @@ export interface Contact {
   /** Present only when explicitly embedded. */
   status?: ContactStatus | null;
   lead_origin?: LeadOrigin | null;
+  /** Internal/test contact (migration 127) — never counts toward
+   *  broadcast-attribution revenue (see src/lib/broadcasts/attribution.ts). */
+  is_internal?: boolean;
 }
 
 /** Account-configurable "Status do cliente" catalog (migration 086) —
