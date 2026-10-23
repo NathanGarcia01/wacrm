@@ -42,6 +42,8 @@ import {
   UserCircle2,
   Compass,
   History,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,8 +60,25 @@ import { TagPickerPopover } from "./tag-picker-popover";
 import { DealMiniSheet } from "./deal-mini-sheet";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { FlowTriggerPopover } from "./flow-trigger-popover";
+import { findLastTouch, type BroadcastTouch } from "@/lib/broadcasts/attribution";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Same RECEIVED_STATUSES convention as attribution.ts/every broadcast
+ *  report — a recipient actually got the message. */
+const BROADCAST_RECEIVED_STATUSES = ["sent", "delivered", "read", "replied"];
+
+/**
+ * CPF display mask — "130.•••.•••-30" (shows first 3 + last 2 digits,
+ * same convention bank/government UIs use for this document). Falls
+ * back to the raw value when it isn't an 11-digit CPF so a
+ * partially-typed or malformed value never gets silently mangled.
+ */
+function maskCpf(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length !== 11) return raw;
+  return `${digits.slice(0, 3)}.•••.•••-${digits.slice(9)}`;
+}
 
 /** Status badge styling for a deal — mirrors the Aberto/Ganho/Perdido
  *  convention used in the pipeline board and deal-form.tsx. */
@@ -187,11 +206,31 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
   const [conversationNotes, setConversationNotes] = useState<ConversationNote[]>([]);
   const [conversationNotesLoading, setConversationNotesLoading] = useState(false);
+  // Keyed by custom_field id — a CPF stays masked until explicitly
+  // revealed via the eye toggle, per-field (future-proofs against more
+  // than one CPF-named field, however unlikely).
+  const [cpfRevealed, setCpfRevealed] = useState<Record<string, boolean>>({});
+  // "Origem" (Dados) — last broadcast touch that generated the primary
+  // open deal, same last-touch-within-30-days rule as the Transmissões
+  // report (src/lib/broadcasts/attribution.ts). Null falls back to the
+  // contact-level ad/organic origin already rendered below.
+  const [dealOrigin, setDealOrigin] = useState<{ broadcastName: string } | null>(null);
+  // The `contact` prop is frequently the THIN object embedded by
+  // list_inbox_tab_conversations (migration 126) — id/name/phone/
+  // avatar_url only, no created_at/email/company/ad_*/status_id/
+  // lead_origin_id. fetchContactData below fetches the full row once
+  // the sidebar actually opens for this contact; until that resolves,
+  // `displayContact` falls back to the (possibly thin) prop so nothing
+  // crashes or flashes "unknown" fields it would've shown anyway.
+  const [contactOverride, setContactOverride] = useState<Contact | null>(null);
 
-  // Switching contacts shouldn't keep a stale tab/pagination state.
+  // Switching contacts shouldn't keep a stale tab/pagination state —
+  // nor a revealed CPF or stale full-contact fetch from the previous one.
   useEffect(() => {
     setActiveTab("client");
     setHistoryLimit(HISTORY_PAGE_SIZE);
+    setCpfRevealed({});
+    setContactOverride(null);
   }, [contact?.id]);
 
   // Base UI's <Select> only resolves the trigger's displayed label from
@@ -215,10 +254,13 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
 
     const supabase = createClient();
 
-    // Fetch deals, notes, tags, custom fields/values, and the two
-    // status/origin catalogs in parallel. Opt-out block status is
+    // Fetch deals, notes, tags, custom fields/values, the two
+    // status/origin catalogs, and the FULL contact row (see
+    // `contactOverride` above — the prop is often the thin
+    // list-RPC-embedded shape) in parallel. Opt-out block status is
     // fetched independently by <OptOutBanner>.
-    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes, statusesRes, originsRes] = await Promise.all([
+    const [dealsRes, notesRes, tagsRes, fieldsRes, valuesRes, statusesRes, originsRes, fullContactRes] =
+      await Promise.all([
       supabase
         .from("deals")
         .select(
@@ -242,8 +284,10 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         .eq("contact_id", contact.id),
       supabase.from("contact_statuses").select("*").order("position"),
       supabase.from("lead_origins").select("*").order("position"),
+      supabase.from("contacts").select("*").eq("id", contact.id).maybeSingle(),
     ]);
 
+    if (fullContactRes.data) setContactOverride(fullContactRes.data as Contact);
     if (dealsRes.data) setDeals(dealsRes.data);
     if (notesRes.data) setNotes(notesRes.data);
     if (statusesRes.data) setStatuses(statusesRes.data as ContactStatus[]);
@@ -295,6 +339,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         throw error;
       }
       onContactUpdated?.({ ...contact, ...payload } as Contact);
+      setContactOverride((prev) => (prev ? ({ ...prev, ...payload } as Contact) : prev));
     },
     [contact, onContactUpdated, t],
   );
@@ -310,6 +355,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         return;
       }
       onContactUpdated?.({ ...contact, ...payload } as Contact);
+      setContactOverride((prev) => (prev ? ({ ...prev, ...payload } as Contact) : prev));
     },
     [contact, onContactUpdated, t],
   );
@@ -325,6 +371,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         return;
       }
       onContactUpdated?.({ ...contact, ...payload } as Contact);
+      setContactOverride((prev) => (prev ? ({ ...prev, ...payload } as Contact) : prev));
     },
     [contact, onContactUpdated, t],
   );
@@ -561,24 +608,67 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     };
   }, [primaryDeal]);
 
-  // Caixa de entrada redesign (A+C), Parte 3 — Histórico tab. Four
-  // independent sources merged into one chronological timeline:
+  // "Origem" (Dados, Parte 3 ajustes) — which broadcast (if any)
+  // generated the primary open deal. Mirrors loadTouchesByPhone +
+  // findLastTouch (attribution.ts) scoped to this one contact instead
+  // of the whole account: every row the deal's own contact_id was ever
+  // sent a broadcast, last touch within 30 days before the deal's
+  // created_at wins. No touch in range → null, caller falls back to
+  // the contact-level ad/organic origin.
+  useEffect(() => {
+    if (!primaryDeal || !contact) {
+      setDealOrigin(null);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("broadcast_recipients")
+      .select("broadcast_id, broadcast:broadcasts(id, name, created_at)")
+      .eq("contact_id", contact.id)
+      .in("status", BROADCAST_RECEIVED_STATUSES)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const rows = (data ?? []) as {
+          broadcast_id: string;
+          broadcast: { id: string; name: string; created_at: string } | { id: string; name: string; created_at: string }[] | null;
+        }[];
+        const nameByBroadcastId = new Map<string, string>();
+        const touches: BroadcastTouch[] = [];
+        for (const r of rows) {
+          const b = Array.isArray(r.broadcast) ? r.broadcast[0] : r.broadcast;
+          if (!b) continue;
+          nameByBroadcastId.set(b.id, b.name);
+          touches.push({ broadcastId: b.id, createdAt: b.created_at });
+        }
+        const best = findLastTouch(touches, primaryDeal.created_at);
+        setDealOrigin(best ? { broadcastName: nameByBroadcastId.get(best.broadcastId) ?? "" } : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryDeal, contact]);
+
+  // Caixa de entrada redesign (A+C), Parte 3 — Histórico tab. Merged
+  // from three sources into one chronological timeline:
   //   - broadcast_recipients.replied_at → "respondeu ao disparo X"
-  //   - deal_events (created/won/lost) for every deal this contact has
-  //     ever had — reuses the `deals` already loaded by
-  //     fetchContactData instead of a second contact_id-filtered query,
-  //     since deal_events has no contact_id column of its own.
+  //   - deals (created/won/lost) for every deal this contact has ever
+  //     had — derived straight from the `deals` state fetchContactData
+  //     already loaded, NOT from deal_events. deal_events only started
+  //     being written 2026-10-07 (migration ~118) — most deals in this
+  //     account predate it, so a contact whose deals are all older than
+  //     that would show an empty/near-empty Histórico despite having a
+  //     full deal trail. `deals.created_at`/`won_at`/`lost_at` cover
+  //     100% of rows regardless of when they were created.
   //   - nps_surveys.rating → "avaliação recebida"
-  //   - contact.created_at (+ ad attribution if present) → "primeiro
-  //     contato", a single synthetic entry, not a DB row.
+  //   - created_at (+ ad attribution if present) → "primeiro contato",
+  //     a single synthetic entry, not a DB row.
   const fetchHistory = useCallback(async () => {
     if (!contact) return;
     setHistoryLoading(true);
     const supabase = createClient();
 
-    const dealIds = deals.map((d) => d.id);
-
-    const [repliesRes, dealEventsRes, npsRes] = await Promise.all([
+    const [repliesRes, npsRes] = await Promise.all([
       supabase
         .from("broadcast_recipients")
         .select("id, replied_at, broadcast:broadcasts(name)")
@@ -586,15 +676,6 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         .not("replied_at", "is", null)
         .order("replied_at", { ascending: false })
         .limit(50),
-      dealIds.length > 0
-        ? supabase
-            .from("deal_events")
-            .select("id, deal_id, event_type, to_value, lost_reason, created_at")
-            .in("deal_id", dealIds)
-            .in("event_type", ["created", "won", "lost"])
-            .order("created_at", { ascending: false })
-            .limit(50)
-        : Promise.resolve({ data: [] as Record<string, unknown>[] }),
       supabase
         .from("nps_surveys")
         .select("id, rating, responded_at, sent_at")
@@ -604,7 +685,6 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
         .limit(50),
     ]);
 
-    const dealTitleById = new Map(deals.map((d) => [d.id, d]));
     const events: TimelineEvent[] = [];
 
     for (const r of (repliesRes.data ?? []) as {
@@ -621,38 +701,27 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
       });
     }
 
-    for (const e of (dealEventsRes.data ?? []) as {
-      id: string;
-      deal_id: string;
-      event_type: string;
-      to_value: number | null;
-      lost_reason: string | null;
-      created_at: string;
-    }[]) {
-      const deal = dealTitleById.get(e.deal_id);
-      if (e.event_type === "created") {
+    for (const deal of deals) {
+      events.push({
+        id: `deal-created-${deal.id}`,
+        at: deal.created_at,
+        tone: "b",
+        label: t("historyDealCreated", { title: deal.title }),
+      });
+      if (deal.status === "won" && deal.won_at) {
         events.push({
-          id: `deal-${e.id}`,
-          at: e.created_at,
-          tone: "b",
-          label: t("historyDealCreated", { title: deal?.title ?? "" }),
-        });
-      } else if (e.event_type === "won") {
-        events.push({
-          id: `deal-${e.id}`,
-          at: e.created_at,
+          id: `deal-won-${deal.id}`,
+          at: deal.won_at,
           tone: "g",
-          label: t("historyDealWon", {
-            value: formatCurrency(e.to_value ?? deal?.value ?? 0, deal?.currency),
-          }),
+          label: t("historyDealWon", { value: formatCurrency(deal.value, deal.currency) }),
         });
-      } else if (e.event_type === "lost") {
+      } else if (deal.status === "lost" && deal.lost_at) {
         events.push({
-          id: `deal-${e.id}`,
-          at: e.created_at,
+          id: `deal-lost-${deal.id}`,
+          at: deal.lost_at,
           tone: "r",
           label: t("historyDealLost", {
-            reason: e.lost_reason ? t("historyDealLostReason", { reason: e.lost_reason }) : "",
+            reason: deal.lost_reason ? t("historyDealLostReason", { reason: deal.lost_reason }) : "",
           }),
         });
       }
@@ -674,21 +743,25 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
 
     // Synthetic "primeiro contato" entry — not a DB row, derived from
     // the contact's own created_at + ad attribution (migration 067).
-    // created_at is typed as required but isn't always present at
-    // runtime — skip the entry rather than push an unparseable date.
-    if (contact.created_at && !Number.isNaN(new Date(contact.created_at).getTime())) {
+    // `contact` here is `contactOverride ?? contact`: the full contacts
+    // row once it's loaded — the bare prop is often the thin shape
+    // list_inbox_tab_conversations embeds (no created_at/ad_source_id
+    // at all), which silently dropped this entry for every contact
+    // whose sidebar hadn't yet resolved the full row.
+    const historyContact = contactOverride ?? contact;
+    if (historyContact.created_at && !Number.isNaN(new Date(historyContact.created_at).getTime())) {
       events.push({
         id: "first-contact",
-        at: contact.created_at,
+        at: historyContact.created_at,
         tone: "neutral",
-        label: contact.ad_source_id ? t("historyFirstContactAd") : t("historyFirstContact"),
+        label: historyContact.ad_source_id ? t("historyFirstContactAd") : t("historyFirstContact"),
       });
     }
 
     events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
     setHistoryEvents(events);
     setHistoryLoading(false);
-  }, [contact, deals, t]);
+  }, [contact, contactOverride, deals, t]);
 
   useEffect(() => {
     if (activeTab === "history") fetchHistory();
@@ -727,13 +800,19 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     );
   }
 
-  const displayName = contact.name || contact.phone;
+  // `contact` prop is frequently the thin list-RPC shape (id/name/
+  // phone/avatar_url only — see `contactOverride` above); `displayContact`
+  // is the full row once fetchContactData resolves it, falling back to
+  // the prop for the first paint so nothing crashes or flashes "unknown".
+  const displayContact = contactOverride ?? contact;
+  const displayName = displayContact.name || displayContact.phone;
   const initials = displayName.charAt(0).toUpperCase();
-  // contact.created_at is typed as required but isn't always present at
-  // runtime (seen on at least one production contact) — guard rather
-  // than let `new Date(undefined)` throw "Invalid time value" and take
-  // the whole panel down with it.
-  const createdAtDate = contact.created_at ? new Date(contact.created_at) : null;
+  // created_at is typed as required but isn't always present at
+  // runtime (seen on at least one production contact, and on every
+  // contact before contactOverride resolves) — guard rather than let
+  // `new Date(undefined)` throw "Invalid time value" and take the
+  // whole panel down with it.
+  const createdAtDate = displayContact.created_at ? new Date(displayContact.created_at) : null;
   const customerSinceLabel =
     createdAtDate && !Number.isNaN(createdAtDate.getTime())
       ? t("customerSince", {
@@ -748,9 +827,9 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
       <div className="shrink-0 border-b border-border p-4">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-card-2 font-mono text-lg font-semibold text-foreground">
-            {contact.avatar_url ? (
+            {displayContact.avatar_url ? (
               <img
-                src={contact.avatar_url}
+                src={displayContact.avatar_url}
                 alt={displayName}
                 className="h-16 w-16 rounded-full object-cover"
               />
@@ -760,15 +839,15 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
           </div>
           <div className="mt-3 w-full">
             <InlineEditField
-              value={contact.name ?? ""}
+              value={displayContact.name ?? ""}
               placeholder={t("namePlaceholder")}
               onCommit={(v) => handleUpdateField("name", v)}
               inputClassName="text-center text-sm font-semibold"
               displayClassName="justify-center text-sm font-semibold text-foreground"
             />
           </div>
-          {contact.company && (
-            <p className="text-xs text-muted-foreground">{contact.company}</p>
+          {displayContact.company && (
+            <p className="text-xs text-muted-foreground">{displayContact.company}</p>
           )}
           {customerSinceLabel && (
             <p className="mt-0.5 text-[11px] text-muted-foreground">{customerSinceLabel}</p>
@@ -779,7 +858,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
           <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
             <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
             <InlineEditField
-              value={contact.phone}
+              value={displayContact.phone}
               placeholder={t("phonePlaceholder")}
               type="tel"
               validate={(v) => (!v ? t("phoneRequired") : null)}
@@ -803,7 +882,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
           <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
             <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
             <InlineEditField
-              value={contact.email ?? ""}
+              value={displayContact.email ?? ""}
               placeholder={t("emailPlaceholder")}
               type="email"
               validate={(v) => (v && !EMAIL_RE.test(v) ? t("emailInvalid") : null)}
@@ -1030,15 +1109,14 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                         onTriggered={handleFlowTriggered}
                       />
                       {primaryDeal && (
-                        <Button
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs"
                           onClick={() => handleEditDeal(primaryDeal)}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/70"
                         >
+                          <DollarSign className="h-3 w-3" />
                           {t("openDealShortcut")}
-                        </Button>
+                        </button>
                       )}
                     </div>
 
@@ -1107,7 +1185,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                       </div>
                       <Select
                         items={statusItems}
-                        value={contact.status_id ?? "__none__"}
+                        value={displayContact.status_id ?? "__none__"}
                         onValueChange={(v) => handleUpdateStatus(v === "__none__" ? null : v)}
                       >
                         <SelectTrigger className="mt-1 h-8 w-full bg-muted text-xs">
@@ -1134,7 +1212,7 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                       </div>
                       <Select
                         items={leadOriginItems}
-                        value={contact.lead_origin_id ?? "__none__"}
+                        value={displayContact.lead_origin_id ?? "__none__"}
                         onValueChange={(v) => handleUpdateLeadOrigin(v === "__none__" ? null : v)}
                       >
                         <SelectTrigger className="mt-1 h-8 w-full bg-muted text-xs">
@@ -1153,40 +1231,55 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                         </SelectContent>
                       </Select>
                     </div>
-
-                    <div>
-                      <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground">
-                        <Megaphone className="h-3 w-3" />
-                        {t("origin")}
-                      </div>
-                      <div className="mt-1 rounded-lg bg-muted px-3 py-2">
-                        {contact.ad_source_id ? (
-                          <div className="space-y-1">
-                            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                              {t("originAd")}
-                            </span>
-                            <dl className="space-y-0.5 text-xs text-muted-foreground">
-                              {contact.ad_name ? (
-                                <div className="flex gap-1">
-                                  <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
-                                  <dd className="truncate">{contact.ad_name}</dd>
-                                </div>
-                              ) : null}
-                              {contact.ad_campaign_name ? (
-                                <div className="flex gap-1">
-                                  <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
-                                  <dd className="truncate">{contact.ad_campaign_name}</dd>
-                                </div>
-                              ) : null}
-                            </dl>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 )}
+
+                {/* Origem — ajuste #3 da revisão: prioriza a campanha/
+                    disparo que gerou o negócio aberto (mesma regra de
+                    last-touch-em-30-dias do relatório de Transmissões,
+                    via attribution.ts), caindo para o anúncio Meta do
+                    contato e por fim "Orgânico". Sempre visível — não
+                    depende de CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED
+                    (esse flag é só sobre os selects de Status/Origem do
+                    lead acima, uma funcionalidade separada). */}
+                <div className="mt-2">
+                  <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground">
+                    <Megaphone className="h-3 w-3" />
+                    {t("origin")}
+                  </div>
+                  <div className="mt-1 rounded-lg bg-muted px-3 py-2">
+                    {dealOrigin ? (
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          {t("originBroadcast")}
+                        </span>
+                        <p className="truncate text-xs text-muted-foreground">{dealOrigin.broadcastName}</p>
+                      </div>
+                    ) : displayContact.ad_source_id ? (
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                          {t("originAd")}
+                        </span>
+                        <dl className="space-y-0.5 text-xs text-muted-foreground">
+                          {displayContact.ad_name ? (
+                            <div className="flex gap-1">
+                              <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
+                              <dd className="truncate">{displayContact.ad_name}</dd>
+                            </div>
+                          ) : null}
+                          {displayContact.ad_campaign_name ? (
+                            <div className="flex gap-1">
+                              <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
+                              <dd className="truncate">{displayContact.ad_campaign_name}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
+                    )}
+                  </div>
+                </div>
 
                 {/* Satisfação — última pesquisa NPS da conversa atual. */}
                 {conversationId && (
@@ -1257,22 +1350,42 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
                     (contas que os configuraram), junto do resto. */}
                 {customFields.length > 0 && (
                   <div className="mt-3 space-y-1">
-                    {customFields.map((field) => (
-                      <div
-                        key={field.id}
-                        className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground"
-                      >
-                        <span className="w-20 shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                          {field.field_name}
-                        </span>
-                        <InlineEditField
-                          value={customValues[field.id] ?? ""}
-                          placeholder={t("enterFieldPlaceholder", { field: field.field_name })}
-                          onCommit={(v) => handleCommitCustomField(field.id, v)}
-                          displayClassName="flex-1"
-                        />
-                      </div>
-                    ))}
+                    {customFields.map((field) => {
+                      const isCpf = field.field_name.trim().toUpperCase() === "CPF";
+                      const rawValue = customValues[field.id] ?? "";
+                      const revealed = cpfRevealed[field.id] ?? false;
+                      return (
+                        <div
+                          key={field.id}
+                          className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground"
+                        >
+                          <span className="w-20 shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                            {field.field_name}
+                          </span>
+                          <InlineEditField
+                            value={rawValue}
+                            placeholder={t("enterFieldPlaceholder", { field: field.field_name })}
+                            onCommit={(v) => handleCommitCustomField(field.id, v)}
+                            displayClassName="flex-1"
+                            formatDisplay={isCpf ? (v) => (revealed ? v : maskCpf(v)) : undefined}
+                            trailingAction={
+                              isCpf && rawValue ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setCpfRevealed((prev) => ({ ...prev, [field.id]: !prev[field.id] }))
+                                  }
+                                  aria-label={revealed ? t("hideCpf") : t("revealCpf")}
+                                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted"
+                                >
+                                  {revealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                </button>
+                              ) : undefined
+                            }
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1460,6 +1573,15 @@ interface InlineEditFieldProps {
   onCommit: (value: string) => Promise<void>;
   displayClassName?: string;
   inputClassName?: string;
+  /** Transforms the READ-ONLY display text only (e.g. CPF masking) —
+   *  editing always starts from the real `value`, never the formatted
+   *  one. */
+  formatDisplay?: (value: string) => string;
+  /** Extra control rendered next to the display text (e.g. the CPF
+   *  reveal/hide eye toggle) — a sibling of the edit-trigger button,
+   *  never nested inside it, so its own click doesn't also start an
+   *  edit. */
+  trailingAction?: React.ReactNode;
 }
 
 /**
@@ -1475,6 +1597,8 @@ function InlineEditField({
   onCommit,
   displayClassName,
   inputClassName,
+  formatDisplay,
+  trailingAction,
 }: InlineEditFieldProps) {
   const t = useTranslations("inbox.sidebar");
   const [editing, setEditing] = useState(false);
@@ -1559,30 +1683,36 @@ function InlineEditField({
     );
   }
 
+  // `trailingAction` (e.g. the CPF eye toggle) renders as a SIBLING of
+  // the edit-trigger button, not nested inside it — nesting a <button>
+  // inside a <button> is invalid HTML and would fire both onClick
+  // handlers on a single tap.
   return (
-    <button
-      type="button"
-      onClick={startEdit}
-      className={cn(
-        "group/field flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left hover:bg-muted",
-        displayClassName,
-      )}
-    >
-      <span className="min-w-0 flex-1 truncate">
-        {value || <span className="text-muted-foreground">{placeholder}</span>}
-      </span>
-      {status === "saving" && (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {t("saving")}
+    <div className={cn("group/field flex min-w-0 flex-1 items-center gap-1", displayClassName)}>
+      <button
+        type="button"
+        onClick={startEdit}
+        className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left hover:bg-muted"
+      >
+        <span className="min-w-0 flex-1 truncate">
+          {value ? (formatDisplay ? formatDisplay(value) : value) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
         </span>
-      )}
-      {status === "saved" && (
-        <span className="shrink-0 text-[10px] text-primary">{t("saved")}</span>
-      )}
-      {status === "idle" && (
-        <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/field:opacity-100" />
-      )}
-    </button>
+        {status === "saving" && (
+          <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t("saving")}
+          </span>
+        )}
+        {status === "saved" && (
+          <span className="shrink-0 text-[10px] text-primary">{t("saved")}</span>
+        )}
+        {status === "idle" && (
+          <Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/field:opacity-100" />
+        )}
+      </button>
+      {trailingAction}
+    </div>
   );
 }

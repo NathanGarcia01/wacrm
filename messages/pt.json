@@ -296,7 +296,8 @@
       "flowRunInProgress": "Em andamento",
       "flowRunHandedOff": "Transferido",
       "flowRunTimedOut": "Expirado",
-      "origin": "Origem do Contato",
+      "origin": "Origem",
+      "originBroadcast": "Via Disparo",
       "originOrganic": "Orgânico",
       "originAd": "Via Anúncio Meta",
       "originAdName": "Anúncio",
@@ -318,6 +319,8 @@
       "openDealShortcut": "Abrir negócio",
       "dataSection": "Dados",
       "cpfLabel": "CPF",
+      "revealCpf": "Mostrar CPF",
+      "hideCpf": "Ocultar CPF",
       "satisfactionNone": "Sem pesquisa ainda",
       "historyEmpty": "Sem histórico ainda",
       "historyShowMore": "Ver mais",
@@ -433,7 +436,7 @@
       "createNewTag": "Criar nova tag"
     },
     "flowTrigger": {
-      "triggerFlow": "▶ Acionar fluxo",
+      "triggerFlow": "Acionar fluxo",
       "searchPlaceholder": "Buscar fluxos…",
       "noFlowsFound": "Nenhum fluxo encontrado.",
       "noActiveFlows": "Nenhum fluxo ativo na conta.",

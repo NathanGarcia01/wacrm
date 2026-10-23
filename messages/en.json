@@ -296,7 +296,8 @@
       "flowRunInProgress": "In progress",
       "flowRunHandedOff": "Handed off",
       "flowRunTimedOut": "Timed out",
-      "origin": "Contact Origin",
+      "origin": "Origin",
+      "originBroadcast": "Via Broadcast",
       "originOrganic": "Organic",
       "originAd": "Via Meta Ad",
       "originAdName": "Ad",
@@ -318,6 +319,8 @@
       "openDealShortcut": "Open deal",
       "dataSection": "Data",
       "cpfLabel": "CPF",
+      "revealCpf": "Show CPF",
+      "hideCpf": "Hide CPF",
       "satisfactionNone": "No survey yet",
       "historyEmpty": "No history yet",
       "historyShowMore": "Show more",
@@ -433,7 +436,7 @@
       "createNewTag": "Create new tag"
     },
     "flowTrigger": {
-      "triggerFlow": "▶ Trigger flow",
+      "triggerFlow": "Trigger flow",
       "searchPlaceholder": "Search flows…",
       "noFlowsFound": "No flows found.",
       "noActiveFlows": "No active flows in this account.",
