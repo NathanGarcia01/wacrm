@@ -15,6 +15,7 @@ import type {
   Deal,
   DealStatus,
   ContactNote,
+  ConversationNote,
   LeadOrigin,
   Tag,
   CustomField,
@@ -37,10 +38,10 @@ import {
   Loader2,
   Star,
   Send,
-  Workflow,
   Megaphone,
   UserCircle2,
   Compass,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -115,6 +116,26 @@ function flowRunStatusBadge(
   }
 }
 
+/** Caixa de entrada redesign (A+C), Parte 3 — unified "Histórico" entry,
+ *  built from four independent sources (broadcast replies, deal_events,
+ *  NPS ratings, first contact) and sorted chronologically. `tone` drives
+ *  the timeline dot color (mirrors the mockup's .ev.g/.ev.r/.ev.b). */
+interface TimelineEvent {
+  id: string;
+  at: string;
+  tone: "g" | "r" | "b" | "neutral";
+  label: string;
+}
+
+const TIMELINE_DOT_CLASSES: Record<TimelineEvent["tone"], string> = {
+  g: "border-primary bg-primary",
+  r: "border-destructive bg-destructive",
+  b: "border-blue-400 bg-blue-400",
+  neutral: "border-muted-foreground bg-card",
+};
+
+const HISTORY_PAGE_SIZE = 20;
+
 interface ContactSidebarProps {
   contact: Contact | null;
   /** Drives the SATISFAÇÃO section — NPS surveys are per-conversation,
@@ -156,6 +177,22 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   // once per account the same way, just without a .eq("contact_id", ...).
   const [statuses, setStatuses] = useState<ContactStatus[]>([]);
   const [leadOrigins, setLeadOrigins] = useState<LeadOrigin[]>([]);
+
+  // Caixa de entrada redesign (A+C), Parte 3 — Cliente/Histórico/Notas
+  // tabs replace the old single scrollable pane.
+  const [activeTab, setActiveTab] = useState<"client" | "history" | "notes">("client");
+  const [primaryDealStages, setPrimaryDealStages] = useState<PipelineStage[]>([]);
+  const [historyEvents, setHistoryEvents] = useState<TimelineEvent[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyLimit, setHistoryLimit] = useState(HISTORY_PAGE_SIZE);
+  const [conversationNotes, setConversationNotes] = useState<ConversationNote[]>([]);
+  const [conversationNotesLoading, setConversationNotesLoading] = useState(false);
+
+  // Switching contacts shouldn't keep a stale tab/pagination state.
+  useEffect(() => {
+    setActiveTab("client");
+    setHistoryLimit(HISTORY_PAGE_SIZE);
+  }, [contact?.id]);
 
   // Base UI's <Select> only resolves the trigger's displayed label from
   // its `items` map (or from the popup's <SelectItem> children once the
@@ -231,7 +268,6 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
   // Load on contact change. setContactData/setTags run inside async
   // Supabase callbacks, not synchronously in the effect body.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContactData();
   }, [fetchContactData]);
 
@@ -491,6 +527,198 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
     fetchFlowRuns();
   }, [fetchFlowRuns]);
 
+  // Caixa de entrada redesign (A+C), Parte 3 — "Negócio ativos" only
+  // ever shows OPEN deals now; won/lost moved to the Histórico tab
+  // (deal_events below). `deals` itself keeps every status — the deal
+  // count in the top header ("Cliente desde ... · N negócios") and
+  // DealForm/DealMiniSheet's onSaved refetch both still need the full
+  // list, not just the open ones.
+  const openDeals = useMemo(() => deals.filter((d) => (d.status ?? "open") === "open"), [deals]);
+  const primaryDeal = openDeals[0] ?? null;
+
+  // Stage-progress bar for the primary open deal — fetched reactively
+  // off `primaryDeal.pipeline_id` rather than folded into
+  // fetchContactData, since it only matters once we know which deal
+  // (if any) is primary.
+  useEffect(() => {
+    if (!primaryDeal) {
+      setPrimaryDealStages([]);
+      return;
+    }
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("pipeline_stages")
+      .select("*")
+      .eq("pipeline_id", primaryDeal.pipeline_id)
+      .order("position", { ascending: true })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setPrimaryDealStages((data ?? []) as PipelineStage[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [primaryDeal]);
+
+  // Caixa de entrada redesign (A+C), Parte 3 — Histórico tab. Four
+  // independent sources merged into one chronological timeline:
+  //   - broadcast_recipients.replied_at → "respondeu ao disparo X"
+  //   - deal_events (created/won/lost) for every deal this contact has
+  //     ever had — reuses the `deals` already loaded by
+  //     fetchContactData instead of a second contact_id-filtered query,
+  //     since deal_events has no contact_id column of its own.
+  //   - nps_surveys.rating → "avaliação recebida"
+  //   - contact.created_at (+ ad attribution if present) → "primeiro
+  //     contato", a single synthetic entry, not a DB row.
+  const fetchHistory = useCallback(async () => {
+    if (!contact) return;
+    setHistoryLoading(true);
+    const supabase = createClient();
+
+    const dealIds = deals.map((d) => d.id);
+
+    const [repliesRes, dealEventsRes, npsRes] = await Promise.all([
+      supabase
+        .from("broadcast_recipients")
+        .select("id, replied_at, broadcast:broadcasts(name)")
+        .eq("contact_id", contact.id)
+        .not("replied_at", "is", null)
+        .order("replied_at", { ascending: false })
+        .limit(50),
+      dealIds.length > 0
+        ? supabase
+            .from("deal_events")
+            .select("id, deal_id, event_type, to_value, lost_reason, created_at")
+            .in("deal_id", dealIds)
+            .in("event_type", ["created", "won", "lost"])
+            .order("created_at", { ascending: false })
+            .limit(50)
+        : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+      supabase
+        .from("nps_surveys")
+        .select("id, rating, responded_at, sent_at")
+        .eq("contact_id", contact.id)
+        .not("rating", "is", null)
+        .order("responded_at", { ascending: false })
+        .limit(50),
+    ]);
+
+    const dealTitleById = new Map(deals.map((d) => [d.id, d]));
+    const events: TimelineEvent[] = [];
+
+    for (const r of (repliesRes.data ?? []) as {
+      id: string;
+      replied_at: string;
+      broadcast: { name: string } | { name: string }[] | null;
+    }[]) {
+      const broadcast = Array.isArray(r.broadcast) ? r.broadcast[0] : r.broadcast;
+      events.push({
+        id: `reply-${r.id}`,
+        at: r.replied_at,
+        tone: "g",
+        label: t("historyReplied", { name: broadcast?.name ?? "" }),
+      });
+    }
+
+    for (const e of (dealEventsRes.data ?? []) as {
+      id: string;
+      deal_id: string;
+      event_type: string;
+      to_value: number | null;
+      lost_reason: string | null;
+      created_at: string;
+    }[]) {
+      const deal = dealTitleById.get(e.deal_id);
+      if (e.event_type === "created") {
+        events.push({
+          id: `deal-${e.id}`,
+          at: e.created_at,
+          tone: "b",
+          label: t("historyDealCreated", { title: deal?.title ?? "" }),
+        });
+      } else if (e.event_type === "won") {
+        events.push({
+          id: `deal-${e.id}`,
+          at: e.created_at,
+          tone: "g",
+          label: t("historyDealWon", {
+            value: formatCurrency(e.to_value ?? deal?.value ?? 0, deal?.currency),
+          }),
+        });
+      } else if (e.event_type === "lost") {
+        events.push({
+          id: `deal-${e.id}`,
+          at: e.created_at,
+          tone: "r",
+          label: t("historyDealLost", {
+            reason: e.lost_reason ? t("historyDealLostReason", { reason: e.lost_reason }) : "",
+          }),
+        });
+      }
+    }
+
+    for (const n of (npsRes.data ?? []) as {
+      id: string;
+      rating: number;
+      responded_at: string | null;
+      sent_at: string;
+    }[]) {
+      events.push({
+        id: `nps-${n.id}`,
+        at: n.responded_at ?? n.sent_at,
+        tone: "neutral",
+        label: t("historyNpsRating", { rating: n.rating }),
+      });
+    }
+
+    // Synthetic "primeiro contato" entry — not a DB row, derived from
+    // the contact's own created_at + ad attribution (migration 067).
+    // created_at is typed as required but isn't always present at
+    // runtime — skip the entry rather than push an unparseable date.
+    if (contact.created_at && !Number.isNaN(new Date(contact.created_at).getTime())) {
+      events.push({
+        id: "first-contact",
+        at: contact.created_at,
+        tone: "neutral",
+        label: contact.ad_source_id ? t("historyFirstContactAd") : t("historyFirstContact"),
+      });
+    }
+
+    events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    setHistoryEvents(events);
+    setHistoryLoading(false);
+  }, [contact, deals, t]);
+
+  useEffect(() => {
+    if (activeTab === "history") fetchHistory();
+  }, [activeTab, fetchHistory]);
+
+  // Caixa de entrada redesign (A+C), Parte 2/3 — internal notes for the
+  // CURRENT conversation (migration 125), shown read-only in the Notas
+  // tab alongside the pre-existing per-contact notes below. Distinct
+  // table/concept from contact_notes: conversation-scoped, not
+  // persistent across every conversation this contact has ever had.
+  const fetchConversationNotes = useCallback(async () => {
+    if (!conversationId) {
+      setConversationNotes([]);
+      return;
+    }
+    setConversationNotesLoading(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("conversation_notes")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false });
+    setConversationNotes((data ?? []) as ConversationNote[]);
+    setConversationNotesLoading(false);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (activeTab === "notes") fetchConversationNotes();
+  }, [activeTab, fetchConversationNotes]);
+
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
@@ -501,589 +729,697 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
 
   const displayName = contact.name || contact.phone;
   const initials = displayName.charAt(0).toUpperCase();
+  // contact.created_at is typed as required but isn't always present at
+  // runtime (seen on at least one production contact) — guard rather
+  // than let `new Date(undefined)` throw "Invalid time value" and take
+  // the whole panel down with it.
+  const createdAtDate = contact.created_at ? new Date(contact.created_at) : null;
+  const customerSinceLabel =
+    createdAtDate && !Number.isNaN(createdAtDate.getTime())
+      ? t("customerSince", {
+          date: format(createdAtDate, "MMM/yy", { locale: localeToDateFns(locale) }),
+          count: deals.length,
+        })
+      : null;
 
   return (
     <div className="flex h-full w-70 flex-col border-l border-border bg-card">
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4">
-          {/* Contact Info */}
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-card-2 font-mono text-lg font-semibold text-foreground">
-              {contact.avatar_url ? (
-                <img
-                  src={contact.avatar_url}
-                  alt={displayName}
-                  className="h-16 w-16 rounded-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </div>
-            <div className="mt-3 w-full">
-              <InlineEditField
-                value={contact.name ?? ""}
-                placeholder={t("namePlaceholder")}
-                onCommit={(v) => handleUpdateField("name", v)}
-                inputClassName="text-center text-sm font-semibold"
-                displayClassName="justify-center text-sm font-semibold text-foreground"
+      {/* Topo fixo — avatar, nome, "Cliente desde ... · N negócios" */}
+      <div className="shrink-0 border-b border-border p-4">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-card-2 font-mono text-lg font-semibold text-foreground">
+            {contact.avatar_url ? (
+              <img
+                src={contact.avatar_url}
+                alt={displayName}
+                className="h-16 w-16 rounded-full object-cover"
               />
-            </div>
-            {contact.company && (
-              <p className="text-xs text-muted-foreground">{contact.company}</p>
+            ) : (
+              initials
             )}
           </div>
-
-          {/* Phone */}
-          <div className="mt-4 space-y-1">
-            <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
-              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <InlineEditField
-                value={contact.phone}
-                placeholder={t("phonePlaceholder")}
-                type="tel"
-                validate={(v) => (!v ? t("phoneRequired") : null)}
-                onCommit={(v) => handleUpdateField("phone", v)}
-                displayClassName="flex-1"
-              />
-              <button
-                type="button"
-                onClick={handleCopyPhone}
-                aria-label={t("copyPhone")}
-                className="shrink-0 rounded p-1 hover:bg-muted"
-              >
-                {copied ? (
-                  <Check className="h-3 w-3 text-primary" />
-                ) : (
-                  <Copy className="h-3 w-3 text-muted-foreground" />
-                )}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
-              <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <InlineEditField
-                value={contact.email ?? ""}
-                placeholder={t("emailPlaceholder")}
-                type="email"
-                validate={(v) => (v && !EMAIL_RE.test(v) ? t("emailInvalid") : null)}
-                onCommit={(v) => handleUpdateField("email", v)}
-                displayClassName="flex-1"
-              />
-            </div>
+          <div className="mt-3 w-full">
+            <InlineEditField
+              value={contact.name ?? ""}
+              placeholder={t("namePlaceholder")}
+              onCommit={(v) => handleUpdateField("name", v)}
+              inputClassName="text-center text-sm font-semibold"
+              displayClassName="justify-center text-sm font-semibold text-foreground"
+            />
           </div>
-
-          {/* Fase 5 (opt-out de marketing) / Fase 6 Etapa 3 — aviso de
-              bloqueio ATIVO deste telefone + ação de liberar, extraído
-              pra <OptOutBanner> (reaproveitado no painel de negócio). */}
-          <OptOutBanner phone={contact.phone} />
-
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Tags */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <TagIcon className="h-3 w-3" />
-              {t("tags")}
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1">
-              {tags.map((tag) => (
-                <span
-                  key={tag.contact_tag_id}
-                  className="group inline-flex items-center gap-1 rounded-full py-0.5 pr-1 pl-2 text-[10px] font-medium"
-                  style={{
-                    backgroundColor: `${tag.color}20`,
-                    color: tag.color,
-                  }}
-                >
-                  {tag.name}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag.contact_tag_id)}
-                    disabled={removingTagId === tag.contact_tag_id}
-                    aria-label={t("removeTag", { name: tag.name })}
-                    className="rounded-full p-0.5 opacity-60 transition-opacity hover:bg-black/10 hover:opacity-100 disabled:opacity-30 dark:hover:bg-white/10"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                </span>
-              ))}
-              <TagPickerPopover
-                contactId={contact.id}
-                existingTagIds={tags.map((t) => t.id)}
-                onChanged={fetchContactData}
-              />
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
-
-          {/* Status do cliente / Origem do lead (manual) / Origem do
-              Contato (automática) — escondidos atrás de uma flag
-              (src/lib/feature-flags.ts), sem apagar tabelas/colunas/
-              dados; a captura automática por anúncio (webhook) e os
-              relatórios continuam intactos. */}
-          {CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED && (
-            <>
-              {/* Status do cliente — manual catalog, migration 086 */}
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <UserCircle2 className="h-3 w-3" />
-                  {t("statusLabel")}
-                </div>
-                <div className="mt-2">
-                  <Select
-                    items={statusItems}
-                    value={contact.status_id ?? "__none__"}
-                    onValueChange={(v) => handleUpdateStatus(v === "__none__" ? null : v)}
-                  >
-                    <SelectTrigger className="h-8 w-full bg-muted text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t("statusNone")}</SelectItem>
-                      {statuses.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                            {s.label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
-
-              {/* Origem do lead — catálogo manual (migration 086), separado
-                  da origem automática por anúncio exibida a seguir. */}
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Compass className="h-3 w-3" />
-                  {t("leadOriginLabel")}
-                </div>
-                <div className="mt-2">
-                  <Select
-                    items={leadOriginItems}
-                    value={contact.lead_origin_id ?? "__none__"}
-                    onValueChange={(v) => handleUpdateLeadOrigin(v === "__none__" ? null : v)}
-                  >
-                    <SelectTrigger className="h-8 w-full bg-muted text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t("leadOriginNone")}</SelectItem>
-                      {leadOrigins.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: o.color }} />
-                            {o.label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
-
-              {/* Contact Origin — Meta Ads referral vs organic (migration 067) */}
-              <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Megaphone className="h-3 w-3" />
-                  {t("origin")}
-                </div>
-                <div className="mt-2 rounded-lg bg-muted px-3 py-2">
-                  {contact.ad_source_id ? (
-                    <div className="space-y-1">
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                        {t("originAd")}
-                      </span>
-                      <dl className="space-y-0.5 text-xs text-muted-foreground">
-                        {contact.ad_name ? (
-                          <div className="flex gap-1">
-                            <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
-                            <dd className="truncate">{contact.ad_name}</dd>
-                          </div>
-                        ) : null}
-                        {contact.ad_set_name ? (
-                          <div className="flex gap-1">
-                            <dt className="shrink-0 text-foreground/70">{t("originAdSetName")}:</dt>
-                            <dd className="truncate">{contact.ad_set_name}</dd>
-                          </div>
-                        ) : null}
-                        {contact.ad_campaign_name ? (
-                          <div className="flex gap-1">
-                            <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
-                            <dd className="truncate">{contact.ad_campaign_name}</dd>
-                          </div>
-                        ) : null}
-                        {!contact.ad_name && !contact.ad_set_name && !contact.ad_campaign_name ? (
-                          <p className="italic">{t("originAdResolving")}</p>
-                        ) : null}
-                      </dl>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
-            </>
+          {contact.company && (
+            <p className="text-xs text-muted-foreground">{contact.company}</p>
           )}
+          {customerSinceLabel && (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{customerSinceLabel}</p>
+          )}
+        </div>
 
-          {/* Active Deals */}
-          <div>
-            <div className="flex items-center justify-between gap-2 px-1">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                <DollarSign className="h-3 w-3" />
-                {t("activeDeals")}
-              </div>
-              <button
-                type="button"
-                onClick={handleAddDeal}
-                aria-label={t("newDeal")}
-                className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-              >
-                <Plus className="h-3 w-3" />
-              </button>
-            </div>
-            <div className="mt-2 space-y-2">
-              {deals.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">{t("noDeals")}</p>
+        <div className="mt-3 space-y-1">
+          <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
+            <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <InlineEditField
+              value={contact.phone}
+              placeholder={t("phonePlaceholder")}
+              type="tel"
+              validate={(v) => (!v ? t("phoneRequired") : null)}
+              onCommit={(v) => handleUpdateField("phone", v)}
+              displayClassName="flex-1"
+            />
+            <button
+              type="button"
+              onClick={handleCopyPhone}
+              aria-label={t("copyPhone")}
+              className="shrink-0 rounded p-1 hover:bg-muted"
+            >
+              {copied ? (
+                <Check className="h-3 w-3 text-primary" />
               ) : (
-                deals.map((deal) => {
-                  const statusBadge = dealStatusBadge(deal.status, t);
-                  const dealCommissionTotal = (deal.products ?? []).reduce(
-                    (sum, p) => sum + (p.commission_value ?? 0),
-                    0,
-                  );
-                  return (
-                    <div
-                      key={deal.id}
-                      className="group rounded-lg bg-muted px-3 py-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-foreground">
-                          {deal.title}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleEditDeal(deal)}
-                          aria-label={t("editDeal", { title: deal.title })}
-                          className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-black/10 hover:text-foreground group-hover:opacity-100 dark:hover:bg-white/10"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </button>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1.5">
-                          <span className="font-mono font-semibold text-foreground">
-                            {formatCurrency(deal.value, deal.currency)}
-                          </span>
-                          {dealCommissionTotal > 0 && (
-                            <span
-                              className="font-mono text-xs font-medium text-gold"
-                              title={t("dealCommissionTotal")}
-                            >
-                              +{formatCurrency(dealCommissionTotal, deal.currency)}
-                            </span>
-                          )}
-                        </span>
-                        {deal.stage && (
-                          <span
-                            className="rounded-full px-1.5 py-0.5 text-[10px]"
-                            style={{
-                              backgroundColor: `${deal.stage.color}20`,
-                              color: deal.stage.color,
-                            }}
-                          >
-                            {deal.stage.name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                        <span>
-                          {deal.assignee?.full_name
-                            ? t("dealAssignedTo", { name: deal.assignee.full_name })
-                            : t("dealUnassigned")}
-                        </span>
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${statusBadge.classes}`}
-                        >
-                          {statusBadge.label}
-                        </span>
-                      </div>
-                      {deal.expected_close_date && (
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {t("dealCloseDate", {
-                            date: format(
-                              new Date(`${deal.expected_close_date}T00:00:00`),
-                              "dd/MM/yyyy",
-                            ),
-                          })}
-                        </p>
-                      )}
-                      {deal.products && deal.products.length > 0 && (
-                        <div className="mt-1 space-y-0.5">
-                          {deal.products.map((product) => (
-                            <p
-                              key={product.id}
-                              className="truncate text-[11px] text-muted-foreground"
-                              title={`${product.name} — ${formatCurrency(product.value * product.quantity, deal.currency)}`}
-                            >
-                              {product.name} —{" "}
-                              {formatCurrency(product.value * product.quantity, deal.currency)}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                      {deal.notes && (
-                        <p
-                          className="mt-1 truncate text-[11px] text-muted-foreground italic"
-                          title={deal.notes}
-                        >
-                          {deal.notes}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })
+                <Copy className="h-3 w-3 text-muted-foreground" />
               )}
-            </div>
+            </button>
           </div>
 
-          {/* Divider */}
-          <div className="my-4 border-t border-border" />
+          <div className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground">
+            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <InlineEditField
+              value={contact.email ?? ""}
+              placeholder={t("emailPlaceholder")}
+              type="email"
+              validate={(v) => (v && !EMAIL_RE.test(v) ? t("emailInvalid") : null)}
+              onCommit={(v) => handleUpdateField("email", v)}
+              displayClassName="flex-1"
+            />
+          </div>
+        </div>
 
-          {/* Flows */}
-          {conversationId && (
+        <OptOutBanner phone={contact.phone} />
+      </div>
+
+      {/* Abas — Cliente | Histórico | Notas */}
+      <div className="flex shrink-0 border-b border-border px-2 text-xs">
+        {(
+          [
+            { value: "client" as const, label: t("tabClient") },
+            { value: "history" as const, label: t("tabHistory") },
+            { value: "notes" as const, label: t("tabNotes") },
+          ]
+        ).map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            onClick={() => setActiveTab(tab.value)}
+            className={cn(
+              "flex-1 border-b-2 px-2 py-2.5 font-medium transition-colors",
+              activeTab === tab.value
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="p-4">
+          {activeTab === "client" && (
             <>
+              {/* Tags */}
               <div>
                 <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Workflow className="h-3 w-3" />
-                  {t("flows")}
+                  <TagIcon className="h-3 w-3" />
+                  {t("tags")}
                 </div>
-                <div className="mt-2">
-                  <FlowTriggerPopover
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                  {tags.map((tag) => (
+                    <span
+                      key={tag.contact_tag_id}
+                      className="group inline-flex items-center gap-1 rounded-full py-0.5 pr-1 pl-2 text-[10px] font-medium"
+                      style={{
+                        backgroundColor: `${tag.color}20`,
+                        color: tag.color,
+                      }}
+                    >
+                      {tag.name}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag.contact_tag_id)}
+                        disabled={removingTagId === tag.contact_tag_id}
+                        aria-label={t("removeTag", { name: tag.name })}
+                        className="rounded-full p-0.5 opacity-60 transition-opacity hover:bg-black/10 hover:opacity-100 disabled:opacity-30 dark:hover:bg-white/10"
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                  <TagPickerPopover
                     contactId={contact.id}
-                    conversationId={conversationId}
-                    onTriggered={handleFlowTriggered}
+                    existingTagIds={tags.map((t) => t.id)}
+                    onChanged={fetchContactData}
                   />
                 </div>
-
-                {flowRunningBadge && (
-                  <div className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs text-primary">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    {t("flowRunningBadge")}
-                  </div>
-                )}
-
-                <div className="mt-2 space-y-1.5">
-                  {flowRunsLoading ? (
-                    <div className="flex justify-center py-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : flowRuns.length === 0 ? (
-                    <p className="px-1 text-xs text-muted-foreground">{t("noFlowRuns")}</p>
-                  ) : (
-                    flowRuns.map((run) => {
-                      const badge = flowRunStatusBadge(run.status, t);
-                      return (
-                        <Link
-                          key={run.id}
-                          href={`/flows/${run.flow_id}/runs`}
-                          className="block rounded-lg bg-muted px-3 py-2 transition-colors hover:bg-muted/70"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-xs font-medium text-foreground">
-                              {run.flow?.name ?? t("unknownFlow")}
-                            </span>
-                            <span
-                              className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${badge.classes}`}
-                            >
-                              {badge.label}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-[11px] text-muted-foreground">
-                            {format(new Date(run.started_at), "dd/MM/yyyy HH:mm")}
-                          </p>
-                        </Link>
-                      );
-                    })
-                  )}
-                </div>
               </div>
 
-              {/* Divider */}
               <div className="my-4 border-t border-border" />
-            </>
-          )}
 
-          {/* Satisfaction (NPS) */}
-          {conversationId && (
-            <>
+              {/* Negócio — só os ABERTOS aqui; ganho/perdido foi pro
+                  Histórico. O primeiro negócio aberto ganha a barra de
+                  etapas; eventuais outros (raro, mas possível) seguem
+                  listados abaixo no formato compacto de sempre. */}
               <div>
-                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  <Star className="h-3 w-3" />
-                  {t("satisfaction")}
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <DollarSign className="h-3 w-3" />
+                    {t("activeDeals")}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddDeal}
+                    aria-label={t("newDeal")}
+                    className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </button>
                 </div>
-                <div className="mt-2">
-                  {npsLoading ? (
-                    <div className="flex justify-center py-2">
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !npsSurvey ? (
-                    <button
-                      type="button"
-                      onClick={handleSendNpsNow}
-                      disabled={sendingNps}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
-                    >
-                      {sendingNps ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <Send className="h-3 w-3" />
-                      )}
-                      {t("sendNpsNow")}
-                    </button>
-                  ) : (
-                    <div className="space-y-1.5 rounded-lg bg-muted px-3 py-2">
-                      {npsSurvey.rating == null ? (
-                        <p className="text-xs text-muted-foreground">
-                          {npsSurvey.status === "expired"
-                            ? t("npsExpired")
-                            : t("npsAwaitingRating")}
-                        </p>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={
-                                  i < (npsSurvey.rating ?? 0)
-                                    ? "h-3.5 w-3.5 fill-amber-400 text-amber-400"
-                                    : "h-3.5 w-3.5 text-muted-foreground/30"
-                                }
+
+                {openDeals.length === 0 ? (
+                  <p className="mt-2 px-1 text-xs text-muted-foreground">{t("noDeals")}</p>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    {primaryDeal && (
+                      <button
+                        type="button"
+                        onClick={() => handleEditDeal(primaryDeal)}
+                        className="w-full rounded-lg bg-muted px-3 py-2 text-left transition-colors hover:bg-muted/70"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm font-medium text-foreground">{primaryDeal.title}</p>
+                          <span className="shrink-0 font-mono text-sm font-semibold text-primary">
+                            {formatCurrency(primaryDeal.value, primaryDeal.currency)}
+                          </span>
+                        </div>
+                        {primaryDealStages.length > 0 && (
+                          <div className="mt-2 flex gap-1">
+                            {primaryDealStages.map((s) => (
+                              <span
+                                key={s.id}
+                                className={cn(
+                                  "h-1 flex-1 rounded-full",
+                                  s.position <= (primaryDeal.stage?.position ?? 0)
+                                    ? "bg-primary"
+                                    : "bg-border",
+                                )}
                               />
                             ))}
                           </div>
-                          {npsSurvey.comment ? (
-                            <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-                              {npsSurvey.comment}
-                            </p>
-                          ) : npsSurvey.status === "sent" ? (
-                            <p className="text-xs text-muted-foreground">
-                              {t("npsAwaitingComment")}
-                            </p>
-                          ) : null}
-                        </>
+                        )}
+                        <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                          <span>{primaryDeal.stage?.name ?? ""}</span>
+                          {primaryDeal.stage_changed_at && (
+                            <span>
+                              {t("daysOpen", {
+                                days: Math.floor(
+                                  (Date.now() - new Date(primaryDeal.stage_changed_at).getTime()) /
+                                    86_400_000,
+                                ),
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )}
+
+                    {openDeals.slice(1).map((deal) => {
+                      const statusBadge = dealStatusBadge(deal.status, t);
+                      const dealCommissionTotal = (deal.products ?? []).reduce(
+                        (sum, p) => sum + (p.commission_value ?? 0),
+                        0,
+                      );
+                      return (
+                        <div key={deal.id} className="group rounded-lg bg-muted px-3 py-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-sm font-medium text-foreground">{deal.title}</p>
+                            <button
+                              type="button"
+                              onClick={() => handleEditDeal(deal)}
+                              aria-label={t("editDeal", { title: deal.title })}
+                              className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-black/10 hover:text-foreground group-hover:opacity-100 dark:hover:bg-white/10"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <span className="font-mono font-semibold text-foreground">
+                                {formatCurrency(deal.value, deal.currency)}
+                              </span>
+                              {dealCommissionTotal > 0 && (
+                                <span
+                                  className="font-mono text-xs font-medium text-gold"
+                                  title={t("dealCommissionTotal")}
+                                >
+                                  +{formatCurrency(dealCommissionTotal, deal.currency)}
+                                </span>
+                              )}
+                            </span>
+                            {deal.stage && (
+                              <span
+                                className="rounded-full px-1.5 py-0.5 text-[10px]"
+                                style={{
+                                  backgroundColor: `${deal.stage.color}20`,
+                                  color: deal.stage.color,
+                                }}
+                              >
+                                {deal.stage.name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                            <span>
+                              {deal.assignee?.full_name
+                                ? t("dealAssignedTo", { name: deal.assignee.full_name })
+                                : t("dealUnassigned")}
+                            </span>
+                            <span
+                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${statusBadge.classes}`}
+                            >
+                              {statusBadge.label}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="my-4 border-t border-border" />
+
+              {/* Atalhos */}
+              {conversationId && (
+                <>
+                  <div>
+                    <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      {t("shortcuts")}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <FlowTriggerPopover
+                        contactId={contact.id}
+                        conversationId={conversationId}
+                        onTriggered={handleFlowTriggered}
+                      />
+                      {primaryDeal && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => handleEditDeal(primaryDeal)}
+                        >
+                          {t("openDealShortcut")}
+                        </Button>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
 
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
-            </>
-          )}
+                    {flowRunningBadge && (
+                      <div className="mt-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs text-primary">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        {t("flowRunningBadge")}
+                      </div>
+                    )}
 
-          {/* Custom fields */}
-          {customFields.length > 0 && (
-            <>
+                    <div className="mt-2 space-y-1.5">
+                      {flowRunsLoading ? (
+                        <div className="flex justify-center py-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : flowRuns.length === 0 ? (
+                        <p className="px-1 text-xs text-muted-foreground">{t("noFlowRuns")}</p>
+                      ) : (
+                        flowRuns.map((run) => {
+                          const badge = flowRunStatusBadge(run.status, t);
+                          return (
+                            <Link
+                              key={run.id}
+                              href={`/flows/${run.flow_id}/runs`}
+                              className="block rounded-lg bg-muted px-3 py-2 transition-colors hover:bg-muted/70"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="truncate text-xs font-medium text-foreground">
+                                  {run.flow?.name ?? t("unknownFlow")}
+                                </span>
+                                <span
+                                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${badge.classes}`}
+                                >
+                                  {badge.label}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {format(new Date(run.started_at), "dd/MM/yyyy HH:mm")}
+                              </p>
+                            </Link>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="my-4 border-t border-border" />
+                </>
+              )}
+
+              {/* Dados — status/origem (feature-flagged), origem do
+                  contato (anúncio), satisfação (última pesquisa NPS) e
+                  campos personalizados (CPF, matrícula, etc.), todos
+                  agrupados sob um único "Dados" per a Parte 3. */}
               <div>
                 <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  {t("customFields")}
+                  {t("dataSection")}
                 </div>
-                <div className="mt-2 space-y-1">
-                  {customFields.map((field) => (
-                    <div
-                      key={field.id}
-                      className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground"
-                    >
-                      <span className="w-20 shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
-                        {field.field_name}
-                      </span>
-                      <InlineEditField
-                        value={customValues[field.id] ?? ""}
-                        placeholder={t("enterFieldPlaceholder", { field: field.field_name })}
-                        onCommit={(v) => handleCommitCustomField(field.id, v)}
-                        displayClassName="flex-1"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
 
-              {/* Divider */}
-              <div className="my-4 border-t border-border" />
+                {CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED && (
+                  <div className="mt-2 space-y-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground">
+                        <UserCircle2 className="h-3 w-3" />
+                        {t("statusLabel")}
+                      </div>
+                      <Select
+                        items={statusItems}
+                        value={contact.status_id ?? "__none__"}
+                        onValueChange={(v) => handleUpdateStatus(v === "__none__" ? null : v)}
+                      >
+                        <SelectTrigger className="mt-1 h-8 w-full bg-muted text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">{t("statusNone")}</SelectItem>
+                          {statuses.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                                {s.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground">
+                        <Compass className="h-3 w-3" />
+                        {t("leadOriginLabel")}
+                      </div>
+                      <Select
+                        items={leadOriginItems}
+                        value={contact.lead_origin_id ?? "__none__"}
+                        onValueChange={(v) => handleUpdateLeadOrigin(v === "__none__" ? null : v)}
+                      >
+                        <SelectTrigger className="mt-1 h-8 w-full bg-muted text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">{t("leadOriginNone")}</SelectItem>
+                          {leadOrigins.map((o) => (
+                            <SelectItem key={o.id} value={o.id}>
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: o.color }} />
+                                {o.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground">
+                        <Megaphone className="h-3 w-3" />
+                        {t("origin")}
+                      </div>
+                      <div className="mt-1 rounded-lg bg-muted px-3 py-2">
+                        {contact.ad_source_id ? (
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                              {t("originAd")}
+                            </span>
+                            <dl className="space-y-0.5 text-xs text-muted-foreground">
+                              {contact.ad_name ? (
+                                <div className="flex gap-1">
+                                  <dt className="shrink-0 text-foreground/70">{t("originAdName")}:</dt>
+                                  <dd className="truncate">{contact.ad_name}</dd>
+                                </div>
+                              ) : null}
+                              {contact.ad_campaign_name ? (
+                                <div className="flex gap-1">
+                                  <dt className="shrink-0 text-foreground/70">{t("originAdCampaignName")}:</dt>
+                                  <dd className="truncate">{contact.ad_campaign_name}</dd>
+                                </div>
+                              ) : null}
+                            </dl>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{t("originOrganic")}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Satisfação — última pesquisa NPS da conversa atual. */}
+                {conversationId && (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-1.5 px-1 text-[10px] text-muted-foreground">
+                      <Star className="h-3 w-3" />
+                      {t("satisfaction")}
+                    </div>
+                    <div className="mt-1">
+                      {npsLoading ? (
+                        <div className="flex justify-center py-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : !npsSurvey ? (
+                        <button
+                          type="button"
+                          onClick={handleSendNpsNow}
+                          disabled={sendingNps}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+                        >
+                          {sendingNps ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Send className="h-3 w-3" />
+                          )}
+                          {t("sendNpsNow")}
+                        </button>
+                      ) : (
+                        <div className="space-y-1.5 rounded-lg bg-muted px-3 py-2">
+                          {npsSurvey.rating == null ? (
+                            <p className="text-xs text-muted-foreground">
+                              {npsSurvey.status === "expired"
+                                ? t("npsExpired")
+                                : t("npsAwaitingRating")}
+                            </p>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-0.5">
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={
+                                      i < (npsSurvey.rating ?? 0)
+                                        ? "h-3.5 w-3.5 fill-amber-400 text-amber-400"
+                                        : "h-3.5 w-3.5 text-muted-foreground/30"
+                                    }
+                                  />
+                                ))}
+                              </div>
+                              {npsSurvey.comment ? (
+                                <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                                  {npsSurvey.comment}
+                                </p>
+                              ) : npsSurvey.status === "sent" ? (
+                                <p className="text-xs text-muted-foreground">
+                                  {t("npsAwaitingComment")}
+                                </p>
+                              ) : null}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Campos personalizados — CPF/matrícula vivem aqui
+                    (contas que os configuraram), junto do resto. */}
+                {customFields.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    {customFields.map((field) => (
+                      <div
+                        key={field.id}
+                        className="flex items-center gap-2 rounded-lg px-3 py-1 text-sm text-muted-foreground"
+                      >
+                        <span className="w-20 shrink-0 truncate text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {field.field_name}
+                        </span>
+                        <InlineEditField
+                          value={customValues[field.id] ?? ""}
+                          placeholder={t("enterFieldPlaceholder", { field: field.field_name })}
+                          onCommit={(v) => handleCommitCustomField(field.id, v)}
+                          displayClassName="flex-1"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
 
-          {/* Notes */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <StickyNote className="h-3 w-3" />
-              {t("notes")}
-            </div>
-            <div className="mt-2">
-              <div className="flex gap-2">
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder={t("addNotePlaceholder")}
-                  rows={2}
-                  className="flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground placeholder-muted-foreground outline-none focus:border-primary/50"
-                />
-                <Button
-                  size="sm"
-                  className="h-auto bg-primary px-2 hover:bg-primary/90"
-                  onClick={handleAddNote}
-                  disabled={!newNote.trim() || addingNote}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
+          {activeTab === "history" && (
+            <div>
+              <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                <History className="h-3 w-3" />
+                {t("tabHistory")}
               </div>
-
-              <div className="mt-2 space-y-2">
-                {notes.map((note) => (
-                  <div
-                    key={note.id}
-                    className="group rounded-lg bg-muted px-3 py-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-                        {note.note_text}
+              {historyLoading ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : historyEvents.length === 0 ? (
+                <p className="mt-2 px-1 text-xs text-muted-foreground">{t("historyEmpty")}</p>
+              ) : (
+                <div className="relative mt-3 space-y-3 pl-4">
+                  <div className="absolute top-1 bottom-1 left-[5px] w-px bg-border" />
+                  {historyEvents.slice(0, historyLimit).map((event) => (
+                    <div key={event.id} className="relative text-xs">
+                      <span
+                        className={cn(
+                          "absolute -left-[18px] top-0.5 h-2.5 w-2.5 rounded-full border-2",
+                          TIMELINE_DOT_CLASSES[event.tone],
+                        )}
+                      />
+                      <p className="text-foreground">{event.label}</p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {format(new Date(event.at), "dd/MM/yyyy HH:mm")}
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteNote(note.id)}
-                        aria-label={t("deleteNote")}
-                        className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
                     </div>
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm", {
-                        locale: localeToDateFns(locale),
-                      })}
-                    </p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                  {historyEvents.length > historyLimit && (
+                    <button
+                      type="button"
+                      onClick={() => setHistoryLimit((n) => n + HISTORY_PAGE_SIZE)}
+                      className="text-xs font-medium text-primary hover:underline"
+                    >
+                      {t("historyShowMore")}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {activeTab === "notes" && (
+            <>
+              {/* Notas da conversa atual — migration 125, mesmas notas
+                  que aparecem inline na timeline do centro (Parte 2).
+                  Só leitura aqui; escrever continua sendo pela aba
+                  "Nota interna" do composer. */}
+              {conversationId && (
+                <div>
+                  <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <StickyNote className="h-3 w-3" />
+                    {t("conversationNotesHeading")}
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {conversationNotesLoading ? (
+                      <div className="flex justify-center py-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : conversationNotes.length === 0 ? (
+                      <p className="px-1 text-xs text-muted-foreground">
+                        {t("conversationNotesEmpty")}
+                      </p>
+                    ) : (
+                      conversationNotes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+                        >
+                          <p className="whitespace-pre-wrap text-xs text-amber-700 dark:text-amber-300">
+                            {note.body}
+                          </p>
+                          <p className="mt-1 text-[10px] text-amber-700/70 dark:text-amber-300/70">
+                            {format(new Date(note.created_at), "dd/MM/yyyy HH:mm")}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {conversationId && <div className="my-4 border-t border-border" />}
+
+              {/* Notas do contato — funcionalidade pré-existente
+                  (contact_notes), inalterada: persiste entre todas as
+                  conversas deste contato, diferente das notas da
+                  conversa acima. */}
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <StickyNote className="h-3 w-3" />
+                  {t("contactNotesHeading")}
+                </div>
+                <div className="mt-2">
+                  <div className="flex gap-2">
+                    <textarea
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder={t("addNotePlaceholder")}
+                      rows={2}
+                      className="flex-1 resize-none rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground placeholder-muted-foreground outline-none focus:border-primary/50"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-auto bg-primary px-2 hover:bg-primary/90"
+                      onClick={handleAddNote}
+                      disabled={!newNote.trim() || addingNote}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  <div className="mt-2 space-y-2">
+                    {notes.map((note) => (
+                      <div key={note.id} className="group rounded-lg bg-muted px-3 py-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+                            {note.note_text}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNote(note.id)}
+                            aria-label={t("deleteNote")}
+                            className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          {format(new Date(note.created_at), "MMM d, yyyy HH:mm", {
+                            locale: localeToDateFns(locale),
+                          })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </ScrollArea>
 
