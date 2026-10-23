@@ -161,21 +161,43 @@ function formatDateSeparator(
   });
 }
 
+/**
+ * Caixa de entrada redesign (A+C) — "mensagens de sistema" (pós Parte
+ * 3). A synthetic, non-persisted annotation ("Fluxo X iniciado",
+ * "Transferida de A para B"...) derived from existing tables, never
+ * written anywhere itself — purely a read-side projection, same spirit
+ * as contact-sidebar.tsx's Histórico tab but scoped to THIS
+ * conversation and rendered inline instead of in a side panel.
+ */
+interface SystemEvent {
+  id: string;
+  at: string;
+  label: string;
+}
+
 /** Caixa de entrada redesign (A+C), Parte 2 — the thread renders
- *  messages and internal notes (migration 125) interleaved
- *  chronologically, not as two separate lists. */
+ *  messages, internal notes (migration 125) and system events
+ *  interleaved chronologically, not as separate lists. */
 type TimelineEntry =
   | { type: "message"; data: Message }
-  | { type: "note"; data: ConversationNote };
+  | { type: "note"; data: ConversationNote }
+  | { type: "system"; data: SystemEvent };
 
-function buildTimeline(messages: Message[], notes: ConversationNote[]): TimelineEntry[] {
+function entryTimestamp(entry: TimelineEntry): string {
+  return entry.type === "system" ? entry.data.at : entry.data.created_at;
+}
+
+function buildTimeline(
+  messages: Message[],
+  notes: ConversationNote[],
+  systemEvents: SystemEvent[],
+): TimelineEntry[] {
   const entries: TimelineEntry[] = [
     ...messages.map((m) => ({ type: "message" as const, data: m })),
     ...notes.map((n) => ({ type: "note" as const, data: n })),
+    ...systemEvents.map((s) => ({ type: "system" as const, data: s })),
   ];
-  entries.sort(
-    (a, b) => new Date(a.data.created_at).getTime() - new Date(b.data.created_at).getTime(),
-  );
+  entries.sort((a, b) => new Date(entryTimestamp(a)).getTime() - new Date(entryTimestamp(b)).getTime());
   return entries;
 }
 
@@ -184,10 +206,11 @@ function groupTimelineByDate(entries: TimelineEntry[]) {
   let currentDate = "";
 
   for (const entry of entries) {
-    const day = format(new Date(entry.data.created_at), "yyyy-MM-dd");
+    const ts = entryTimestamp(entry);
+    const day = format(new Date(ts), "yyyy-MM-dd");
     if (day !== currentDate) {
       currentDate = day;
-      groups.push({ date: entry.data.created_at, entries: [entry] });
+      groups.push({ date: ts, entries: [entry] });
     } else {
       groups[groups.length - 1].entries.push(entry);
     }
@@ -207,6 +230,20 @@ function NoteBubble({ note, authorName }: { note: ConversationNote; authorName: 
       <span className="font-semibold">📝 {t("internalNote", { name: authorName })}:</span>{" "}
       <span className="whitespace-pre-wrap">{note.body}</span>
       <span className="ml-2 text-[10px] text-amber-700/70 dark:text-amber-300/70">{time}</span>
+    </div>
+  );
+}
+
+/** System event — small centered pill (never a chat bubble), mirrors
+ *  the WhatsApp-app convention for "X entered the group"-style
+ *  annotations. Purely informational, no actions. */
+function SystemEventPill({ event }: { event: SystemEvent }) {
+  const time = format(new Date(event.at), "HH:mm");
+  return (
+    <div className="flex items-center justify-center py-0.5">
+      <span className="rounded-full bg-muted/70 px-3 py-1 text-[11px] text-muted-foreground">
+        {event.label} <span className="text-muted-foreground/60">· {time}</span>
+      </span>
     </div>
   );
 }
@@ -342,6 +379,10 @@ export function MessageThread({
   // (not lifted to inbox/page.tsx like `messages`) since nothing
   // outside the thread needs them yet.
   const [notes, setNotes] = useState<ConversationNote[]>([]);
+  // "Mensagens de sistema" — synthetic annotations derived from
+  // existing tables (flow_runs, deal_events, ticket_events,
+  // nps_surveys, broadcast_recipients), never persisted themselves.
+  const [systemEvents, setSystemEvents] = useState<SystemEvent[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
   // refetch is fire-and-forget through `onRefresh` (which bumps the
   // parent's resyncToken); the 700ms spin is just feedback so the click
@@ -625,6 +666,260 @@ export function MessageThread({
       cancelled = true;
     };
   }, [conversationId, resyncToken]);
+
+  // "Mensagens de sistema" — five independent, reliable sources merged
+  // into one list (see each block's comment for why that source was
+  // picked). Intentionally does NOT cover "negócio criado pelo fluxo":
+  // the only event type meant to mark that (flow_run_events'
+  // deal_created_by_flow, migration 118) has zero rows in production —
+  // nothing has gone through that path yet — and deal_events' `created`
+  // row has actor_id NULL for every service-role write (flows,
+  // automations, scripts alike), so NULL can't be narrowed down to
+  // "a flow, specifically" without a false-positive risk. Skipped per
+  // the standing instruction to skip rather than guess when the
+  // underlying data isn't reliable enough.
+  useEffect(() => {
+    if (!conversationId || !contact?.id) {
+      setSystemEvents([]);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const [
+        broadcastRepliesRes,
+        flowRunsRes,
+        dealsRes,
+        ticketsRes,
+        npsRes,
+      ] = await Promise.all([
+        supabase
+          .from("broadcast_recipients")
+          .select("id, replied_at, broadcast:broadcasts(name, created_at)")
+          .eq("contact_id", contact.id)
+          .not("replied_at", "is", null),
+        supabase
+          .from("flow_runs")
+          .select("id, status, started_at, ended_at, flow:flows(name)")
+          .eq("conversation_id", conversationId),
+        // deals.conversation_id is unpopulated in practice (0 of 1521
+        // rows set it in the account this was built against) — contact_id
+        // is the reliable link, same as contact-sidebar.tsx's Histórico
+        // tab already uses for the same reason.
+        supabase.from("deals").select("id").eq("contact_id", contact.id),
+        supabase.from("tickets").select("id").eq("conversation_id", conversationId),
+        supabase
+          .from("nps_surveys")
+          .select("id, rating, responded_at")
+          .eq("conversation_id", conversationId)
+          .not("rating", "is", null),
+      ]);
+      if (cancelled) return;
+
+      const events: SystemEvent[] = [];
+
+      // 1) "Respondeu ao disparo {nome}" — broadcast_recipients.replied_at
+      // (the same already-reliable column Histórico uses), only when the
+      // reply landed within 7 days of the broadcast AND within this
+      // conversation's own loaded message range (a contact can have more
+      // than one conversation over time; without this bound a reply that
+      // actually belongs to a different conversation could get credited
+      // here).
+      const msgTimes = messages.map((m) => new Date(m.created_at).getTime());
+      const msgRange =
+        msgTimes.length > 0 ? { min: Math.min(...msgTimes), max: Math.max(...msgTimes) } : null;
+      for (const r of (broadcastRepliesRes.data ?? []) as {
+        id: string;
+        replied_at: string;
+        broadcast: { name: string; created_at: string } | { name: string; created_at: string }[] | null;
+      }[]) {
+        const broadcast = Array.isArray(r.broadcast) ? r.broadcast[0] : r.broadcast;
+        if (!broadcast) continue;
+        const repliedAt = new Date(r.replied_at).getTime();
+        const withinSevenDays = repliedAt - new Date(broadcast.created_at).getTime() <= 7 * 86_400_000;
+        const withinThisConversation = msgRange && repliedAt >= msgRange.min - 60_000 && repliedAt <= msgRange.max + 60_000;
+        if (withinSevenDays && withinThisConversation) {
+          events.push({
+            id: `sys-reply-${r.id}`,
+            at: r.replied_at,
+            label: t("systemReplyToBroadcast", { name: broadcast.name }),
+          });
+        }
+      }
+
+      // 2) Flow lifecycle — flow_runs.started_at/ended_at/status, this
+      // conversation's own runs only.
+      for (const run of (flowRunsRes.data ?? []) as {
+        id: string;
+        status: string;
+        started_at: string;
+        ended_at: string | null;
+        flow: { name: string } | { name: string }[] | null;
+      }[]) {
+        const flow = Array.isArray(run.flow) ? run.flow[0] : run.flow;
+        const flowName = flow?.name ?? t("unknownFlow");
+        events.push({
+          id: `sys-flow-started-${run.id}`,
+          at: run.started_at,
+          label: t("systemFlowStarted", { name: flowName }),
+        });
+        if (run.status === "completed" && run.ended_at) {
+          events.push({
+            id: `sys-flow-completed-${run.id}`,
+            at: run.ended_at,
+            label: t("systemFlowCompleted", { name: flowName }),
+          });
+        } else if (run.status === "timed_out" && run.ended_at) {
+          events.push({
+            id: `sys-flow-timedout-${run.id}`,
+            at: run.ended_at,
+            label: t("systemFlowTimedOut", { name: flowName }),
+          });
+        }
+      }
+
+      // 3) "Negócio movido para {etapa}" — deal_events.stage_changed for
+      // every deal belonging to this conversation's CONTACT (deals has
+      // no reliable conversation_id — see the query above). `actor_id`
+      // is reliably
+      // NULL for every service-role write (flows/automations) and set
+      // to the acting user's id for a human drag in the pipeline board
+      // (see log_deal_event()'s trigger body) — "por {nome}" only when
+      // it resolves to a known profile, omitted otherwise rather than
+      // guessing who/what moved it.
+      const dealIds = ((dealsRes.data ?? []) as { id: string }[]).map((d) => d.id);
+      if (dealIds.length > 0) {
+        const { data: stageEvents } = await supabase
+          .from("deal_events")
+          .select("id, to_stage_id, actor_id, created_at")
+          .in("deal_id", dealIds)
+          .eq("event_type", "stage_changed");
+        const rows = (stageEvents ?? []) as {
+          id: string;
+          to_stage_id: string | null;
+          actor_id: string | null;
+          created_at: string;
+        }[];
+        const stageIds = [...new Set(rows.map((r) => r.to_stage_id).filter((id): id is string => !!id))];
+        const actorIds = [...new Set(rows.map((r) => r.actor_id).filter((id): id is string => !!id))];
+        const [stagesRes, actorsRes] = await Promise.all([
+          stageIds.length
+            ? supabase.from("pipeline_stages").select("id, name").in("id", stageIds)
+            : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+          actorIds.length
+            ? supabase.from("profiles").select("user_id, full_name, email").in("user_id", actorIds)
+            : Promise.resolve({ data: [] as { user_id: string; full_name: string | null; email: string }[] }),
+        ]);
+        const stageNameById = new Map((stagesRes.data ?? []).map((s) => [s.id, s.name]));
+        const actorNameById = new Map(
+          (actorsRes.data ?? []).map((p) => [p.user_id, p.full_name || p.email]),
+        );
+        for (const row of rows) {
+          const stageName = row.to_stage_id ? stageNameById.get(row.to_stage_id) : null;
+          if (!stageName) continue;
+          const actorName = row.actor_id ? actorNameById.get(row.actor_id) : null;
+          events.push({
+            id: `sys-deal-stage-${row.id}`,
+            at: row.created_at,
+            label: actorName
+              ? t("systemDealMovedBy", { stage: stageName, name: actorName })
+              : t("systemDealMoved", { stage: stageName }),
+          });
+        }
+      }
+
+      // 4) Ticket transfer/close — ticket_events for THIS conversation's
+      // ticket(s). "closed" only when a human closed it (actor_id set,
+      // i.e. tickets.closed_by = 'agent') — a system-close (NPS survey,
+      // inactivity) has no "{nome}" to show, so it's skipped rather than
+      // inventing one.
+      const ticketIds = ((ticketsRes.data ?? []) as { id: string }[]).map((t2) => t2.id);
+      if (ticketIds.length > 0) {
+        const { data: ticketEventsData } = await supabase
+          .from("ticket_events")
+          .select("id, type, from_agent_id, to_agent_id, actor_id, metadata, created_at")
+          .in("ticket_id", ticketIds)
+          .in("type", ["transferred", "closed"]);
+        const rows = (ticketEventsData ?? []) as {
+          id: string;
+          type: string;
+          from_agent_id: string | null;
+          to_agent_id: string | null;
+          actor_id: string | null;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+        }[];
+        const userIds = [
+          ...new Set(
+            rows.flatMap((r) => [r.from_agent_id, r.to_agent_id, r.actor_id]).filter((id): id is string => !!id),
+          ),
+        ];
+        const reasonIds = [
+          ...new Set(
+            rows
+              .map((r) => r.metadata?.closing_reason_id)
+              .filter((id): id is string => typeof id === "string"),
+          ),
+        ];
+        const [agentsRes, reasonsRes] = await Promise.all([
+          userIds.length
+            ? supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds)
+            : Promise.resolve({ data: [] as { user_id: string; full_name: string | null; email: string }[] }),
+          reasonIds.length
+            ? supabase.from("closing_reasons").select("id, label").in("id", reasonIds)
+            : Promise.resolve({ data: [] as { id: string; label: string }[] }),
+        ]);
+        const agentNameById = new Map(
+          (agentsRes.data ?? []).map((p) => [p.user_id, p.full_name || p.email]),
+        );
+        const reasonLabelById = new Map((reasonsRes.data ?? []).map((r) => [r.id, r.label]));
+        for (const row of rows) {
+          if (row.type === "transferred") {
+            const fromName = row.from_agent_id ? agentNameById.get(row.from_agent_id) : null;
+            const toName = row.to_agent_id ? agentNameById.get(row.to_agent_id) : null;
+            if (!fromName || !toName || fromName === toName) continue;
+            events.push({
+              id: `sys-ticket-transfer-${row.id}`,
+              at: row.created_at,
+              label: t("systemTicketTransferred", { from: fromName, to: toName }),
+            });
+          } else if (row.type === "closed") {
+            const actorName = row.actor_id ? agentNameById.get(row.actor_id) : null;
+            if (!actorName) continue;
+            const reasonId = row.metadata?.closing_reason_id;
+            const reasonLabel = typeof reasonId === "string" ? reasonLabelById.get(reasonId) : null;
+            events.push({
+              id: `sys-ticket-closed-${row.id}`,
+              at: row.created_at,
+              label: reasonLabel
+                ? t("systemTicketClosedWithReason", { name: actorName, reason: reasonLabel })
+                : t("systemTicketClosed", { name: actorName }),
+            });
+          }
+        }
+      }
+
+      // 5) "Avaliação recebida: {nota}/5" — nps_surveys.rating.
+      for (const n of (npsRes.data ?? []) as { id: string; rating: number; responded_at: string | null }[]) {
+        if (!n.responded_at) continue;
+        events.push({
+          id: `sys-nps-${n.id}`,
+          at: n.responded_at,
+          label: t("systemNpsRating", { rating: n.rating }),
+        });
+      }
+
+      if (!cancelled) setSystemEvents(events);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // `messages` is read for the broadcast-reply bound check above —
+    // intentionally re-runs whenever the message list changes (new
+    // messages loaded/resynced), same as every other per-conversation
+    // fetch in this file.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, contact?.id, resyncToken, messages]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
@@ -1365,7 +1660,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
-  const timelineGroups = groupTimelineByDate(buildTimeline(messages, notes));
+  const timelineGroups = groupTimelineByDate(buildTimeline(messages, notes, systemEvents));
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
@@ -1685,6 +1980,9 @@ export function MessageThread({
                           authorName={author?.full_name || author?.email || t("unknownAuthor")}
                         />
                       );
+                    }
+                    if (entry.type === "system") {
+                      return <SystemEventPill key={entry.data.id} event={entry.data} />;
                     }
                     const msg = entry.data;
                     const parent = msg.reply_to_message_id
