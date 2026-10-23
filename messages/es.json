@@ -211,8 +211,9 @@
       "waitingMinutes": "Esperando hace {minutes} min",
       "waitingHours": "Esperando hace {hours}h {minutes}min",
       "windowClosingIn": "⏳ La ventana cierra en {hours}h",
-      "respondedWaiting": "Respondido · esperando cliente",
-      "outsideWindow": "Fuera de la ventana · solo plantilla"
+      "respondedWaiting": "Respondido · esperando",
+      "outsideWindow": "Fuera de la ventana",
+      "yesterday": "Ayer"
     },
     "filters": {
       "filters": "Filtros",

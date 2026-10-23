@@ -3,6 +3,10 @@ import {
   computeConversationListStatus,
   formatPhoneTail,
   formatWaitingDuration,
+  formatListTimestamp,
+  toDisplayTitleCase,
+  getAvatarInitials,
+  getAvatarColor,
 } from "./conversation-list-status";
 
 const NOW = new Date("2026-10-05T12:00:00Z");
@@ -95,5 +99,56 @@ describe("formatPhoneTail", () => {
   it("returns null for missing or too-short input", () => {
     expect(formatPhoneTail(null)).toBeNull();
     expect(formatPhoneTail("12345")).toBeNull();
+  });
+});
+
+describe("formatListTimestamp", () => {
+  it("is a bare HH:mm for today", () => {
+    // Local-time-dependent on purpose (the function renders in the
+    // viewer's local time) — the expected label is derived the same
+    // way so this test is portable across the runner's TZ.
+    const iso = "2026-10-05T09:05:00Z";
+    const d = new Date(iso);
+    const expected = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    expect(formatListTimestamp(iso, NOW)).toEqual({ kind: "time", label: expected });
+  });
+
+  it("is 'yesterday' for the previous calendar day, even close to midnight", () => {
+    expect(formatListTimestamp("2026-10-04T23:50:00Z", NOW)).toEqual({ kind: "yesterday" });
+  });
+
+  it("is dd/MM for anything older", () => {
+    expect(formatListTimestamp("2026-09-20T10:00:00Z", NOW)).toEqual({
+      kind: "date",
+      label: "20/09",
+    });
+  });
+
+  it("is null when there's no timestamp", () => {
+    expect(formatListTimestamp(null, NOW)).toBeNull();
+  });
+});
+
+describe("toDisplayTitleCase", () => {
+  it("title-cases while lowercasing BR name particles", () => {
+    expect(toDisplayTitleCase("RODNEIA MARIA BRITO")).toBe("Rodneia Maria Brito");
+    expect(toDisplayTitleCase("joão de souza e silva")).toBe("João de Souza e Silva");
+    expect(toDisplayTitleCase("maria dos santos")).toBe("Maria dos Santos");
+  });
+});
+
+describe("getAvatarInitials", () => {
+  it("uses first + last word", () => {
+    expect(getAvatarInitials("Rodneia Maria Brito")).toBe("RB");
+  });
+
+  it("falls back to a single initial for one-word names", () => {
+    expect(getAvatarInitials("Rodneia")).toBe("R");
+  });
+});
+
+describe("getAvatarColor", () => {
+  it("is deterministic for the same name", () => {
+    expect(getAvatarColor("Rodneia Maria Brito")).toEqual(getAvatarColor("Rodneia Maria Brito"));
   });
 });

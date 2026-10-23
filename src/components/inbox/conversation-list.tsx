@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useTranslations, useLocale } from "next-intl";
-import { localeToDateFns, type Locale } from "@/i18n/locales";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useNow } from "@/hooks/use-now";
@@ -12,6 +11,10 @@ import {
   computeConversationListStatus,
   formatPhoneTail,
   formatWaitingDuration,
+  formatListTimestamp,
+  toDisplayTitleCase,
+  getAvatarInitials,
+  getAvatarColor,
   type ConversationListStatus,
 } from "@/lib/inbox/conversation-list-status";
 import { resolveAllTabConversationIds } from "@/lib/inbox/resolve-tab-conversation-ids";
@@ -38,7 +41,6 @@ import {
   UserPlus,
   Smartphone,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -135,11 +137,12 @@ export function ConversationList({
   const handleToggleUnreadOnly = useCallback(() => setUnreadOnly((v) => !v), []);
   const [onlyMine, setOnlyMine] = useState(false);
   const handleToggleOnlyMine = useCallback(() => setOnlyMine((v) => !v), []);
-  // Caixa de entrada redesign (A+C), Parte 1 — "⏳ Expirando" / "Aguardando".
-  // Unlike unreadOnly/onlyMine (passed as RPC params — server-filtered,
-  // see usePaginatedInboxList), these filter the status line computed
-  // client-side from last_message_sender_type/last_customer_message_at
-  // (migration 120), applied on top of whatever page is already loaded.
+  // Caixa de entrada redesign (A+C) — "⏳ Expirando" / "Aguardando".
+  // Server-side for ticketsUiEnabled accounts (migration 122, same
+  // params as onlyMine/unreadOnly). The legacy (non-ticket) path has no
+  // RPC to extend, so it keeps the client-side applyStatusToneFilter
+  // below applied to `filtered` — that one's limited to whatever's
+  // already loaded.
   const [expiringOnly, setExpiringOnly] = useState(false);
   const handleToggleExpiringOnly = useCallback(() => setExpiringOnly((v) => !v), []);
   const [awaitingOnly, setAwaitingOnly] = useState(false);
@@ -403,15 +406,16 @@ export function ConversationList({
     userId: user?.id,
     onlyMine,
     unreadOnly,
+    // Server-side (migration 122) — unlike the legacy path's
+    // applyStatusToneFilter below, this sees every matching
+    // conversation, not just the page already loaded.
+    expiringOnly,
+    awaitingOnly,
     channelId: channelFilter,
     search,
     resyncToken,
     activityToken: inboxActivityToken,
   });
-  const visibleTicketItems = useMemo(
-    () => applyStatusToneFilter(paginatedList.items),
-    [applyStatusToneFilter, paginatedList.items],
-  );
   const inboxCounts = useInboxTabCounts({
     enabled: ticketsUiEnabled,
     accountId,
@@ -459,8 +463,8 @@ export function ConversationList({
   const selectionActive = selectedIds.size > 0 || selectAllMatching;
 
   const currentLoadedIds = useMemo(
-    () => (ticketsUiEnabled ? visibleTicketItems.map((c) => c.id) : filteredWithTone.map((c) => c.id)),
-    [ticketsUiEnabled, visibleTicketItems, filteredWithTone],
+    () => (ticketsUiEnabled ? paginatedList.items.map((c) => c.id) : filteredWithTone.map((c) => c.id)),
+    [ticketsUiEnabled, paginatedList.items, filteredWithTone],
   );
   const allLoadedSelected =
     currentLoadedIds.length > 0 && currentLoadedIds.every((id) => selectedIds.has(id));
@@ -509,12 +513,27 @@ export function ConversationList({
         userId: user?.id,
         onlyMine,
         unreadOnly,
+        expiringOnly,
+        awaitingOnly,
         channelId: channelFilter,
         search,
       });
     }
     return Array.from(selectedIds);
-  }, [selectAllMatching, ticketsUiEnabled, accountId, filter, user?.id, onlyMine, unreadOnly, channelFilter, search, selectedIds]);
+  }, [
+    selectAllMatching,
+    ticketsUiEnabled,
+    accountId,
+    filter,
+    user?.id,
+    onlyMine,
+    unreadOnly,
+    expiringOnly,
+    awaitingOnly,
+    channelFilter,
+    search,
+    selectedIds,
+  ]);
 
   const handleBulkDone = useCallback(() => {
     setSelectedIds(new Set());
@@ -537,7 +556,7 @@ export function ConversationList({
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+    <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-[345px]">
       {/* Search + Filter, or the bulk-action bar while conversations are selected. */}
       {selectionActive ? (
         <div className="space-y-2 border-b border-border p-3">
@@ -777,13 +796,13 @@ export function ConversationList({
             <div className="flex items-center justify-center py-12">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
-          ) : visibleTicketItems.length === 0 ? (
+          ) : paginatedList.items.length === 0 ? (
             <div className="px-4 py-12 text-center">
               <p className="text-sm text-muted-foreground">{t("noConversationsFound")}</p>
             </div>
           ) : (
             <div className="flex flex-col">
-              {visibleTicketItems.map((conv) => (
+              {paginatedList.items.map((conv) => (
                 <ConversationItem
                   key={conv.id}
                   conversation={conv}
@@ -891,10 +910,15 @@ function ConversationItem({
   now,
 }: ConversationItemProps) {
   const t = useTranslations("inbox.list");
-  const locale = useLocale() as Locale;
   const contact = conversation.contact;
-  const displayName = contact?.name || contact?.phone || t("unknownContact");
-  const initials = displayName.charAt(0).toUpperCase();
+  // Display-only Title Case (Rodneia Maria Brito, not RODNEIA MARIA
+  // BRITO or the raw DB casing) — never applied to a phone-number
+  // fallback, only to an actual contact name.
+  const displayName = contact?.name
+    ? toDisplayTitleCase(contact.name)
+    : contact?.phone || t("unknownContact");
+  const initials = getAvatarInitials(displayName);
+  const avatarColor = getAvatarColor(displayName);
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -904,12 +928,11 @@ function ConversationItem({
     onToggleSelect(conversation.id);
   }, [onToggleSelect, conversation.id]);
 
-  const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
-        addSuffix: false,
-        locale: localeToDateFns(locale),
-      })
-    : "";
+  // Caixa de entrada redesign (A+C) — short, non-relative timestamp
+  // ("14:27" / "Ontem" / "12/10"), not date-fns's "cerca de 2 horas".
+  const listTimestamp = formatListTimestamp(conversation.last_message_at, now);
+  const timeLabel =
+    listTimestamp?.kind === "yesterday" ? t("yesterday") : (listTimestamp?.label ?? "");
 
   const isUnread = conversation.unread_count > 0;
 
@@ -974,11 +997,13 @@ function ConversationItem({
         onClick={handleClick}
         className="flex min-w-0 flex-1 items-start gap-3 px-3 py-3 text-left"
       >
-      {/* Avatar */}
+      {/* Avatar — 2 initials, color derived from the name (fixed
+          7-color palette, same across themes, see getAvatarColor). */}
       <div
         className={cn(
-          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-mono text-sm font-medium",
-          isActive ? "bg-primary-soft text-primary" : "bg-card-2 text-foreground",
+          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+          avatarColor.bg,
+          avatarColor.text,
         )}
       >
         {contact?.avatar_url ? (
@@ -1014,7 +1039,9 @@ function ConversationItem({
               #{conversation.ticket.protocol_number}
             </span>
           )}
-          <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{timeAgo}</span>
+          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+            {timeLabel}
+          </span>
         </div>
         <p
           className={cn(

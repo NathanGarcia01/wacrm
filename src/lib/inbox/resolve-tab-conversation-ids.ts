@@ -7,6 +7,8 @@ export interface TabFilterParams {
   userId?: string | null;
   onlyMine: boolean;
   unreadOnly: boolean;
+  expiringOnly?: boolean;
+  awaitingOnly?: boolean;
   channelId?: string | null;
   search?: string;
 }
@@ -45,6 +47,8 @@ export async function resolveAllTabConversationIds(params: TabFilterParams): Pro
       p_search: params.search || null,
       p_limit: PAGE_SIZE,
       p_offset: offset,
+      p_expiring_only: params.expiringOnly ?? false,
+      p_awaiting_only: params.awaitingOnly ?? false,
     });
     if (error) throw error;
     const rows = (data ?? []) as { id: string }[];

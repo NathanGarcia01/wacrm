@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Mail, MailOpen, User, Hourglass, Clock } from "lucide-react";
+import { Mail, MailOpen, User, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type TicketTab = "pending" | "in_progress" | "closed" | "no_ticket";
@@ -131,7 +131,6 @@ export function TicketStatusTabs({
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
           )}
         >
-          <Hourglass className="size-3" />
           {t("filterExpiring")}
         </button>
         <button

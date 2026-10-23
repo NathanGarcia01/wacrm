@@ -211,8 +211,9 @@
       "waitingMinutes": "Esperando há {minutes} min",
       "waitingHours": "Esperando há {hours}h {minutes}min",
       "windowClosingIn": "⏳ Janela fecha em {hours}h",
-      "respondedWaiting": "Respondido · aguardando cliente",
-      "outsideWindow": "Fora da janela · só template"
+      "respondedWaiting": "Respondido · aguardando",
+      "outsideWindow": "Fora da janela",
+      "yesterday": "Ontem"
     },
     "filters": {
       "filters": "Filtros",

@@ -14,6 +14,13 @@ export interface UsePaginatedInboxListParams {
   userId?: string | null;
   onlyMine: boolean;
   unreadOnly: boolean;
+  /** Caixa de entrada redesign (A+C) — "⏳ Expirando": janela de 24h
+   *  fechando em até 4h. Server-side (migration 122), same as
+   *  onlyMine/unreadOnly — not a client-side post-filter, so it sees
+   *  every matching conversation, not just the already-loaded page. */
+  expiringOnly?: boolean;
+  /** "Aguardando": última mensagem é do cliente, sem resposta ainda. */
+  awaitingOnly?: boolean;
   channelId?: string | null;
   search: string;
   /** Bumped by the page on WS reconnect / tab refocus — same signal
@@ -57,6 +64,8 @@ export function usePaginatedInboxList({
   userId,
   onlyMine,
   unreadOnly,
+  expiringOnly = false,
+  awaitingOnly = false,
   channelId,
   search,
   resyncToken = 0,
@@ -99,6 +108,8 @@ export function usePaginatedInboxList({
         p_search: debouncedSearch || null,
         p_limit: PAGE_SIZE,
         p_offset: offset,
+        p_expiring_only: expiringOnly,
+        p_awaiting_only: awaitingOnly,
       });
 
       // A newer request already superseded this one (filters changed
@@ -121,7 +132,18 @@ export function usePaginatedInboxList({
       setLoading(false);
       setLoadingMore(false);
     },
-    [enabled, accountId, tab, userId, onlyMine, unreadOnly, channelId, debouncedSearch],
+    [
+      enabled,
+      accountId,
+      tab,
+      userId,
+      onlyMine,
+      unreadOnly,
+      expiringOnly,
+      awaitingOnly,
+      channelId,
+      debouncedSearch,
+    ],
   );
 
   // Fresh page 1 whenever the tab or any filter changes, or an
@@ -137,6 +159,8 @@ export function usePaginatedInboxList({
     userId,
     onlyMine,
     unreadOnly,
+    expiringOnly,
+    awaitingOnly,
     channelId,
     debouncedSearch,
     resyncToken,
