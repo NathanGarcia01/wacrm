@@ -16,6 +16,7 @@ import type {
   MessageReaction,
   Contact,
   ConversationStatus,
+  ConversationNote,
   MessageTemplate,
   Profile,
   WhatsAppChannelOption,
@@ -160,21 +161,104 @@ function formatDateSeparator(
   });
 }
 
-function groupMessagesByDate(messages: Message[]) {
-  const groups: { date: string; messages: Message[] }[] = [];
+/** Caixa de entrada redesign (A+C), Parte 2 — the thread renders
+ *  messages and internal notes (migration 125) interleaved
+ *  chronologically, not as two separate lists. */
+type TimelineEntry =
+  | { type: "message"; data: Message }
+  | { type: "note"; data: ConversationNote };
+
+function buildTimeline(messages: Message[], notes: ConversationNote[]): TimelineEntry[] {
+  const entries: TimelineEntry[] = [
+    ...messages.map((m) => ({ type: "message" as const, data: m })),
+    ...notes.map((n) => ({ type: "note" as const, data: n })),
+  ];
+  entries.sort(
+    (a, b) => new Date(a.data.created_at).getTime() - new Date(b.data.created_at).getTime(),
+  );
+  return entries;
+}
+
+function groupTimelineByDate(entries: TimelineEntry[]) {
+  const groups: { date: string; entries: TimelineEntry[] }[] = [];
   let currentDate = "";
 
-  for (const msg of messages) {
-    const day = format(new Date(msg.created_at), "yyyy-MM-dd");
+  for (const entry of entries) {
+    const day = format(new Date(entry.data.created_at), "yyyy-MM-dd");
     if (day !== currentDate) {
       currentDate = day;
-      groups.push({ date: msg.created_at, messages: [msg] });
+      groups.push({ date: entry.data.created_at, entries: [entry] });
     } else {
-      groups[groups.length - 1].messages.push(msg);
+      groups[groups.length - 1].entries.push(entry);
     }
   }
 
   return groups;
+}
+
+/** Internal note — yellow banner inline in the thread, never sent to
+ *  the customer (migration 125). Deliberately NOT a chat bubble (no
+ *  reply/react/edit affordances) — it's an annotation, not a message. */
+function NoteBubble({ note, authorName }: { note: ConversationNote; authorName: string }) {
+  const t = useTranslations("inbox.thread");
+  const time = format(new Date(note.created_at), "HH:mm");
+  return (
+    <div className="mx-6 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 sm:mx-16">
+      <span className="font-semibold">📝 {t("internalNote", { name: authorName })}:</span>{" "}
+      <span className="whitespace-pre-wrap">{note.body}</span>
+      <span className="ml-2 text-[10px] text-amber-700/70 dark:text-amber-300/70">{time}</span>
+    </div>
+  );
+}
+
+/** Nota interna composer — deliberately separate from MessageComposer
+ *  (not a mode flag threaded through that 990-line component): a note
+ *  has none of a real message's concerns (no media, no templates, no
+ *  WhatsApp session window, no "sending"/"failed" delivery states), so
+ *  reusing it would mean plumbing a bunch of note-only branches through
+ *  send logic built for the Cloud API. Same Enter-to-send/Shift+Enter
+ *  keyboard contract as the real composer. */
+function NoteComposer({
+  value,
+  onChange,
+  onSend,
+  sending,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  sending: boolean;
+  placeholder: string;
+}) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (value.trim() && !sending) onSend();
+    }
+  };
+  return (
+    <div className="flex items-end gap-2 rounded-xl border border-amber-500/35 bg-amber-500/5 p-2">
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        rows={1}
+        disabled={sending}
+        className="max-h-32 min-h-9 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder-amber-700/50 outline-none dark:placeholder-amber-300/50"
+      />
+      <Button
+        type="button"
+        size="sm"
+        disabled={!value.trim() || sending}
+        onClick={onSend}
+        className="h-9 shrink-0 bg-amber-500 text-amber-950 hover:bg-amber-500/90 disabled:opacity-40"
+      >
+        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "📝"}
+      </Button>
+    </div>
+  );
 }
 
 const STATUS_OPTIONS: { labelKey: string; value: ConversationStatus; color: string }[] = [
@@ -253,6 +337,11 @@ export function MessageThread({
   } | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
+  // Caixa de entrada redesign (A+C), Parte 2 — internal notes, never
+  // sent to the customer (see migration 125). Local to this component
+  // (not lifted to inbox/page.tsx like `messages`) since nothing
+  // outside the thread needs them yet.
+  const [notes, setNotes] = useState<ConversationNote[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
   // refetch is fire-and-forget through `onRefresh` (which bumps the
   // parent's resyncToken); the 700ms spin is just feedback so the click
@@ -276,6 +365,14 @@ export function MessageThread({
     }, 700);
   }, [isRefreshing, onRefresh]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  // Caixa de entrada redesign (A+C), Parte 2 — composer mode tabs
+  // (Mensagem | Nota interna | Template | Agendar envio). Only
+  // "message"/"note" are real persistent modes; Template is a one-shot
+  // action (opens the existing picker, same as the button it replaces)
+  // and Agendar envio has no backend yet — visible but disabled.
+  const [composerMode, setComposerMode] = useState<"message" | "note">("message");
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteSending, setNoteSending] = useState(false);
   // CRM-local message edit (see Message.edited_at) — one message editable
   // at a time, mirroring how replyTo above works.
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -425,6 +522,13 @@ export function MessageThread({
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
+
+  // Switching conversations shouldn't carry over a half-written note
+  // or leave the composer stuck on the Nota interna tab.
+  useEffect(() => {
+    setComposerMode("message");
+    setNoteDraft("");
+  }, [conversationId]);
   // See the auto-reset effect below for why this exists.
   const suppressAutoReadRef = useRef(false);
 
@@ -492,6 +596,34 @@ export function MessageThread({
     // the realtime channel reconnects or the tab regains focus —
     // realtime is best-effort and any message events sent while the WS
     // was disconnected or throttled are otherwise lost.
+  }, [conversationId, resyncToken]);
+
+  // Internal notes — fetched alongside messages, same resync signal.
+  // No realtime subscription (notes are single-agent-authored, low
+  // frequency); a switch back to this conversation re-fetches.
+  useEffect(() => {
+    if (!conversationId) {
+      setNotes([]);
+      return;
+    }
+    const supabase = createClient();
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("conversation_notes")
+        .select("*")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to fetch conversation notes:", error);
+        return;
+      }
+      setNotes((data ?? []) as ConversationNote[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId, resyncToken]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
@@ -719,6 +851,43 @@ export function MessageThread({
     },
     [conversation, onNewMessage, onUpdateMessage, activeChannelId]
   );
+
+  // Caixa de entrada redesign (A+C), Parte 2 — internal notes. Simple
+  // insert + optimistic append (no "sending"/"failed" bubble states
+  // like handleSend — notes never touch the WhatsApp API, so a failure
+  // here is just a DB write failing, surfaced via toast).
+  const handleSendNote = useCallback(
+    async (body: string) => {
+      if (!conversation || !user?.id || !accountId) return;
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("conversation_notes")
+        .insert({
+          account_id: accountId,
+          conversation_id: conversation.id,
+          author_id: user.id,
+          body,
+        })
+        .select("*")
+        .single();
+      if (error || !data) {
+        console.error("Failed to save note:", error);
+        toast.error(t("noteSendFailed"));
+        return;
+      }
+      setNotes((prev) => [...prev, data as ConversationNote]);
+    },
+    [conversation, user?.id, accountId, t],
+  );
+
+  const handleSubmitNote = useCallback(async () => {
+    const body = noteDraft.trim();
+    if (!body || noteSending) return;
+    setNoteSending(true);
+    await handleSendNote(body);
+    setNoteSending(false);
+    setNoteDraft("");
+  }, [noteDraft, noteSending, handleSendNote]);
 
   const handleSendMedia = useCallback(
     async (payload: SendMediaPayload) => {
@@ -1196,7 +1365,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
-  const messageGroups = groupMessagesByDate(messages);
+  const timelineGroups = groupTimelineByDate(buildTimeline(messages, notes));
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
@@ -1486,7 +1655,7 @@ export function MessageThread({
           <div className="flex items-center justify-center py-12">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && notes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-muted-foreground">{t("noMessagesYet")}</p>
             <p className="text-xs text-muted-foreground">
@@ -1495,7 +1664,7 @@ export function MessageThread({
           </div>
         ) : (
           <div className="space-y-4">
-            {messageGroups.map((group) => (
+            {timelineGroups.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}
                 <div className="mb-4 flex items-center justify-center">
@@ -1503,9 +1672,21 @@ export function MessageThread({
                     {formatDateSeparator(group.date, t, intlLocale)}
                   </span>
                 </div>
-                {/* Messages */}
+                {/* Messages + internal notes, interleaved chronologically */}
                 <div className="space-y-2">
-                  {group.messages.map((msg) => {
+                  {group.entries.map((entry) => {
+                    if (entry.type === "note") {
+                      const note = entry.data;
+                      const author = profiles.find((p) => p.user_id === note.author_id);
+                      return (
+                        <NoteBubble
+                          key={note.id}
+                          note={note}
+                          authorName={author?.full_name || author?.email || t("unknownAuthor")}
+                        />
+                      );
+                    }
+                    const msg = entry.data;
                     const parent = msg.reply_to_message_id
                       ? messagesById.get(msg.reply_to_message_id)
                       : null;
@@ -1562,19 +1743,86 @@ export function MessageThread({
         )}
       </div>
 
-      {/* Composer */}
-      <MessageComposer
-        conversationId={conversation.id}
-        sessionExpired={sessionInfo.expired}
-        onSend={handleSend}
-        onSendMedia={handleSendMedia}
-        onOpenTemplates={handleOpenTemplates}
-        replyTo={replyTo}
-        onClearReply={() => setReplyTo(null)}
-        channels={channels}
-        activeChannelId={activeChannelId}
-        onChannelChange={handleChannelChange}
-      />
+      {/* Composer — Caixa de entrada redesign (A+C), Parte 2: mode
+          tabs above the input. Only "message"/"note" actually switch
+          what renders below; Template re-uses the existing picker
+          (handleOpenTemplates) unchanged, and Agendar envio has no
+          backend yet (migration/API not built) so it's shown disabled
+          rather than half-implemented. */}
+      <div className="border-t border-border bg-card px-3 pt-2">
+        <div className="flex items-center gap-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setComposerMode("message")}
+            className={cn(
+              "rounded-md px-2.5 py-1 font-medium transition-colors",
+              composerMode === "message"
+                ? "bg-primary-soft text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {t("composerTabMessage")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setComposerMode("note")}
+            className={cn(
+              "rounded-md px-2.5 py-1 font-medium transition-colors",
+              composerMode === "note"
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {t("composerTabNote")}
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenTemplates}
+            className="rounded-md px-2.5 py-1 font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {t("composerTabTemplate")}
+          </button>
+          <button
+            type="button"
+            disabled
+            title={t("scheduleComingSoon")}
+            className="cursor-not-allowed rounded-md px-2.5 py-1 font-medium text-muted-foreground/50"
+          >
+            {t("composerTabSchedule")}
+          </button>
+        </div>
+      </div>
+
+      {composerMode === "note" ? (
+        <div className="border-t-0 bg-card px-3 pb-2 pt-2">
+          <NoteComposer
+            value={noteDraft}
+            onChange={setNoteDraft}
+            onSend={handleSubmitNote}
+            sending={noteSending}
+            placeholder={t("notePlaceholder")}
+          />
+          <p className="mt-1 pl-1 text-[10px] text-muted-foreground">{t("enterToSendHint")}</p>
+        </div>
+      ) : (
+        <>
+          <MessageComposer
+            conversationId={conversation.id}
+            sessionExpired={sessionInfo.expired}
+            onSend={handleSend}
+            onSendMedia={handleSendMedia}
+            onOpenTemplates={handleOpenTemplates}
+            replyTo={replyTo}
+            onClearReply={() => setReplyTo(null)}
+            channels={channels}
+            activeChannelId={activeChannelId}
+            onChannelChange={handleChannelChange}
+          />
+          <p className="-mt-2 px-3 pb-2 pl-[1.4rem] text-[10px] text-muted-foreground">
+            {t("enterToSendHint")}
+          </p>
+        </>
+      )}
 
       <TemplatePicker
         open={templateModalOpen}

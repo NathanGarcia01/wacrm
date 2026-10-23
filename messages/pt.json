@@ -380,7 +380,17 @@
         "description": "Este template é de categoria Marketing e o contato está com opt-out ativo. Enviar mesmo assim?",
         "cancel": "Cancelar",
         "confirm": "Enviar mesmo assim"
-      }
+      },
+      "unknownAuthor": "Equipe",
+      "internalNote": "Nota interna ({name})",
+      "composerTabMessage": "Mensagem",
+      "composerTabNote": "Nota interna",
+      "composerTabTemplate": "Template",
+      "composerTabSchedule": "Agendar envio",
+      "scheduleComingSoon": "Em breve",
+      "notePlaceholder": "Escreva uma nota interna... só a equipe vê",
+      "noteSendFailed": "Falha ao salvar a nota",
+      "enterToSendHint": "Enter envia · Shift+Enter quebra linha"
     },
     "tagPicker": {
       "addFailed": "Falha ao adicionar tag",

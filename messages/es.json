@@ -380,7 +380,17 @@
         "description": "Esta plantilla es de categoría Marketing y el contacto tiene un opt-out activo. ¿Enviar de todos modos?",
         "cancel": "Cancelar",
         "confirm": "Enviar de todos modos"
-      }
+      },
+      "unknownAuthor": "Equipo",
+      "internalNote": "Nota interna ({name})",
+      "composerTabMessage": "Mensaje",
+      "composerTabNote": "Nota interna",
+      "composerTabTemplate": "Plantilla",
+      "composerTabSchedule": "Programar envío",
+      "scheduleComingSoon": "Próximamente",
+      "notePlaceholder": "Escribe una nota interna... solo tu equipo la ve",
+      "noteSendFailed": "Error al guardar la nota",
+      "enterToSendHint": "Enter envía · Shift+Enter para nueva línea"
     },
     "tagPicker": {
       "addFailed": "Error al agregar el tag",

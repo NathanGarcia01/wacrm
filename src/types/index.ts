@@ -347,6 +347,17 @@ export interface Message {
   deleted_at?: string;
 }
 
+/** Internal note on a conversation (migration 125) — never sent to the
+ *  customer, rendered as a yellow bubble inline in the thread. */
+export interface ConversationNote {
+  id: string;
+  account_id: string;
+  conversation_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+}
+
 export type ReactionActor = 'customer' | 'agent';
 
 export interface MessageReaction {
