@@ -122,8 +122,15 @@ interface WhatsAppWebhookEntry {
         recipient_id: string
         // Fase 5, Etapa 1 — only populated on status: 'failed'. Code
         // 131050 ("recipient opted out of marketing messages") is the
-        // one we act on; everything else is ignored here.
-        errors?: Array<{ code: number; title?: string; message?: string }>
+        // one we act on here; the full array is now also persisted
+        // (handleStatusUpdate) so every failure has a reason, not just
+        // this one.
+        errors?: Array<{
+          code: number
+          title?: string
+          message?: string
+          error_data?: { details?: string }
+        }>
       }>
       // Fase 5, Etapa 1 — Meta's own "stop/resume promotions" toggle,
       // a separate webhook field from `statuses`/`messages`. Fires
@@ -494,13 +501,34 @@ async function cancelWaitingFlowRunForPhone(accountId: string, phone: string): P
   await cancelWaitingFlowRunsForContact(contact.id, 'opted_out')
 }
 
+/**
+ * Builds the `(#code) title — message — details` string every reader
+ * of error_message already expects (parseMetaErrorCode in
+ * meta-error-messages.ts parses the `(#\d+)` prefix for rows that
+ * predate the error_code column). Joins whichever of title/message/
+ * error_data.details Meta actually sent — these three often repeat or
+ * overlap, but none is reliably present on every error, so none is
+ * dropped.
+ */
+function formatMetaError(err: { code: number; title?: string; message?: string; error_data?: { details?: string } }): string {
+  const parts = [err.title, err.message, err.error_data?.details].filter(
+    (p): p is string => !!p && p.trim().length > 0,
+  )
+  return `(#${err.code})${parts.length ? ' ' + parts.join(' — ') : ''}`
+}
+
 async function handleStatusUpdate(
   status: {
     id: string
     status: string
     timestamp: string
     recipient_id: string
-    errors?: Array<{ code: number; title?: string; message?: string }>
+    errors?: Array<{
+      code: number
+      title?: string
+      message?: string
+      error_data?: { details?: string }
+    }>
   },
   accountId: string | null,
 ) {
@@ -521,10 +549,18 @@ async function handleStatusUpdate(
   }
 
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
-  //    already match the CHECK constraint on messages.status.
+  //    already match the CHECK constraint on messages.status. On
+  //    'failed', also persist the reason (migration 128) — covers
+  //    sends that failed OUTSIDE a broadcast (agent/flow/automation
+  //    message), which never touch broadcast_recipients below.
+  const messagesUpdate: Record<string, unknown> = { status: status.status }
+  if (status.status === 'failed' && status.errors?.length) {
+    messagesUpdate.error_code = status.errors[0].code
+    messagesUpdate.error_message = formatMetaError(status.errors[0])
+  }
   const { error: msgErr } = await supabaseAdmin()
     .from('messages')
-    .update({ status: status.status })
+    .update(messagesUpdate)
     .eq('message_id', status.id)
 
   if (msgErr) {
@@ -557,6 +593,14 @@ async function handleStatusUpdate(
   if (status.status === 'sent' && !('sent_at' in update)) update.sent_at = tsIso
   if (status.status === 'delivered') update.delivered_at = tsIso
   if (status.status === 'read') update.read_at = tsIso
+  // Previously dropped entirely — every "failed" status carries
+  // `errors[]`, but nothing copied it into error_code/error_message,
+  // so every broadcast failure showed up with no reason at all (found
+  // investigating 59 opaque failures in a real campaign).
+  if (status.status === 'failed' && status.errors?.length) {
+    update.error_code = status.errors[0].code
+    update.error_message = formatMetaError(status.errors[0])
+  }
 
   const { error: recUpdateErr } = await supabaseAdmin()
     .from('broadcast_recipients')

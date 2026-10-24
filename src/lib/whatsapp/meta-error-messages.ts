@@ -26,6 +26,8 @@ export const META_ERROR_MESSAGES: Record<number, string> = {
   131049: 'Mensagem não entregue por política de limite de spam da Meta.',
   131050: 'Destinatário optou por não receber mensagens de marketing (opt-out).',
   131051: 'Tipo de mensagem não suportado pelo destinatário.',
+  131056: 'Limite de mensagens entre sua empresa e esse número atingido nas últimas 24h.',
+  130472: 'Mensagem enviada por um experimento interno da Meta (teste A/B de número) — não é uma falha de envio.',
   132000: 'Parâmetros do template não correspondem ao template aprovado.',
   132001: 'Template não encontrado nessa tradução/idioma.',
   132005: 'O template usado está pausado ou foi desabilitado pela Meta.',
