@@ -535,7 +535,13 @@ export function ContactSidebar({ contact, conversationId, onContactUpdated }: Co
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.error(payload?.error === "disabled" ? t("npsDisabled") : t("npsSendFailed"));
+        const message =
+          payload?.error === "disabled"
+            ? t("npsDisabled")
+            : payload?.error === "has_open_deal"
+              ? t("npsHasOpenDeal")
+              : t("npsSendFailed");
+        toast.error(message);
         return;
       }
       toast.success(t("npsSent"));

@@ -10,7 +10,6 @@ import { useAuth } from "@/hooks/use-auth";
 import type { NpsSettings } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -136,19 +135,9 @@ export function NpsSettings() {
                 />
               </div>
 
-              <div className="grid gap-2 sm:max-w-xs">
-                <Label className="text-muted-foreground">
-                  {t("inactivityHoursLabel")}
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={inactivityHours}
-                  onChange={(e) => setInactivityHours(e.target.value)}
-                  disabled={!canEditSettings}
-                  className="border-border bg-muted text-foreground"
-                />
-              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("sendOnCloseHint")}
+              </p>
 
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">{t("surveyMessageLabel")}</Label>

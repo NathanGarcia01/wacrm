@@ -23,7 +23,8 @@ export type SendNpsSurveyResult =
         | "conversation_not_found"
         | "no_contact"
         | "send_failed"
-        | "skipped_backlog";
+        | "skipped_backlog"
+        | "has_open_deal";
     };
 
 /** Meta's customer-service window for free-text (non-template) sends —
@@ -74,6 +75,20 @@ export async function sendNpsSurvey(args: SendNpsSurveyArgs): Promise<SendNpsSur
   if (!conversation.contact_id) {
     // Contact was deleted (ON DELETE SET NULL) — nothing to send to.
     return { sent: false, reason: "no_contact" };
+  }
+
+  // 2026-10-24 decision — never survey a contact with an open deal,
+  // regardless of trigger (manual close, automation, etc.): asking for
+  // a satisfaction rating mid-negotiation reads as premature/odd, and
+  // risks souring an still-open sale. Checked before claiming a slot
+  // so a contact with an open deal never even gets a placeholder row.
+  const { count: openDealCount } = await db
+    .from("deals")
+    .select("id", { count: "exact", head: true })
+    .eq("contact_id", conversation.contact_id)
+    .eq("status", "open");
+  if ((openDealCount ?? 0) > 0) {
+    return { sent: false, reason: "has_open_deal" };
   }
 
   const { data: settings } = await db

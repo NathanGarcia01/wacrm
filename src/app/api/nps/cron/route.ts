@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
-import { sendNpsSurvey } from "@/lib/nps/send-survey";
 
 /**
- * Two jobs, one schedule (meant to be hit every 15-30min by the same
- * external pinger driving /api/automations/cron):
- *   1. Dispatch NPS surveys for conversations that have gone quiet
- *      past each account's configured inactivity_hours.
- *   2. Expire surveys nobody responded to within 48h.
+ * Expires NPS surveys nobody responded to within 48h.
+ *
+ * Used to also dispatch NPS surveys for conversations that had gone
+ * quiet past each account's configured inactivity_hours ("inactivity"
+ * trigger) — removed per 2026-10-24 decision: NPS now only fires on an
+ * explicit conversation close (manual or automation, via
+ * sendNpsSurvey's 'manual_close' callers), never on a bare timeout.
+ * Root cause this avoids: an "inactivity" survey's own copy says
+ * "estamos encerrando nossa conversa" while never actually closing the
+ * ticket/conversation — and it was the path responsible for the
+ * 2026-10-22 backlog incident (158 free-text sends the moment the cron
+ * first ran, 150 outside Meta's 24h window). `nps_settings
+   .inactivity_hours` is no longer read anywhere; left in place
+ * (unused) rather than migrated away, since the column itself is
+ * harmless.
  *
  * Auth: reuses AUTOMATION_CRON_SECRET so operators only have one
  * secret to provision — same pattern as /api/flows/cron.
@@ -24,11 +33,9 @@ export async function GET(request: Request) {
 
   const db = supabaseAdmin();
 
-  // Whole-route lock (migration 115) — belt-and-suspenders on top of
-  // claim_nps_survey_slot's per-contact advisory lock (see
-  // src/lib/nps/send-survey.ts): prevents an overlapping invocation from
-  // re-scanning and re-dispatching the same stale-conversation batch at
-  // all. TTL matches the 15-minute schedule this route is meant to run on.
+  // Whole-route lock (migration 115) — prevents an overlapping
+  // invocation from re-running the same expiry sweep. TTL matches the
+  // 15-minute schedule this route is meant to run on.
   const { data: acquired, error: lockError } = await db.rpc("try_acquire_cron_lock", {
     p_job_name: "nps-cron",
     p_ttl_seconds: 840,
@@ -40,81 +47,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ skipped: true, reason: "locked" });
   }
 
-  let dispatched = 0;
-
-  // --- 1. Inactivity dispatch, per enabled account -----------------
-  const { data: settingsRows, error: settingsError } = await db
-    .from("nps_settings")
-    .select("account_id, inactivity_hours, accounts(owner_user_id)")
-    .eq("enabled", true);
-
-  if (settingsError) {
-    return NextResponse.json({ error: settingsError.message }, { status: 500 });
-  }
-
-  for (const row of (settingsRows ?? []) as unknown as {
-    account_id: string;
-    inactivity_hours: number;
-    accounts: { owner_user_id: string } | { owner_user_id: string }[] | null;
-  }[]) {
-    const ownerRow = Array.isArray(row.accounts) ? row.accounts[0] : row.accounts;
-    const ownerUserId = ownerRow?.owner_user_id;
-    if (!ownerUserId) continue;
-
-    const cutoff = new Date(Date.now() - row.inactivity_hours * 60 * 60 * 1000).toISOString();
-
-    const { data: staleConvs } = await db
-      .from("conversations")
-      .select("id, contact_id")
-      .eq("account_id", row.account_id)
-      .eq("status", "open")
-      .lt("last_message_at", cutoff)
-      .not("last_message_at", "is", null)
-      .order("last_message_at", { ascending: true })
-      .limit(50);
-
-    const staleContactIds = [
-      ...new Set(
-        (staleConvs ?? [])
-          .map((c) => c.contact_id as string | null)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-
-    // Mirrors sendNpsSurvey's own gate (1 survey per CONTACT per
-    // rolling 24h) — a pure optimization to skip calling sendNpsSurvey
-    // for conversations it would reject anyway; sendNpsSurvey remains
-    // the authoritative check.
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentSurveys } = staleContactIds.length
-      ? await db
-          .from("nps_surveys")
-          .select("contact_id")
-          .in("contact_id", staleContactIds)
-          .in("status", ["sent", "responded"])
-          .gte("sent_at", twentyFourHoursAgo)
-      : { data: [] };
-
-    const recentlySurveyedContacts = new Set(
-      (recentSurveys ?? []).map((s) => s.contact_id as string),
-    );
-
-    const due = (staleConvs ?? []).filter(
-      (c) => !c.contact_id || !recentlySurveyedContacts.has(c.contact_id as string),
-    );
-
-    for (const conv of due) {
-      const result = await sendNpsSurvey({
-        accountId: row.account_id,
-        userId: ownerUserId,
-        conversationId: conv.id as string,
-        triggerType: "inactivity",
-      });
-      if (result.sent) dispatched++;
-    }
-  }
-
-  // --- 2. Expire unanswered surveys past 48h ------------------------
+  // Expire unanswered surveys past 48h.
   const expiryCutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const { data: expired, error: expireError } = await db
     .from("nps_surveys")
@@ -128,7 +61,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    dispatched,
+    dispatched: 0,
     expired: expired?.length ?? 0,
   });
 }
