@@ -801,6 +801,38 @@ export interface RoutingAssignmentEvent {
   created_at: string;
 }
 
+// ============================================================
+// Radar (migration 133) — Fase 2, Etapa A. Limites (em horas)
+// configuráveis por conta para os dois grupos do Radar. Ver
+// src/lib/radar/classify.ts para a mesma semântica em TS (usada só
+// para documentar/testar — a filtragem real é feita pela RPC
+// get_radar_conversations).
+// ============================================================
+
+export interface RadarSettings {
+  account_id: string;
+  waiting_hours: number;
+  cooled_hours: number;
+  updated_at: string;
+}
+
+export type RadarGroup = 'awaiting_us' | 'customer_cooled';
+
+/** Uma linha do Radar — já resolvida pela RPC get_radar_conversations
+ *  (nomes de contato/agente incluídos, não precisa de join no client). */
+export interface RadarConversation {
+  id: string;
+  contact_id: string;
+  contact_name: string | null;
+  contact_phone: string;
+  assigned_agent_id: string | null;
+  agent_name: string | null;
+  last_message_at: string;
+  last_message_sender_type: string;
+  last_customer_message_at: string | null;
+  group: RadarGroup;
+}
+
 export type NpsTriggerType = 'manual_close' | 'inactivity';
 export type NpsSurveyStatus = 'sent' | 'responded' | 'expired';
 

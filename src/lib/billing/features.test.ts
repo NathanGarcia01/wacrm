@@ -11,10 +11,11 @@ describe("getPlanFeatures", () => {
       hasWebhookOut: false,
       hasAPI: false,
       hasRouting: false,
+      hasFollowup: false,
     });
   });
 
-  it("pro: 3 channels, unlimited broadcasts, still no AI/report/webhook/API, but routing is unlocked", () => {
+  it("pro: 3 channels, unlimited broadcasts, still no AI/report/webhook/API, but routing and followup are unlocked", () => {
     const pro = getPlanFeatures("pro");
     expect(pro.maxChannels).toBe(3);
     expect(pro.maxBroadcastsPerMonth).toBe(Infinity);
@@ -23,6 +24,7 @@ describe("getPlanFeatures", () => {
     expect(pro.hasWebhookOut).toBe(false);
     expect(pro.hasAPI).toBe(false);
     expect(pro.hasRouting).toBe(true);
+    expect(pro.hasFollowup).toBe(true);
   });
 
   it("business: everything unlimited/unlocked", () => {
@@ -34,6 +36,7 @@ describe("getPlanFeatures", () => {
     expect(business.hasWebhookOut).toBe(true);
     expect(business.hasAPI).toBe(true);
     expect(business.hasRouting).toBe(true);
+    expect(business.hasFollowup).toBe(true);
   });
 
   it("falls back to starter's limits for null, undefined, or an unrecognized plan code", () => {

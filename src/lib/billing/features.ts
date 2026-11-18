@@ -25,6 +25,9 @@ export interface PlanFeatures {
    *  fica no modo manual de sempre; Pro/Business liberam round_robin
    *  e load. */
   hasRouting: boolean;
+  /** Radar + follow-up seguro (Fase 2). Starter não vê a tela nem o
+   *  gatilho de inatividade avançado. */
+  hasFollowup: boolean;
 }
 
 const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
@@ -36,6 +39,7 @@ const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     hasWebhookOut: false,
     hasAPI: false,
     hasRouting: false,
+    hasFollowup: false,
   },
   pro: {
     maxChannels: 3,
@@ -45,6 +49,7 @@ const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     hasWebhookOut: false,
     hasAPI: false,
     hasRouting: true,
+    hasFollowup: true,
   },
   business: {
     maxChannels: Infinity,
@@ -54,6 +59,7 @@ const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     hasWebhookOut: true,
     hasAPI: true,
     hasRouting: true,
+    hasFollowup: true,
   },
 };
 
