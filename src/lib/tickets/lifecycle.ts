@@ -423,6 +423,74 @@ export async function assignTicket(
   return updated as Ticket
 }
 
+/**
+ * Atomic variant of assignTicket for the automatic routing cycle
+ * (src/lib/routing/cycle.ts) — the plain assignTicket above is for
+ * the manual UI action (always reassigns, trusts its caller already
+ * decided this ticket should move) and is NOT safe for a background
+ * job that might overlap with itself or with a human.
+ *
+ * Delegates the actual mutation to the `assign_ticket_if_unclaimed`
+ * SQL function (migration 131) instead of doing a plain
+ * `.update()` here, because this needs to touch TWO tables —
+ * `tickets` AND `conversations.assigned_agent_id` (the field the
+ * Inbox itself reads; see /api/conversations/[id]/assign, the
+ * manual path, which writes the conversation and mirrors onto the
+ * ticket). There is no DB trigger syncing the two, so without this
+ * a ticket the cycle claimed would show "unassigned" in the Inbox
+ * forever. A single SECURITY DEFINER function is one Postgres
+ * transaction: either both tables change or neither does, with no
+ * network round trip in between that could fail and leave one
+ * updated without the other — a two-step update-then-compensate in
+ * TypeScript would have exactly that window (the compensating
+ * "revert the ticket" call can itself fail).
+ *
+ * The function's own WHERE clauses are the entire concurrency
+ * control: it only claims the ticket if it's still pending+unclaimed,
+ * and only mirrors onto the conversation if IT is still unclaimed
+ * too (never overwrites an existing manual assignment on either
+ * side). Returns null (no throw) when the ticket didn't match,
+ * which the caller treats as "someone else already took it, move
+ * on" per the routing rules (no error, ticket just isn't touched
+ * this cycle).
+ *
+ * actorId is always null here — every call is a system decision —
+ * so the resulting ticket_events row has actor_id null (the existing
+ * "system action" convention, same as closeTicket's auto-close) plus
+ * whatever `metadata` the caller passes (mode/reason), making the
+ * automatic origin explicit in the audit trail rather than relying
+ * on actor_id null alone. That event write stays a separate,
+ * best-effort call after the transaction — same convention as
+ * openTicketIfNeeded's protocol-number RPC followed by a plain
+ * insert, not something that needs to be inside the SQL function.
+ */
+export async function assignTicketIfUnclaimed(
+  ticketId: string,
+  agentId: string,
+  metadata?: Record<string, unknown>,
+): Promise<Ticket | null> {
+  const admin = supabaseAdmin()
+
+  const { data, error } = await admin.rpc('assign_ticket_if_unclaimed', {
+    p_ticket_id: ticketId,
+    p_agent_id: agentId,
+  })
+  if (error) throw error
+  // SETOF return — PostgREST serializes it as an array (0 or 1 rows).
+  const updated = Array.isArray(data) ? data[0] : data
+  if (!updated) return null
+
+  await writeTicketEvent(admin, {
+    ticketId,
+    accountId: (updated as Ticket).account_id,
+    type: 'assigned',
+    actorId: null,
+    toAgentId: agentId,
+    metadata: metadata ?? {},
+  })
+  return updated as Ticket
+}
+
 export interface TransferTicketTarget {
   toAgentId?: string | null
   toDepartmentId?: string | null

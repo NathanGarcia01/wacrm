@@ -23,6 +23,7 @@ import { SalesGoalsPanel } from '@/components/settings/sales-goals-panel';
 import { OptOutPanel } from '@/components/settings/opt-out-panel';
 import { QuickRepliesSettings } from '@/components/settings/quick-replies-settings';
 import { AttendanceSettings } from '@/components/settings/attendance-settings';
+import { RoutingSettings } from '@/components/settings/routing-settings';
 import { NpsSettings } from '@/components/settings/nps-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
@@ -79,6 +80,7 @@ export default function SettingsPage() {
     optOut: <OptOutPanel />,
     quickReplies: <QuickRepliesSettings />,
     attendance: <AttendanceSettings />,
+    routing: <RoutingSettings />,
     nps: <NpsSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,

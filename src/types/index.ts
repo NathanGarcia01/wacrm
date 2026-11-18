@@ -753,6 +753,54 @@ export interface TicketEvent {
   created_at: string;
 }
 
+// ============================================================
+// Routing (migration 129) — distribuição automática de tickets
+// (Fase 1, routing). Ver src/lib/routing/decide.ts (decisão pura) e
+// src/lib/routing/cycle.ts (ciclo/orquestração).
+// ============================================================
+
+export type RoutingMode = 'manual' | 'round_robin' | 'load';
+
+export interface RoutingSettings {
+  account_id: string;
+  mode: RoutingMode;
+  /** Instante em que o modo deixou de ser 'manual' pela última vez.
+   *  O ciclo só considera tickets com opened_at > enabled_at — nunca
+   *  redistribui o backlog que já existia antes de a distribuição
+   *  automática ser (re)ligada. Null enquanto o modo sempre foi
+   *  'manual'. */
+  enabled_at: string | null;
+  updated_at: string;
+}
+
+export interface RoutingMemberSettings {
+  account_id: string;
+  user_id: string;
+  /** Máximo de tickets `in_progress` atribuídos simultaneamente. */
+  capacity: number;
+  /** False = esse membro nunca recebe atribuição automática, mesmo
+   *  online e dentro da capacidade (ex.: owner que não quer entrar
+   *  no rodízio). */
+  is_enabled: boolean;
+  updated_at: string;
+}
+
+/** Auditoria append-only de cada atribuição feita pelo ciclo
+ *  automático — distinta de `ticket_events` (que registra toda
+ *  atribuição, manual ou automática). RLS sem policy de escrita:
+ *  só o ciclo (service_role) grava aqui. */
+export interface RoutingAssignmentEvent {
+  id: string;
+  account_id: string;
+  ticket_id: string;
+  /** Referencia profiles.user_id por convenção, sem FK de banco —
+   *  mesmo padrão de tickets.assigned_agent_id. */
+  agent_id: string;
+  mode: Exclude<RoutingMode, 'manual'>;
+  reason: string;
+  created_at: string;
+}
+
 export type NpsTriggerType = 'manual_close' | 'inactivity';
 export type NpsSurveyStatus = 'sent' | 'responded' | 'expired';
 

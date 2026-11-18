@@ -21,6 +21,10 @@ export interface PlanFeatures {
   hasDailyReport: boolean;
   hasWebhookOut: boolean;
   hasAPI: boolean;
+  /** Distribuição automática de tickets (Fase 1, routing). Starter
+   *  fica no modo manual de sempre; Pro/Business liberam round_robin
+   *  e load. */
+  hasRouting: boolean;
 }
 
 const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
@@ -31,6 +35,7 @@ const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     hasDailyReport: false,
     hasWebhookOut: false,
     hasAPI: false,
+    hasRouting: false,
   },
   pro: {
     maxChannels: 3,
@@ -39,6 +44,7 @@ const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     hasDailyReport: false,
     hasWebhookOut: false,
     hasAPI: false,
+    hasRouting: true,
   },
   business: {
     maxChannels: Infinity,
@@ -47,6 +53,7 @@ const PLAN_FEATURES: Record<PlanCode, PlanFeatures> = {
     hasDailyReport: true,
     hasWebhookOut: true,
     hasAPI: true,
+    hasRouting: true,
   },
 };
 

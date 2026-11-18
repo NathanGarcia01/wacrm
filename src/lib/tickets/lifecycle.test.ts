@@ -6,7 +6,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 // src/lib/automations/engine.test.ts.
 const h = vi.hoisted(() => ({
   state: {
-    conversations: {} as Record<string, { account_id: string; contact_id: string | null }>,
+    conversations: {} as Record<
+      string,
+      { account_id: string; contact_id: string | null; assigned_agent_id: string | null }
+    >,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tickets: [] as any[],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -33,9 +36,6 @@ vi.mock('./admin-client', () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getNeq(filters: Filter[], col: string): any {
     return filters.find((f) => f[0] === 'neq' && f[1] === col)?.[2]
-  }
-  function hasIsNull(filters: Filter[], col: string): boolean {
-    return filters.some((f) => f[0] === 'is' && f[1] === col && f[2] === null)
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function getGte(filters: Filter[], col: string): any {
@@ -99,8 +99,17 @@ vi.mock('./admin-client', () => {
         const id = getEq(filters, 'id')
         const ticket = state.tickets.find((t) => t.id === id)
         if (!ticket) return { data: null, error: { message: 'ticket not found' } }
-        if (hasIsNull(filters, 'first_response_at') && ticket.first_response_at !== null) {
-          // WHERE first_response_at IS NULL matched zero rows — no-op.
+        // Generic WHERE check covering every eq/is filter chained onto
+        // the update (not just `id`) — lets assignTicketIfUnclaimed's
+        // `.eq('status','pending').is('assigned_agent_id', null)` act
+        // as real conditional-update concurrency control in the mock,
+        // same as recordAgentReply's `.is('first_response_at', null)`.
+        const matchesAllFilters = filters.every((f) => {
+          if (f[0] === 'eq' || f[0] === 'is') return (ticket as Record<string, unknown>)[f[1]] === f[2]
+          return true
+        })
+        if (!matchesAllFilters) {
+          // WHERE matched zero rows — no-op, not an error.
           return { data: null, error: null }
         }
         Object.assign(ticket, payload)
@@ -223,6 +232,27 @@ vi.mock('./admin-client', () => {
           state.protocolCounters[accountId] = next
           return Promise.resolve({ data: next, error: null })
         }
+        if (name === 'assign_ticket_if_unclaimed') {
+          // Mirrors migration 131's assign_ticket_if_unclaimed(): one
+          // "transaction" claiming the ticket AND mirroring onto its
+          // conversation, both gated on "still unclaimed". SETOF
+          // return — PostgREST serializes as an array, empty when the
+          // WHERE matched nothing.
+          const ticketId = params.p_ticket_id
+          const agentId = params.p_agent_id
+          const ticket = state.tickets.find((t) => t.id === ticketId)
+          if (!ticket || ticket.status !== 'pending' || ticket.assigned_agent_id !== null) {
+            return Promise.resolve({ data: [], error: null })
+          }
+          ticket.assigned_agent_id = agentId
+          ticket.status = 'in_progress'
+
+          const conversation = state.conversations[ticket.conversation_id]
+          if (conversation && conversation.account_id === ticket.account_id && conversation.assigned_agent_id === null) {
+            conversation.assigned_agent_id = agentId
+          }
+          return Promise.resolve({ data: [{ ...ticket }], error: null })
+        }
         return Promise.resolve({ data: null, error: null })
       },
     }),
@@ -234,6 +264,7 @@ import {
   TicketAccountMismatchError,
   TicketClosedError,
   assignTicket,
+  assignTicketIfUnclaimed,
   closeTicket,
   closeTicketWithoutReason,
   findOpenTicket,
@@ -262,7 +293,7 @@ function isoHoursAgo(hours: number): string {
 
 beforeEach(() => {
   h.state.conversations = {
-    [CONVERSATION]: { account_id: ACCOUNT, contact_id: CONTACT },
+    [CONVERSATION]: { account_id: ACCOUNT, contact_id: CONTACT, assigned_agent_id: null },
   }
   h.state.tickets = []
   h.state.broadcastRecipients = []
@@ -515,6 +546,94 @@ describe('assignTicket', () => {
     await closeTicket(ticket.id, CLOSING_REASON, AGENT)
 
     await expect(assignTicket(ticket.id, AGENT, AGENT)).rejects.toBeInstanceOf(TicketClosedError)
+  })
+})
+
+describe('assignTicketIfUnclaimed', () => {
+  it('assigns a pending unclaimed ticket, marking the event as automatic', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+
+    const updated = await assignTicketIfUnclaimed(ticket.id, AGENT, { automated: true, mode: 'round_robin' })
+
+    expect(updated).not.toBeNull()
+    expect(updated!.assigned_agent_id).toBe(AGENT)
+    expect(updated!.status).toBe('in_progress')
+    expect(h.state.ticketEvents).toContainEqual(
+      expect.objectContaining({
+        ticket_id: ticket.id,
+        type: 'assigned',
+        to_agent_id: AGENT,
+        actor_id: null,
+        metadata: { automated: true, mode: 'round_robin' },
+      }),
+    )
+  })
+
+  it('returns null and writes no event when the ticket already has an owner (no clobbering a manual assignment)', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    await assignTicket(ticket.id, AGENT, AGENT)
+
+    const result = await assignTicketIfUnclaimed(ticket.id, OTHER_AGENT, { automated: true })
+
+    expect(result).toBeNull()
+    const ticketAfter = await findOpenTicket(CONVERSATION)
+    expect(ticketAfter?.assigned_agent_id).toBe(AGENT)
+    expect(h.state.ticketEvents.filter((e) => e.type === 'assigned')).toHaveLength(1)
+  })
+
+  it('returns null when the ticket is not pending (e.g. already in_progress from a prior automatic assignment)', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    const first = await assignTicketIfUnclaimed(ticket.id, AGENT, { automated: true })
+    expect(first).not.toBeNull()
+
+    // Simulates two overlapping cron ticks racing for the same ticket:
+    // the second one's conditional UPDATE must match zero rows.
+    const second = await assignTicketIfUnclaimed(ticket.id, OTHER_AGENT, { automated: true })
+
+    expect(second).toBeNull()
+    expect(h.state.tickets.find((t) => t.id === ticket.id)?.assigned_agent_id).toBe(AGENT)
+  })
+
+  it('returns null for a closed ticket', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    await closeTicket(ticket.id, CLOSING_REASON, AGENT)
+
+    const result = await assignTicketIfUnclaimed(ticket.id, AGENT, { automated: true })
+
+    expect(result).toBeNull()
+  })
+
+  // The bug this covers: the routing cycle only ever touched
+  // `tickets` — nothing synced `conversations.assigned_agent_id`,
+  // which is the field the Inbox actually reads (see
+  // /api/conversations/[id]/assign, the manual path, which writes
+  // the conversation and mirrors onto the ticket). A ticket the cycle
+  // claimed would show as unassigned in the Inbox forever. The mirror
+  // now happens inside assign_ticket_if_unclaimed (migration 131) —
+  // same call, not a separate step a caller could forget.
+  it('mirrors the assignment onto conversations.assigned_agent_id', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+
+    await assignTicketIfUnclaimed(ticket.id, AGENT, { automated: true })
+
+    expect(h.state.conversations[CONVERSATION].assigned_agent_id).toBe(AGENT)
+  })
+
+  it('never overwrites a conversation that already has an owner', async () => {
+    const { ticket } = await openTicketIfNeeded(CONVERSATION, { source: 'inbound', initiatedBy: 'customer' })
+    // Conversation already has an owner from some earlier manual
+    // action that didn't (necessarily) touch THIS ticket — e.g. the
+    // previous ticket on this conversation was assigned, closed, and
+    // a new one opened without resetting the conversation's owner.
+    h.state.conversations[CONVERSATION].assigned_agent_id = OTHER_AGENT
+
+    const result = await assignTicketIfUnclaimed(ticket.id, AGENT, { automated: true })
+
+    // The ticket itself is still claimed (it was pending+unclaimed) —
+    // only the conversation mirror is skipped.
+    expect(result).not.toBeNull()
+    expect(result!.assigned_agent_id).toBe(AGENT)
+    expect(h.state.conversations[CONVERSATION].assigned_agent_id).toBe(OTHER_AGENT)
   })
 })
 
