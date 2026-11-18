@@ -2,9 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   matchesExactKeyword,
   matchesReactivationKeyword,
+  matchesWrongPersonButton,
   normalizeOptOutText,
   DEFAULT_OPT_OUT_CONFIRMATION_TEXT,
   DEFAULT_OPT_OUT_REACTIVATION_TEXT,
+  WRONG_PERSON_BUTTON_LABEL,
 } from './opt-out'
 import { blockPhone, unblockPhone } from './blocked-phones'
 
@@ -72,5 +74,69 @@ export async function handleOptOutKeywords(
       'keyword:voltar',
     )
     if (enforced) await sendReply(DEFAULT_OPT_OUT_REACTIVATION_TEXT)
+  }
+}
+
+export interface OptOutButtonHandlerArgs {
+  accountId: string
+  contactId: string
+  senderPhone: string
+  buttonText: string
+  /** Meta always sends one, but templates vary — a quick-reply button's
+   *  payload can differ from its display text (e.g. configured with a
+   *  stable id). Checked as a second candidate for both the keyword and
+   *  the wrong-person match, never used alone. */
+  buttonPayload: string
+}
+
+/**
+ * Fase 2 (Radar) — correção: a Quick Reply "SAIR" ou "NÃO SOU A
+ * PESSOA" num template nunca passava por aqui — só mensagem de texto
+ * livre chamava handleOptOutKeywords. Em produção: blocked_phones com
+ * 0 linhas contra 499 contatos que clicaram um desses dois botões, 30
+ * deles já receberam outro disparo depois do clique.
+ *
+ * "SAIR" (e qualquer keyword customizada que a conta tenha
+ * configurado em broadcast_optout_keywords) usa a MESMA lista
+ * configurável de texto livre — se bater, é o mesmo bloqueio, mesma
+ * reason (prefixo `button:` em vez de `keyword:` só pra distinguir a
+ * origem no histórico). "NÃO SOU A PESSOA" fica fora dessa lista de
+ * propósito — não é uma keyword de marketing, é "vocês mandaram pra
+ * pessoa errada", então bloqueia incondicionalmente em toda conta,
+ * independente de qualquer configuração.
+ *
+ * Sem a guarda de flow_runs.waiting_reply que handleOptOutKeywords
+ * tem acima: aquele guard existe pra não confundir uma resposta de
+ * MENU DE FLOW com opt-out, mas um flow responde via
+ * message.interactive (button_reply/list_reply) — nunca via
+ * message.type === 'button' (exclusivo de clique em Quick Reply de
+ * TEMPLATE, ver o comentário do tipo em webhook/route.ts). Não tem
+ * como colidir.
+ */
+export async function handleOptOutButtonTap(
+  db: SupabaseClient,
+  args: OptOutButtonHandlerArgs,
+  sendReply: (text: string) => Promise<void>,
+): Promise<void> {
+  const candidates = [args.buttonText, args.buttonPayload]
+
+  if (matchesWrongPersonButton(candidates)) {
+    await blockPhone(db, args.accountId, args.senderPhone, 'keyword', `button:${WRONG_PERSON_BUTTON_LABEL}`)
+    return
+  }
+
+  const { data: account } = await db
+    .from('accounts')
+    .select('broadcast_optout_keywords, broadcast_optout_enforced')
+    .eq('id', args.accountId)
+    .maybeSingle()
+  const keywords = (account?.broadcast_optout_keywords as string[] | null) ?? []
+  const enforced = (account?.broadcast_optout_enforced as boolean | null) ?? false
+  if (keywords.length === 0) return
+
+  const matched = candidates.find((c) => c != null && matchesExactKeyword(c, keywords))
+  if (matched !== undefined) {
+    await blockPhone(db, args.accountId, args.senderPhone, 'keyword', `button:${normalizeOptOutText(matched)}`)
+    if (enforced) await sendReply(DEFAULT_OPT_OUT_CONFIRMATION_TEXT)
   }
 }

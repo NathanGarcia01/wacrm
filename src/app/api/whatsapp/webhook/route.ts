@@ -25,7 +25,10 @@ import { dispatchWebhookOutEvent } from '@/lib/integrations/webhook-out'
 import { openTicketIfNeeded, resolveInboundTicketAttribution } from '@/lib/tickets/lifecycle'
 import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 import { blockPhone, unblockPhone } from '@/lib/whatsapp/blocked-phones'
-import { handleOptOutKeywords as optOutHandler } from '@/lib/whatsapp/opt-out-handler'
+import {
+  handleOptOutKeywords as optOutHandler,
+  handleOptOutButtonTap as optOutButtonHandler,
+} from '@/lib/whatsapp/opt-out-handler'
 import { engineSendText } from '@/lib/automations/meta-send'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
@@ -708,6 +711,40 @@ async function handleOptOutForInboundMessage(args: {
 }
 
 /**
+ * Thin webhook-side wrapper around handleOptOutButtonTap
+ * (src/lib/whatsapp/opt-out-handler.ts) — same reasoning as
+ * handleOptOutForInboundMessage above (extracted for unit testing,
+ * swallows errors so a tracking miss never breaks the main inbound
+ * flow), but for a Quick Reply BUTTON tap on a template message
+ * rather than free text. See that function's doc comment for why
+ * this needed its own code path: a button tap was never routed
+ * through any opt-out check at all before this fix.
+ */
+async function handleOptOutForButtonTap(args: {
+  accountId: string
+  contactId: string
+  conversationId: string
+  userId: string
+  senderPhone: string
+  buttonText: string
+  buttonPayload: string
+}) {
+  try {
+    await optOutButtonHandler(supabaseAdmin(), args, async (text) => {
+      await engineSendText({
+        accountId: args.accountId,
+        userId: args.userId,
+        conversationId: args.conversationId,
+        contactId: args.contactId,
+        text,
+      })
+    })
+  } catch (err) {
+    console.error('[webhook] handleOptOutForButtonTap failed:', err)
+  }
+}
+
+/**
  * When a customer taps a Quick Reply button on a template message,
  * correlate the tap back to the broadcast_recipients row that sent that
  * template so reports can show "X clicked button A, Y clicked button B".
@@ -1238,6 +1275,26 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // Fase 2 (Radar) — correção: opt-out por clique em botão de
+  // template ("SAIR" / "NÃO SOU A PESSOA") nunca era checado antes
+  // desta chamada — só texto livre passava por handleOptOutKeywords.
+  // Roda ANTES de trackBroadcastButtonClick/button_clicked abaixo,
+  // mesma ordem relativa de handleOptOutForInboundMessage vs.
+  // flagBroadcastReplyIfAny no ramo de texto: o opt-out é checado
+  // primeiro, mas sem consumir o clique — tracking e automações
+  // continuam rodando normalmente.
+  if (message.type === 'button' && message.button?.text) {
+    await handleOptOutForButtonTap({
+      accountId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      userId: configOwnerUserId,
+      senderPhone,
+      buttonText: message.button.text,
+      buttonPayload: message.button.payload,
+    })
+  }
 
   // Quick Reply tap on a broadcast template — record which button for
   // per-broadcast click reporting (migration 029).

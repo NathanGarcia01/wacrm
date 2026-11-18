@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest"
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { handleOptOutKeywords } from "./opt-out-handler"
+import { handleOptOutButtonTap, handleOptOutKeywords } from "./opt-out-handler"
 
 interface FakeDbState {
   flowRunRow: { id: string } | null
@@ -8,6 +8,12 @@ interface FakeDbState {
   account: { broadcast_optout_keywords: string[]; broadcast_optout_enforced: boolean } | null
   inserts: { table: string; payload: unknown }[]
   updates: { table: string; payload: unknown; filters: [string, unknown][] }[]
+  /** Phones with an active (unblocked_at IS NULL) block — mirrors the
+   *  partial unique index (migration 091) so a repeat insert for the
+   *  same phone fails with 23505 the same way Postgres would, letting
+   *  tests verify blockPhone's real idempotency rather than just
+   *  trusting the mock to always say "ok". */
+  blockedActive: Set<string>
 }
 
 function fakeDb(state: FakeDbState): SupabaseClient {
@@ -24,6 +30,11 @@ function fakeDb(state: FakeDbState): SupabaseClient {
       }
       if (table === "blocked_phones") {
         if (type === "insert") {
+          const phone = (payload as { phone?: string })?.phone ?? ""
+          if (state.blockedActive.has(phone)) {
+            return { data: null, error: { code: "23505", message: "duplicate key value" } }
+          }
+          state.blockedActive.add(phone)
           state.inserts.push({ table, payload })
           return { data: null, error: null }
         }
@@ -83,6 +94,7 @@ function newState(overrides: Partial<FakeDbState> = {}): FakeDbState {
     account: { broadcast_optout_keywords: ["sair", "parar", "stop", "cancelar"], broadcast_optout_enforced: false },
     inserts: [],
     updates: [],
+    blockedActive: new Set(),
     ...overrides,
   }
 }
@@ -147,5 +159,96 @@ describe("handleOptOutKeywords", () => {
 
     expect(state.inserts).toHaveLength(0)
     expect(sendReply).not.toHaveBeenCalled()
+  })
+})
+
+describe("handleOptOutButtonTap", () => {
+  it("blocks on the SAIR button, same keyword list as free text, silent when enforced=false", async () => {
+    const state = newState()
+    const sendReply = vi.fn(async () => {})
+    await handleOptOutButtonTap(
+      fakeDb(state),
+      { ...baseArgs, buttonText: "SAIR", buttonPayload: "SAIR" },
+      sendReply,
+    )
+
+    expect(state.inserts).toHaveLength(1)
+    expect(state.inserts[0]).toMatchObject({
+      table: "blocked_phones",
+      payload: expect.objectContaining({ reason: "button:sair" }),
+    })
+    expect(sendReply).not.toHaveBeenCalled()
+  })
+
+  it("blocks unconditionally on NÃO SOU A PESSOA, even with enforced=false and no matching keyword", async () => {
+    const state = newState({
+      account: { broadcast_optout_keywords: ["sair"], broadcast_optout_enforced: false },
+    })
+    const sendReply = vi.fn(async () => {})
+    await handleOptOutButtonTap(
+      fakeDb(state),
+      { ...baseArgs, buttonText: "NÃO SOU A PESSOA", buttonPayload: "NÃO SOU A PESSOA" },
+      sendReply,
+    )
+
+    expect(state.inserts).toHaveLength(1)
+    expect(state.inserts[0]).toMatchObject({
+      table: "blocked_phones",
+      payload: expect.objectContaining({ reason: "button:nao sou a pessoa" }),
+    })
+  })
+
+  it("matches regardless of accent/case variation in the button label", async () => {
+    const state = newState()
+    const sendReply = vi.fn(async () => {})
+    // Lowercase, no accent, extra padding — same normalizeOptOutText
+    // rule as every other opt-out check in this module.
+    await handleOptOutButtonTap(
+      fakeDb(state),
+      { ...baseArgs, buttonText: "  nao sou a pessoa  ", buttonPayload: "" },
+      sendReply,
+    )
+
+    expect(state.inserts).toHaveLength(1)
+  })
+
+  it("is idempotent across repeated taps on the same button", async () => {
+    const state = newState({ account: { broadcast_optout_keywords: ["sair"], broadcast_optout_enforced: true } })
+    const sendReply = vi.fn(async () => {})
+    const tap = () =>
+      handleOptOutButtonTap(fakeDb(state), { ...baseArgs, buttonText: "SAIR", buttonPayload: "SAIR" }, sendReply)
+
+    await tap()
+    await expect(tap()).resolves.not.toThrow()
+
+    // Only the first tap actually inserted a row — the second hit the
+    // partial unique index (simulated 23505) and blockPhone swallowed
+    // it, same as the real migration-091 constraint would.
+    expect(state.inserts).toHaveLength(1)
+  })
+
+  it("does not block on a button that isn't an opt-out signal", async () => {
+    const state = newState()
+    const sendReply = vi.fn(async () => {})
+    await handleOptOutButtonTap(
+      fakeDb(state),
+      { ...baseArgs, buttonText: "VER ATUALIZAÇÃO", buttonPayload: "VER ATUALIZAÇÃO" },
+      sendReply,
+    )
+
+    expect(state.inserts).toHaveLength(0)
+    expect(sendReply).not.toHaveBeenCalled()
+  })
+
+  it("checks the payload too when it differs from the display text", async () => {
+    const state = newState()
+    const sendReply = vi.fn(async () => {})
+    await handleOptOutButtonTap(
+      fakeDb(state),
+      { ...baseArgs, buttonText: "Sair da lista", buttonPayload: "sair" },
+      sendReply,
+    )
+
+    expect(state.inserts).toHaveLength(1)
   })
 })

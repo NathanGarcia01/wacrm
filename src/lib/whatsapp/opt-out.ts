@@ -30,6 +30,28 @@ export function matchesReactivationKeyword(messageText: string): boolean {
   return normalizeOptOutText(messageText) === REACTIVATION_KEYWORD
 }
 
+/**
+ * Fase 2 (Radar) — correção: template quick-reply button whose label
+ * means "you've got the wrong person" (Meta sends it as
+ * `message.type === 'button'`, never as free text). Deliberately NOT
+ * part of `accounts.broadcast_optout_keywords` — that list is for
+ * "stop sending marketing" words a customer might type; this is a
+ * different, stronger signal ("this isn't even the right person"),
+ * so it blocks unconditionally in every account rather than being
+ * configurable away.
+ */
+export const WRONG_PERSON_BUTTON_LABEL = 'nao sou a pessoa'
+
+/**
+ * Checks every candidate (button text, and its payload if Meta sends
+ * a different one for this template) against the wrong-person label,
+ * same whole-string/normalized matching rule as every other opt-out
+ * check here.
+ */
+export function matchesWrongPersonButton(candidates: Array<string | null | undefined>): boolean {
+  return candidates.some((c) => c != null && normalizeOptOutText(c) === WRONG_PERSON_BUTTON_LABEL)
+}
+
 /** Hardcoded PT-BR defaults — same pattern as
  *  DEFAULT_FOLLOW_UP_MESSAGE in src/lib/nps/webhook-handler.ts.
  *  Account-level override is a later Etapa (Settings UI), not part
