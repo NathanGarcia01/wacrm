@@ -49,7 +49,11 @@ import { assignTicket, closeTicketWithoutReason, findOpenTicket, returnToQueue }
 import { runTicketSideEffect } from "@/lib/tickets/safe-run";
 import { isMarketingTemplateSendBlocked } from "@/lib/whatsapp/marketing-template-guard";
 import { isSessionWindowOpen } from "@/lib/whatsapp/session-window";
-import { isContactOptedOutForFollowup, logFollowupDispatch } from "@/lib/automations/inactivity-followup";
+import {
+  evaluateInactivityFollowupGuards,
+  isContactOptedOutForFollowup,
+  logFollowupDispatch,
+} from "@/lib/automations/inactivity-followup";
 import {
   endRun,
   evaluateConditionPredicate,
@@ -1434,8 +1438,8 @@ async function triggerMatches(
     // (flows has no per-trigger log table; a started run for this
     // flow+contact since the cutoff is the equivalent signal).
     const lastMessageAt = ctx?.vars?.last_message_at;
+    const db = supabaseAdmin();
     if (contactId && typeof lastMessageAt === "string") {
-      const db = supabaseAdmin();
       const { count } = await db
         .from("flow_runs")
         .select("id", { count: "exact", head: true })
@@ -1444,6 +1448,34 @@ async function triggerMatches(
         .gte("started_at", lastMessageAt);
       if ((count ?? 0) > 0) return false;
     }
+
+    // Fase 2 (Follow-up seguro) — B2: last_sender, max_attempts, teto
+    // diário e horário comercial. Mirrors automations/engine.ts's
+    // identical check — mesmo ponto de verdade em inactivity-followup.ts.
+    const conversationId = ctx?.conversation_id;
+    if (conversationId && contactId) {
+      const guard = await evaluateInactivityFollowupGuards(db, {
+        accountId: flow.account_id,
+        conversationId,
+        cfg: cfg ?? {},
+        lastCustomerMessageAt: (ctx?.vars?.last_customer_message_at as string | null) ?? null,
+        lastMessageSenderType: (ctx?.vars?.last_message_sender_type as string | null) ?? null,
+      });
+      if (!guard.fire) {
+        if (guard.reason) {
+          await logFollowupDispatch(db, {
+            accountId: flow.account_id,
+            flowId: flow.id,
+            conversationId,
+            contactId,
+            outcome: "skipped",
+            reason: guard.reason,
+          });
+        }
+        return false;
+      }
+    }
+
     return true;
   }
   return true;

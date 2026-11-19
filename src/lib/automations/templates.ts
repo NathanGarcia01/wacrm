@@ -182,7 +182,7 @@ export function buildAutomationTemplates(
       name: t('followup24h.name'),
       description: t('followup24h.description'),
       trigger_type: 'inactivity',
-      trigger_config: { hours: 24 },
+      trigger_config: { hours: 24, last_sender: 'agent' },
       steps: [
         {
           step_type: 'send_message',

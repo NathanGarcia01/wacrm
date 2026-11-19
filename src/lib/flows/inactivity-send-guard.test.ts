@@ -22,6 +22,11 @@ const h = vi.hoisted(() => ({
     runIdCounter: 0,
     sentTexts: 0,
     sentTemplates: 0,
+    // B2 — teto diário/horário comercial.
+    timezone: 'America/Sao_Paulo' as string | null,
+    maxPerDay: undefined as number | undefined,
+    holiday: false,
+    businessHoursWindows: [] as { start_time: string; end_time: string }[],
   },
 }))
 
@@ -65,10 +70,29 @@ vi.mock('./admin-client', () => {
       if (idFilter) return { data: state.conversations[idFilter[2] as string] ?? null, error: null }
       return { data: null, error: null }
     }
-    if (table === 'accounts') return { data: { name: 'Conta Teste' }, error: null }
+    if (table === 'accounts') return { data: { name: 'Conta Teste', timezone: state.timezone }, error: null }
+    if (table === 'followup_settings') {
+      return { data: state.maxPerDay === undefined ? null : { max_per_day: state.maxPerDay }, error: null }
+    }
+    if (table === 'holidays') return { data: state.holiday ? { id: 'h1' } : null, error: null }
+    if (table === 'business_hours') return { data: state.businessHoursWindows, error: null }
     if (table === 'followup_dispatch_log') {
-      if (type === 'insert') state.followupLogs.push(payload)
-      return { data: null, error: null }
+      if (type === 'insert') {
+        state.followupLogs.push({ created_at: new Date().toISOString(), ...(payload as Record<string, unknown>) })
+        return { data: null, error: null }
+      }
+      // Count query (countFollowupAttemptsSinceLastReply /
+      // countFollowupSentToday) — only ever filters with eq/gt/gte.
+      const matched = state.followupLogs.filter((row) =>
+        ops.filters.every(([op, k, v]) => {
+          const rowValue = (row as Record<string, unknown>)[k]
+          if (op === 'eq') return rowValue === v
+          if (op === 'gt') return typeof rowValue === 'string' && rowValue > (v as string)
+          if (op === 'gte') return typeof rowValue === 'string' && rowValue >= (v as string)
+          return true
+        }),
+      )
+      return { count: matched.length, data: null, error: null }
     }
     return { data: null, error: null }
   }
@@ -87,7 +111,8 @@ vi.mock('./admin-client', () => {
       eq: (k: string, v: unknown) => (ops.filters.push(['eq', k, v]), b),
       neq: () => b,
       in: () => b,
-      gte: () => b,
+      gt: (k: string, v: unknown) => (ops.filters.push(['gt', k, v]), b),
+      gte: (k: string, v: unknown) => (ops.filters.push(['gte', k, v]), b),
       lte: () => b,
       is: () => b,
       order: () => b,
@@ -150,6 +175,10 @@ beforeEach(() => {
   h.state.runIdCounter = 0
   h.state.sentTexts = 0
   h.state.sentTemplates = 0
+  h.state.timezone = 'America/Sao_Paulo'
+  h.state.maxPerDay = undefined
+  h.state.holiday = false
+  h.state.businessHoursWindows = []
 })
 
 function workflowFlow(overrides: Record<string, unknown> = {}) {
@@ -309,6 +338,177 @@ describe('inactivity + wait node — recheck on resume', () => {
       resume_node_key: pending.resume_node_key,
       context: pending.context,
     })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — last_sender', () => {
+  it('fires when last_sender="agent" and the last message was from an agent or a bot', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { last_sender: 'agent' } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+
+    await runFlowsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'bot' } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+
+  it('does not fire (and does not log) when last_sender="agent" but the customer sent the last message', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { last_sender: 'agent' } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+
+    await runFlowsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'customer' } },
+    })
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toHaveLength(0)
+  })
+
+  it('fires regardless of sender when last_sender is "any" (default, old behavior)', async () => {
+    h.state.flows = [workflowFlow()]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+
+    await runFlowsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'customer' } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — max_attempts (reinicia quando o cliente responde)', () => {
+  it('blocks and logs max_attempts_reached once the cap is hit', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { max_attempts: 3 } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    const lastCustomerMessageAt = ago(48)
+    h.state.followupLogs = [1, 2, 3].map((n) => ({
+      account_id: ACCOUNT,
+      flow_id: FLOW,
+      conversation_id: CONVERSATION,
+      contact_id: CONTACT,
+      outcome: 'sent',
+      mode: 'live',
+      created_at: ago(48 - n),
+    }))
+
+    await runFlowsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_customer_message_at: lastCustomerMessageAt } },
+    })
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toContainEqual(
+      expect.objectContaining({ outcome: 'skipped', reason: 'max_attempts_reached' }),
+    )
+  })
+
+  it('teste de reinício: 3 tentativas, cliente responde, esfria de novo, volta a poder receber', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { max_attempts: 3 } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    h.state.followupLogs = [1, 2, 3].map((n) => ({
+      account_id: ACCOUNT,
+      flow_id: FLOW,
+      conversation_id: CONVERSATION,
+      contact_id: CONTACT,
+      outcome: 'sent',
+      mode: 'live',
+      created_at: ago(96 - n),
+    }))
+    const newLastCustomerMessageAt = ago(1)
+
+    await runFlowsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_customer_message_at: newLastCustomerMessageAt } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — teto diário (followup_settings.max_per_day; dry_run nunca conta)', () => {
+  it("blocks and logs daily_cap_reached once today's sent+live count reaches max_per_day", async () => {
+    h.state.flows = [workflowFlow()]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    h.state.maxPerDay = 2
+    h.state.followupLogs = [
+      { account_id: ACCOUNT, outcome: 'sent', mode: 'live', created_at: new Date().toISOString() },
+      { account_id: ACCOUNT, outcome: 'sent', mode: 'live', created_at: new Date().toISOString() },
+      { account_id: ACCOUNT, outcome: 'sent', mode: 'dry_run', created_at: new Date().toISOString() },
+    ]
+
+    await runFlowsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toContainEqual(
+      expect.objectContaining({ outcome: 'skipped', reason: 'daily_cap_reached' }),
+    )
+  })
+
+  it('fires normally when below the cap', async () => {
+    h.state.flows = [workflowFlow()]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    h.state.maxPerDay = 2
+    h.state.followupLogs = [{ account_id: ACCOUNT, outcome: 'sent', mode: 'live', created_at: new Date().toISOString() }]
+
+    await runFlowsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — horário comercial (respect_business_hours)', () => {
+  it('defers and logs outside_business_hours when respect_business_hours=true and nothing is configured', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { respect_business_hours: true } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    h.state.businessHoursWindows = []
+
+    await runFlowsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toContainEqual(
+      expect.objectContaining({ outcome: 'skipped', reason: 'outside_business_hours' }),
+    )
+  })
+
+  it('fires when respect_business_hours=true and now falls inside a configured window', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { respect_business_hours: true } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    h.state.businessHoursWindows = [{ start_time: '00:00:00', end_time: '23:59:59' }]
+
+    await runFlowsForTrigger(dispatchInput())
 
     expect(h.state.sentTexts).toBe(1)
   })

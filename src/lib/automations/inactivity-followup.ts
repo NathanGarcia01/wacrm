@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { isWithinAccountBusinessHours } from '@/lib/attendance/business-hours'
 
 /**
  * Fase 2 (Follow-up seguro) — Etapa B, B1. Peças compartilhadas entre
@@ -198,4 +199,166 @@ export async function cancelPendingInactivityFollowups(
   }
 
   return { automationsCancelled, flowsCancelled }
+}
+
+/**
+ * Fase 2 (Follow-up seguro) — B2. Quantas tentativas (linhas
+ * `outcome='sent'`) esta conversa já recebeu DESDE a última vez que o
+ * cliente escreveu — `mode='dry_run'` nunca entra na conta (não é um
+ * envio real), e tentativas de ANTES de `last_customer_message_at`
+ * não contam: uma resposta do cliente reinicia o contador, já que
+ * marca o início de um novo período de silêncio. `coalesce(...,
+ * '-infinity')` cobre o caso raro de nunca ter ouvido o cliente —
+ * nesse caso TODA tentativa histórica conta (não há "resposta" pra
+ * reiniciar a contagem a partir de).
+ */
+export async function countFollowupAttemptsSinceLastReply(
+  db: SupabaseClient,
+  conversationId: string,
+  lastCustomerMessageAt: string | null,
+): Promise<number> {
+  let query = db
+    .from('followup_dispatch_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('conversation_id', conversationId)
+    .eq('outcome', 'sent')
+    .eq('mode', 'live')
+  if (lastCustomerMessageAt) {
+    query = query.gt('created_at', lastCustomerMessageAt)
+  }
+  const { count, error } = await query
+  if (error) {
+    console.error('[inactivity-followup] countFollowupAttemptsSinceLastReply failed:', error)
+    return 0
+  }
+  return count ?? 0
+}
+
+/**
+ * O instante UTC correspondente à meia-noite LOCAL de `now` no fuso
+ * `timezone` — ex.: now=2026-11-19T02:00:00Z, timezone=
+ * 'America/Sao_Paulo' (UTC-3) → 2026-11-18T23:00:00-03:00 é meia-noite
+ * local, que em UTC é 2026-11-19T02:00:00Z... na prática, calcula
+ * quanto já passou do dia local (hh:mm:ss) e subtrai isso de `now`,
+ * então o resultado não depende do fuso do SERVIDOR — só do fuso da
+ * conta, que é o que importa pro teto diário reiniciar na hora certa.
+ */
+function startOfDayInTimezone(now: Date, timezone: string): Date {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(now)
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0') % 24
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0')
+  const second = Number(parts.find((p) => p.type === 'second')?.value ?? '0')
+  const msIntoLocalDay = ((hour * 60 + minute) * 60 + second) * 1000
+  return new Date(now.getTime() - msIntoLocalDay)
+}
+
+/**
+ * Fase 2 (Follow-up seguro) — B2. Quantos follow-ups de inatividade
+ * (outcome='sent', mode='live') esta conta já disparou HOJE, no fuso
+ * da própria conta — "hoje" precisa ser o dia local da conta, não
+ * UTC, senão o teto reinicia na hora errada pra contas fora de
+ * America/Sao_Paulo. `timezone` é passado pelo chamador (já resolvido
+ * de `accounts.timezone`) em vez de buscado aqui de novo — quem
+ * chama (triggerMatches) já faz essa busca pro check de horário
+ * comercial quando `respect_business_hours` está ligado; quando não
+ * está, o chamador resolve o timezone só pra isto.
+ */
+export async function countFollowupSentToday(
+  db: SupabaseClient,
+  accountId: string,
+  timezone: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const startOfToday = startOfDayInTimezone(now, timezone)
+  const { count, error } = await db
+    .from('followup_dispatch_log')
+    .select('id', { count: 'exact', head: true })
+    .eq('account_id', accountId)
+    .eq('outcome', 'sent')
+    .eq('mode', 'live')
+    .gte('created_at', startOfToday.toISOString())
+  if (error) {
+    console.error('[inactivity-followup] countFollowupSentToday failed:', error)
+    return 0
+  }
+  return count ?? 0
+}
+
+export interface InactivityFollowupConfig {
+  last_sender?: 'agent' | 'customer' | 'any'
+  max_attempts?: number
+  respect_business_hours?: boolean
+}
+
+export interface EvaluateInactivityFollowupGuardsArgs {
+  accountId: string
+  conversationId: string
+  cfg: InactivityFollowupConfig
+  lastCustomerMessageAt: string | null
+  lastMessageSenderType: string | null
+  now?: Date
+}
+
+export type InactivityFollowupGuardResult =
+  | { fire: true }
+  // `reason` fica undefined só no caso de last_sender não combinar —
+  // ali não é "seria disparado mas foi bloqueado", é "esta
+  // automation/flow não se aplica a esta conversa", então não gera
+  // linha de auditoria (ver triggerMatches em engine.ts/
+  // workflow-engine.ts, que só chama logFollowupDispatch quando
+  // `reason` vem preenchido).
+  | { fire: false; reason?: FollowupSkipReason }
+
+/**
+ * Fase 2 (Follow-up seguro) — B2. Único ponto de verdade pros 4 checks
+ * novos de segurança do follow-up de inatividade — chamado de dentro
+ * do `triggerMatches` de AMBOS os motores (engine.ts/
+ * workflow-engine.ts), pela mesma razão de todo o resto deste módulo:
+ * as regras precisam ser idênticas nos dois.
+ *
+ * Ordem deliberada: last_sender (sem banco) → horário comercial →
+ * max_attempts → teto diário. Checar horário comercial antes dos
+ * contadores evita 2 queries de contagem numa conversa que de
+ * qualquer forma vai ser adiada.
+ */
+export async function evaluateInactivityFollowupGuards(
+  db: SupabaseClient,
+  args: EvaluateInactivityFollowupGuardsArgs,
+): Promise<InactivityFollowupGuardResult> {
+  const lastSender = args.cfg.last_sender ?? 'any'
+  if (lastSender !== 'any') {
+    const senderType = args.lastMessageSenderType
+    const matches =
+      lastSender === 'agent' ? senderType === 'agent' || senderType === 'bot' : senderType === 'customer'
+    if (!matches) return { fire: false }
+  }
+
+  if (args.cfg.respect_business_hours) {
+    const withinHours = await isWithinAccountBusinessHours(db, args.accountId, args.now)
+    if (!withinHours) return { fire: false, reason: 'outside_business_hours' }
+  }
+
+  if (typeof args.cfg.max_attempts === 'number') {
+    const attempts = await countFollowupAttemptsSinceLastReply(db, args.conversationId, args.lastCustomerMessageAt)
+    if (attempts >= args.cfg.max_attempts) return { fire: false, reason: 'max_attempts_reached' }
+  }
+
+  const { data: account } = await db.from('accounts').select('timezone').eq('id', args.accountId).maybeSingle()
+  const timezone = (account?.timezone as string | null) ?? 'America/Sao_Paulo'
+  const { data: settings } = await db
+    .from('followup_settings')
+    .select('max_per_day')
+    .eq('account_id', args.accountId)
+    .maybeSingle()
+  const maxPerDay = (settings?.max_per_day as number | undefined) ?? 50
+  const sentToday = await countFollowupSentToday(db, args.accountId, timezone, args.now)
+  if (sentToday >= maxPerDay) return { fire: false, reason: 'daily_cap_reached' }
+
+  return { fire: true }
 }

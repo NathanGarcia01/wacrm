@@ -31,6 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -305,7 +306,7 @@ function TriggerPanel({
                   v === "keyword_match"
                     ? { keywords: [] }
                     : v === "inactivity"
-                      ? { hours: 24 }
+                      ? { hours: 24, last_sender: "agent" }
                       : {},
                 // 'inactivity' only ever fires through the workflow
                 // engine's inactivity-cron scan (runFlowsForTrigger
@@ -390,6 +391,79 @@ function TriggerPanel({
                     : 24,
               })}
             </p>
+          </div>
+        )}
+        {state.trigger_type === "inactivity" && (
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("lastSenderLabel")}</label>
+            <Select
+              items={{
+                any: t("lastSenderAny"),
+                agent: t("lastSenderAgent"),
+                customer: t("lastSenderCustomer"),
+              }}
+              value={(state.trigger_config.last_sender as string) ?? "any"}
+              onValueChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_config: { ...s.trigger_config, last_sender: v },
+                }))
+              }
+            >
+              <SelectTrigger className="bg-muted">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">{t("lastSenderAny")}</SelectItem>
+                <SelectItem value="agent">{t("lastSenderAgent")}</SelectItem>
+                <SelectItem value="customer">{t("lastSenderCustomer")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">{t("lastSenderHint")}</p>
+          </div>
+        )}
+        {state.trigger_type === "inactivity" && (
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("maxAttemptsLabel")}</label>
+            <Input
+              type="number"
+              min={1}
+              placeholder={t("maxAttemptsPlaceholder")}
+              value={
+                typeof state.trigger_config.max_attempts === "number"
+                  ? state.trigger_config.max_attempts
+                  : ""
+              }
+              onChange={(e) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_config: {
+                    ...s.trigger_config,
+                    max_attempts: e.target.value === "" ? undefined : Math.max(1, Number(e.target.value)),
+                  },
+                }))
+              }
+              className="bg-muted"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">{t("maxAttemptsHint")}</p>
+          </div>
+        )}
+        {state.trigger_type === "inactivity" && (
+          <div className="flex items-center justify-between gap-2 md:col-span-2">
+            <div>
+              <div className="text-xs text-muted-foreground">{t("respectBusinessHoursLabel")}</div>
+              <p className="text-xs text-muted-foreground">{t("respectBusinessHoursHint")}</p>
+            </div>
+            <Switch
+              checked={!!state.trigger_config.respect_business_hours}
+              onCheckedChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_config: { ...s.trigger_config, respect_business_hours: !!v },
+                }))
+              }
+              aria-label={t("respectBusinessHoursLabel")}
+            />
           </div>
         )}
       </div>

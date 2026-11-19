@@ -21,6 +21,11 @@ const h = vi.hoisted(() => ({
     followupLogs: [] as any[],
     sentTexts: 0,
     sentTemplates: 0,
+    // B2 — teto diário/horário comercial.
+    timezone: 'America/Sao_Paulo' as string | null,
+    maxPerDay: undefined as number | undefined,
+    holiday: false,
+    businessHoursWindows: [] as { start_time: string; end_time: string }[],
   },
 }))
 
@@ -49,7 +54,13 @@ vi.mock('./admin-client', () => {
           return { data: null, error: null }
         }
         case 'accounts':
-          return { data: { name: 'Conta Teste' }, error: null }
+          return { data: { name: 'Conta Teste', timezone: state.timezone }, error: null }
+        case 'followup_settings':
+          return { data: state.maxPerDay === undefined ? null : { max_per_day: state.maxPerDay }, error: null }
+        case 'holidays':
+          return { data: state.holiday ? { id: 'h1' } : null, error: null }
+        case 'business_hours':
+          return { data: state.businessHoursWindows, error: null }
         case 'automations': {
           const id = getEq(filters, 'id')
           if (id !== undefined) {
@@ -97,10 +108,21 @@ vi.mock('./admin-client', () => {
         }
         case 'followup_dispatch_log': {
           if (type === 'insert') {
-            state.followupLogs.push(payload)
+            state.followupLogs.push({ created_at: new Date().toISOString(), ...payload })
             return { data: null, error: null }
           }
-          return { data: null, error: null }
+          // Count query (countFollowupAttemptsSinceLastReply /
+          // countFollowupSentToday) — only ever filters with eq/gt/gte.
+          const matched = state.followupLogs.filter((row) =>
+            filters.every(([op, k, v]) => {
+              const rowValue = row[k]
+              if (op === 'eq') return rowValue === v
+              if (op === 'gt') return typeof rowValue === 'string' && rowValue > (v as string)
+              if (op === 'gte') return typeof rowValue === 'string' && rowValue >= (v as string)
+              return true
+            }),
+          )
+          return { count: matched.length, data: null, error: null }
         }
         default:
           return { data: null, error: null }
@@ -113,6 +135,7 @@ vi.mock('./admin-client', () => {
       insert: (p: unknown) => ((type = 'insert'), (payload = p), b),
       update: (p: unknown) => ((type = 'update'), (payload = p), b),
       eq: (k: string, v: unknown) => (filters.push(['eq', k, v]), b),
+      gt: (k: string, v: unknown) => (filters.push(['gt', k, v]), b),
       gte: (k: string, v: unknown) => (filters.push(['gte', k, v]), b),
       is: (k: string, v: unknown) => (filters.push(['eq', k, v]), b), // treat .is(col,null) as eq for parent_step_id checks
       order: () => b,
@@ -169,6 +192,10 @@ beforeEach(() => {
   h.state.followupLogs = []
   h.state.sentTexts = 0
   h.state.sentTemplates = 0
+  h.state.timezone = 'America/Sao_Paulo'
+  h.state.maxPerDay = undefined
+  h.state.holiday = false
+  h.state.businessHoursWindows = []
 })
 
 function dispatchInput() {
@@ -386,6 +413,215 @@ describe('inactivity + wait step — recheck on resume, not just at trigger time
       next_step_position: pending.next_step_position,
       context: pending.context,
     })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — last_sender', () => {
+  it('fires when last_sender="agent" and the last message was from an agent or a bot', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { last_sender: 'agent' } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'bot' } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+
+  it('does not fire (and does not log) when last_sender="agent" but the customer sent the last message', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { last_sender: 'agent' } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'customer' } },
+    })
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toHaveLength(0)
+  })
+
+  it('fires when last_sender="customer" and the customer sent the last message', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { last_sender: 'customer' } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'customer' } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+
+  it('fires regardless of sender when last_sender is "any" (default, old behavior)', async () => {
+    h.state.automations = [{ id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity' }]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_sender_type: 'customer' } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — max_attempts (conta desde a última resposta do cliente, reinicia quando ele responde)', () => {
+  it('blocks and logs max_attempts_reached once the cap is hit, counting only sent+live attempts after last_customer_message_at', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { max_attempts: 3 } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    const lastCustomerMessageAt = ago(48)
+    // 3 tentativas já registradas DEPOIS da última resposta do cliente.
+    h.state.followupLogs = [1, 2, 3].map((n) => ({
+      account_id: ACCOUNT,
+      automation_id: AUTOMATION,
+      conversation_id: CONVERSATION,
+      contact_id: CONTACT,
+      outcome: 'sent',
+      mode: 'live',
+      created_at: ago(48 - n),
+    }))
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_customer_message_at: lastCustomerMessageAt } },
+    })
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toContainEqual(
+      expect.objectContaining({ outcome: 'skipped', reason: 'max_attempts_reached' }),
+    )
+  })
+
+  it('teste de reinício: 3 tentativas, cliente responde, esfria de novo, volta a poder receber', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { max_attempts: 3 } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    // As 3 tentativas antigas, todas ANTES da nova resposta do cliente.
+    h.state.followupLogs = [1, 2, 3].map((n) => ({
+      account_id: ACCOUNT,
+      automation_id: AUTOMATION,
+      conversation_id: CONVERSATION,
+      contact_id: CONTACT,
+      outcome: 'sent',
+      mode: 'live',
+      created_at: ago(96 - n),
+    }))
+    // Cliente respondeu de novo, bem depois das 3 tentativas antigas —
+    // o contador reinicia a partir daqui.
+    const newLastCustomerMessageAt = ago(1)
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_customer_message_at: newLastCustomerMessageAt } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+
+  it('does not block when max_attempts is unset (unlimited, default)', async () => {
+    h.state.automations = [{ id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity' }]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.followupLogs = [1, 2, 3, 4, 5].map((n) => ({
+      account_id: ACCOUNT,
+      automation_id: AUTOMATION,
+      conversation_id: CONVERSATION,
+      contact_id: CONTACT,
+      outcome: 'sent',
+      mode: 'live',
+      created_at: ago(48 - n),
+    }))
+
+    await runAutomationsForTrigger({
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_customer_message_at: ago(48) } },
+    })
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — teto diário (followup_settings.max_per_day, default 50; dry_run nunca conta)', () => {
+  it("blocks and logs daily_cap_reached once today's sent+live count reaches max_per_day", async () => {
+    h.state.automations = [{ id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity' }]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.maxPerDay = 2
+    h.state.followupLogs = [
+      { account_id: ACCOUNT, outcome: 'sent', mode: 'live', created_at: new Date().toISOString() },
+      { account_id: ACCOUNT, outcome: 'sent', mode: 'live', created_at: new Date().toISOString() },
+      // dry-run não conta pro teto — mesmo com uma linha dry_run, o
+      // teto de 2 ainda não teria sido alcançado só por ela.
+      { account_id: ACCOUNT, outcome: 'sent', mode: 'dry_run', created_at: new Date().toISOString() },
+    ]
+
+    await runAutomationsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toContainEqual(
+      expect.objectContaining({ outcome: 'skipped', reason: 'daily_cap_reached' }),
+    )
+  })
+
+  it('fires normally when below the cap', async () => {
+    h.state.automations = [{ id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity' }]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.maxPerDay = 2
+    h.state.followupLogs = [{ account_id: ACCOUNT, outcome: 'sent', mode: 'live', created_at: new Date().toISOString() }]
+
+    await runAutomationsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 — horário comercial (respect_business_hours)', () => {
+  it('defers and logs outside_business_hours when respect_business_hours=true and nothing is configured', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { respect_business_hours: true } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.businessHoursWindows = [] // nenhuma janela cadastrada = fora do horário
+
+    await runAutomationsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs).toContainEqual(
+      expect.objectContaining({ outcome: 'skipped', reason: 'outside_business_hours' }),
+    )
+  })
+
+  it('fires when respect_business_hours=true and now falls inside a configured window', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { respect_business_hours: true } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    // Janela cobrindo o dia inteiro — sempre "dentro", sem depender do
+    // horário real em que o teste roda.
+    h.state.businessHoursWindows = [{ start_time: '00:00:00', end_time: '23:59:59' }]
+
+    await runAutomationsForTrigger(dispatchInput())
+
+    expect(h.state.sentTexts).toBe(1)
+  })
+
+  it('ignores business hours entirely when respect_business_hours is unset (default false)', async () => {
+    h.state.automations = [{ id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity' }]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.businessHoursWindows = [] // fora do horário, mas o check nem roda
+
+    await runAutomationsForTrigger(dispatchInput())
 
     expect(h.state.sentTexts).toBe(1)
   })

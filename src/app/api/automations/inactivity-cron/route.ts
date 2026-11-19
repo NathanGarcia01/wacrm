@@ -45,6 +45,11 @@ const MAX_CONVERSATIONS_PER_ACCOUNT_PER_TICK = 100
  *      tick continua de onde o anterior parou; quando uma página volta
  *      com menos que o limite, o cursor reseta pro início — garante
  *      ciclar por TODA conversa parada em `ceil(total/100)` ticks.
+ *
+ * B2 acrescenta `last_customer_message_at`/`last_message_sender_type`
+ * ao contexto repassado pros dois engines — últimas peças que faltavam
+ * pros checks novos de last_sender/max_attempts dentro de
+ * triggerMatches (ver inactivity-followup.ts).
  */
 export async function GET(request: Request) {
   const expected = process.env.AUTOMATION_CRON_SECRET
@@ -128,7 +133,7 @@ export async function GET(request: Request) {
     const cutoff = new Date(Date.now() - minHours * 60 * 60 * 1000).toISOString()
     let query = db
       .from('conversations')
-      .select('id, contact_id, last_message_at')
+      .select('id, contact_id, last_message_at, last_customer_message_at, last_message_sender_type')
       .eq('account_id', accountId)
       .eq('status', 'open')
       .lt('last_message_at', cutoff)
@@ -156,6 +161,8 @@ export async function GET(request: Request) {
       const conversationId = conv.id as string
       const contactId = conv.contact_id as string
       const lastMessageAt = conv.last_message_at as string
+      const lastCustomerMessageAt = conv.last_customer_message_at as string | null
+      const lastMessageSenderType = conv.last_message_sender_type as string | null
 
       if (await isContactOptedOutForFollowup(db, accountId, contactId)) {
         skippedOptedOut++
@@ -177,7 +184,12 @@ export async function GET(request: Request) {
         contactId,
         context: {
           conversation_id: conversationId,
-          vars: { inactive_hours: elapsedHours, last_message_at: lastMessageAt },
+          vars: {
+            inactive_hours: elapsedHours,
+            last_message_at: lastMessageAt,
+            last_customer_message_at: lastCustomerMessageAt,
+            last_message_sender_type: lastMessageSenderType,
+          },
         },
       }
       await runAutomationsForTrigger(dispatchInput)

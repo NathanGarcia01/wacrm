@@ -31,7 +31,11 @@ import { sendNpsSurvey } from '@/lib/nps/send-survey'
 import { loadVariableContext, resolveVariables } from '@/lib/flows/variables'
 import { isMarketingTemplateSendBlocked } from '@/lib/whatsapp/marketing-template-guard'
 import { isSessionWindowOpen } from '@/lib/whatsapp/session-window'
-import { isContactOptedOutForFollowup, logFollowupDispatch } from './inactivity-followup'
+import {
+  evaluateInactivityFollowupGuards,
+  isContactOptedOutForFollowup,
+  logFollowupDispatch,
+} from './inactivity-followup'
 
 /**
  * Thrown by the `stop_automation` step to unwind out of any nested
@@ -1068,8 +1072,8 @@ async function triggerMatches(
     // cron passes the conversation's current last_message_at, so a
     // fresh reply naturally produces a later cutoff than any past log).
     const lastMessageAt = ctx?.vars?.last_message_at
+    const db = supabaseAdmin()
     if (contactId && typeof lastMessageAt === 'string') {
-      const db = supabaseAdmin()
       const { count } = await db
         .from('automation_logs')
         .select('id', { count: 'exact', head: true })
@@ -1078,6 +1082,34 @@ async function triggerMatches(
         .gte('created_at', lastMessageAt)
       if ((count ?? 0) > 0) return false
     }
+
+    // Fase 2 (Follow-up seguro) — B2: last_sender, max_attempts, teto
+    // diário e horário comercial. Único ponto de verdade em
+    // inactivity-followup.ts, compartilhado com workflow-engine.ts.
+    const conversationId = ctx?.conversation_id
+    if (conversationId && contactId) {
+      const guard = await evaluateInactivityFollowupGuards(db, {
+        accountId: automation.account_id,
+        conversationId,
+        cfg: cfg ?? {},
+        lastCustomerMessageAt: (ctx?.vars?.last_customer_message_at as string | null) ?? null,
+        lastMessageSenderType: (ctx?.vars?.last_message_sender_type as string | null) ?? null,
+      })
+      if (!guard.fire) {
+        if (guard.reason) {
+          await logFollowupDispatch(db, {
+            accountId: automation.account_id,
+            automationId: automation.id,
+            conversationId,
+            contactId,
+            outcome: 'skipped',
+            reason: guard.reason,
+          })
+        }
+        return false
+      }
+    }
+
     return true
   }
   return true

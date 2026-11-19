@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   cancelPendingInactivityFollowups,
+  countFollowupAttemptsSinceLastReply,
+  countFollowupSentToday,
   isContactOptedOutForFollowup,
   logFollowupDispatch,
 } from './inactivity-followup'
@@ -222,5 +224,95 @@ describe('cancelPendingInactivityFollowups', () => {
 
     expect(result).toEqual({ automationsCancelled: 0, flowsCancelled: 0 })
     expect(state.dispatchLogInserts).toHaveLength(0)
+  })
+})
+
+interface DispatchLogRow {
+  conversation_id?: string
+  account_id?: string
+  outcome: string
+  mode: string
+  created_at: string
+}
+
+function fakeCountDb(rows: DispatchLogRow[]): SupabaseClient {
+  function builder(table: string) {
+    const filters: { op: 'eq' | 'gt' | 'gte'; key: string; value: unknown }[] = []
+    const resolve = () => {
+      if (table !== 'followup_dispatch_log') return { count: 0, error: null }
+      const matched = rows.filter((row) =>
+        filters.every(({ op, key, value }) => {
+          const rowValue = (row as unknown as Record<string, unknown>)[key]
+          if (op === 'eq') return rowValue === value
+          if (op === 'gt') return typeof rowValue === 'string' && rowValue > (value as string)
+          return typeof rowValue === 'string' && rowValue >= (value as string)
+        }),
+      )
+      return { count: matched.length, error: null }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const b: any = {
+      select: () => b,
+      eq: (key: string, value: unknown) => (filters.push({ op: 'eq', key, value }), b),
+      gt: (key: string, value: unknown) => (filters.push({ op: 'gt', key, value }), b),
+      gte: (key: string, value: unknown) => (filters.push({ op: 'gte', key, value }), b),
+      then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) => Promise.resolve(resolve()).then(onF, onR),
+    }
+    return b
+  }
+  return { from: (t: string) => builder(t) } as unknown as SupabaseClient
+}
+
+describe('countFollowupAttemptsSinceLastReply', () => {
+  it('counts only sent+live attempts after the last reply, and restarts after a new reply (teste de reinício)', async () => {
+    const rows: DispatchLogRow[] = [
+      { conversation_id: 'conv1', outcome: 'sent', mode: 'live', created_at: '2026-11-10T10:00:00.000Z' },
+      { conversation_id: 'conv1', outcome: 'sent', mode: 'live', created_at: '2026-11-11T10:00:00.000Z' },
+      { conversation_id: 'conv1', outcome: 'sent', mode: 'live', created_at: '2026-11-12T10:00:00.000Z' },
+      // dry-run nunca conta pra max_attempts.
+      { conversation_id: 'conv1', outcome: 'sent', mode: 'dry_run', created_at: '2026-11-12T11:00:00.000Z' },
+      // skip (não-enviado) também não conta.
+      { conversation_id: 'conv1', outcome: 'skipped', mode: 'live', created_at: '2026-11-12T12:00:00.000Z' },
+    ]
+    const db = fakeCountDb(rows)
+
+    const oldLastCustomerMessageAt = '2026-11-09T00:00:00.000Z'
+    expect(await countFollowupAttemptsSinceLastReply(db, 'conv1', oldLastCustomerMessageAt)).toBe(3)
+
+    // Cliente responde de novo (last_customer_message_at avança) — as 3
+    // tentativas antigas ficam no passado da nova resposta e deixam de
+    // contar: o contador reinicia, permitindo novos follow-ups.
+    const newLastCustomerMessageAt = '2026-11-13T00:00:00.000Z'
+    expect(await countFollowupAttemptsSinceLastReply(db, 'conv1', newLastCustomerMessageAt)).toBe(0)
+  })
+
+  it('counts every historical sent+live attempt when the conversation never heard back from the customer', async () => {
+    const rows: DispatchLogRow[] = [
+      { conversation_id: 'conv1', outcome: 'sent', mode: 'live', created_at: '2020-01-01T00:00:00.000Z' },
+      { conversation_id: 'conv1', outcome: 'sent', mode: 'live', created_at: '2020-01-02T00:00:00.000Z' },
+      { conversation_id: 'conv2', outcome: 'sent', mode: 'live', created_at: '2020-01-02T00:00:00.000Z' },
+    ]
+    const db = fakeCountDb(rows)
+    expect(await countFollowupAttemptsSinceLastReply(db, 'conv1', null)).toBe(2)
+  })
+})
+
+describe('countFollowupSentToday', () => {
+  it('counts only sent+live dispatches from today in the account timezone, for that account', async () => {
+    const rows: DispatchLogRow[] = [
+      // 2026-11-18T02:00Z = 2026-11-17T23:00 em America/Sao_Paulo (dia anterior, não conta).
+      { account_id: 'acc1', outcome: 'sent', mode: 'live', created_at: '2026-11-18T02:00:00.000Z' },
+      // Hoje (dia local 2026-11-18), conta.
+      { account_id: 'acc1', outcome: 'sent', mode: 'live', created_at: '2026-11-18T12:00:00.000Z' },
+      // dry-run não conta pro teto diário.
+      { account_id: 'acc1', outcome: 'sent', mode: 'dry_run', created_at: '2026-11-18T12:30:00.000Z' },
+      // skip não conta.
+      { account_id: 'acc1', outcome: 'skipped', mode: 'live', created_at: '2026-11-18T13:00:00.000Z' },
+      // outra conta não conta.
+      { account_id: 'acc2', outcome: 'sent', mode: 'live', created_at: '2026-11-18T12:00:00.000Z' },
+    ]
+    const db = fakeCountDb(rows)
+    const now = new Date('2026-11-18T15:00:00.000Z')
+    expect(await countFollowupSentToday(db, 'acc1', 'America/Sao_Paulo', now)).toBe(1)
   })
 })

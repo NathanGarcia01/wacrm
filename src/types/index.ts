@@ -1074,6 +1074,41 @@ export interface NpsReceivedTriggerConfig {
 export interface InactivityTriggerConfig {
   /** Hours of no customer reply before this fires. */
   hours: number;
+  /**
+   * Fase 2 (Follow-up seguro) — B2. Who must have sent the LAST
+   * message for this to fire. `'agent'` matches sender_type 'agent'
+   * OR 'bot' (from the follow-up's point of view, "we/the business"
+   * — same grouping Radar's "cliente esfriou" uses); `'customer'`
+   * matches only 'customer' (the inverse case: the customer wrote
+   * last and nobody from the business answered — Radar's "aguardando
+   * nossa resposta"). Default `'any'` (or simply omitted) — nothing
+   * checked this before B2, so omitted must behave exactly like
+   * today for every automation/flow that predates this field.
+   */
+  last_sender?: 'agent' | 'customer' | 'any';
+  /**
+   * Cap on how many inactivity follow-ups THIS conversation may
+   * receive — counted across every automation/flow of this trigger
+   * type on the account (followup_dispatch_log, mode='live' only),
+   * and only attempts AFTER conversations.last_customer_message_at
+   * (a reply resets the count, since it marks the start of a new
+   * quiet period). `undefined`/`null` = unlimited, matching every
+   * automation created before B2 — "3" is only the UI's SUGGESTED
+   * value for a newly created inactivity automation, never silently
+   * enforced on existing ones.
+   */
+  max_attempts?: number;
+  /**
+   * When true, only fires inside the account's configured business
+   * hours (accounts.timezone + business_hours + holidays — NOT
+   * src/lib/broadcast-cadence.ts's hardcoded 08–20 America/Sao_Paulo).
+   * Outside those hours the conversation isn't lost — it's simply
+   * not due yet this tick, logged `outside_business_hours`, and
+   * re-evaluated on a later tick once hours open. Default
+   * false/omitted = fires any time, matching every automation
+   * created before B2.
+   */
+  respect_business_hours?: boolean;
 }
 
 export type AutomationTriggerConfig =

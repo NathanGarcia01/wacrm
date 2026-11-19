@@ -800,7 +800,21 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             <TriggerCard
               type={state.trigger_type}
               config={state.trigger_config}
-              onTypeChange={(t) => patchTop("trigger_type", t)}
+              onTypeChange={(newType) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_type: newType,
+                  // Fase 2 (Follow-up seguro) — B2: sugestão de default
+                  // só ao ENTRAR em "inactivity" por esta troca manual,
+                  // e só se ainda não houver last_sender — nunca roda
+                  // numa automation carregada do banco (ela já nasce com
+                  // trigger_type "inactivity", sem passar por aqui).
+                  trigger_config:
+                    newType === "inactivity" && s.trigger_config?.last_sender == null
+                      ? { ...s.trigger_config, last_sender: "agent" }
+                      : s.trigger_config,
+                }))
+              }
               onConfigChange={(c) => patchTop("trigger_config", c)}
             />
             <StepList
@@ -954,17 +968,62 @@ function TriggerCard({
               </FieldBlock>
             )}
             {type === "inactivity" && (
-              <FieldBlock label={t("inactivityHoursLabel")}>
-                <Input
-                  type="number"
-                  min={1}
-                  value={(config.hours as number) ?? 24}
-                  onChange={(e) =>
-                    onConfigChange({ ...config, hours: Math.max(1, Number(e.target.value)) })
-                  }
-                  className="bg-muted text-foreground"
-                />
-              </FieldBlock>
+              <>
+                <FieldBlock label={t("inactivityHoursLabel")}>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={(config.hours as number) ?? 24}
+                    onChange={(e) =>
+                      onConfigChange({ ...config, hours: Math.max(1, Number(e.target.value)) })
+                    }
+                    className="bg-muted text-foreground"
+                  />
+                </FieldBlock>
+                <FieldBlock label={t("lastSenderLabel")}>
+                  <select
+                    value={(config.last_sender as string) ?? "any"}
+                    onChange={(e) =>
+                      onConfigChange({ ...config, last_sender: e.target.value })
+                    }
+                    className="w-full rounded-md border border-border bg-muted px-2 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none"
+                  >
+                    <option value="any">{t("lastSenderAny")}</option>
+                    <option value="agent">{t("lastSenderAgent")}</option>
+                    <option value="customer">{t("lastSenderCustomer")}</option>
+                  </select>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{t("lastSenderHint")}</p>
+                </FieldBlock>
+                <FieldBlock label={t("maxAttemptsLabel")}>
+                  <Input
+                    type="number"
+                    min={1}
+                    placeholder={t("maxAttemptsPlaceholder")}
+                    value={(config.max_attempts as number) ?? ""}
+                    onChange={(e) =>
+                      onConfigChange({
+                        ...config,
+                        max_attempts: e.target.value === "" ? undefined : Math.max(1, Number(e.target.value)),
+                      })
+                    }
+                    className="bg-muted text-foreground"
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">{t("maxAttemptsHint")}</p>
+                </FieldBlock>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-medium text-muted-foreground">
+                      {t("respectBusinessHoursLabel")}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">{t("respectBusinessHoursHint")}</p>
+                  </div>
+                  <Switch
+                    checked={!!config.respect_business_hours}
+                    onCheckedChange={(v) => onConfigChange({ ...config, respect_business_hours: !!v })}
+                    aria-label={t("respectBusinessHoursLabel")}
+                  />
+                </div>
+              </>
             )}
           </div>
         )}
