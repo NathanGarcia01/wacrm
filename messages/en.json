@@ -2761,13 +2761,14 @@
       "title": "Marketing opt-out",
       "description": "Phones that should no longer receive broadcasts/campaigns, and the keywords that trigger an automatic block on the customer's reply.",
       "keywords": {
-        "title": "Keywords and enforcement",
+        "title": "Keywords and confirmation",
         "description": "A customer reply with one of these words (the whole message, no other text) blocks the phone automatically.",
-        "enforcedLabel": "Enforce the block on sends",
-        "enforcedHint": "Off: the block is only recorded. On: blocked phones are excluded from sends and get the automatic confirmation reply.",
-        "enforcedSaveFailed": "Failed to update send enforcement",
-        "enforcedOn": "Send enforcement enabled",
-        "enforcedOff": "Send enforcement disabled",
+        "mandatoryBlockingNotice": "Blocking is always enforced: anyone who opts out (by keyword, or by tapping \"SAIR\"/\"NÃO SOU A PESSOA\" on a broadcast) never receives another campaign — this applies to every account and can't be turned off.",
+        "enforcedLabel": "Send automatic confirmation reply",
+        "enforcedHint": "Controls only the confirmation message sent to the customer when they opt out — not the block itself, which is always enforced (see the notice above).",
+        "enforcedSaveFailed": "Failed to update the automatic reply",
+        "enforcedOn": "Automatic reply enabled",
+        "enforcedOff": "Automatic reply disabled",
         "keywordsLabel": "Opt-out keywords",
         "keywordsHint": "Always matched against the whole message (lowercase, no accents) — never by containing the word.",
         "keywordsEmpty": "No keywords configured.",
@@ -2777,7 +2778,11 @@
         "saveButton": "Save",
         "saved": "Keywords updated",
         "saveFailed": "Failed to save the keywords",
-        "adminOnlyHint": "Only account admins can edit this."
+        "adminOnlyHint": "Only account admins can edit this.",
+        "confirmEmptyTitle": "Save an empty list?",
+        "confirmEmptyDescription": "With no keywords, no free-text reply triggers the automatic block (a broadcast's \"SAIR\"/\"NÃO SOU A PESSOA\" button still blocks regardless of this list). Are you sure?",
+        "confirmEmptyCancel": "Cancel",
+        "confirmEmptyConfirm": "Save empty list"
       },
       "blockedPhones": {
         "title": "Blocked phones",

@@ -7,10 +7,13 @@ import { isPhoneBlocked } from './blocked-phones'
  * when the template being sent is categorized 'Marketing'. Utility
  * and Authentication templates are never blocked — they're not
  * marketing, the same distinction Meta itself draws (error 131050
- * only ever applies to marketing-category sends). Enforcement is
- * gated by the same accounts.broadcast_optout_enforced flag as
- * broadcasts — capture (blocking) always runs regardless, this only
- * controls whether it changes who actually receives a message.
+ * only ever applies to marketing-category sends).
+ *
+ * Fase 2 (Radar) — produto: unconditional now, for every account.
+ * This used to also require accounts.broadcast_optout_enforced to be
+ * on; that flag now controls only the auto-reply confirmation text
+ * sent when a block is captured (see opt-out-handler.ts), never
+ * whether a block is actually respected when sending.
  */
 export async function isMarketingTemplateSendBlocked(
   db: SupabaseClient,
@@ -29,13 +32,6 @@ export async function isMarketingTemplateSendBlocked(
     .eq('language', args.templateLanguage || 'en_US')
     .maybeSingle()
   if (!template || template.category !== 'Marketing') return false
-
-  const { data: account } = await db
-    .from('accounts')
-    .select('broadcast_optout_enforced')
-    .eq('id', args.accountId)
-    .maybeSingle()
-  if (!account?.broadcast_optout_enforced) return false
 
   const { data: contact } = await db
     .from('contacts')

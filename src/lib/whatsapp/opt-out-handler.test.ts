@@ -180,6 +180,19 @@ describe("handleOptOutButtonTap", () => {
     expect(sendReply).not.toHaveBeenCalled()
   })
 
+  it("blocks on the SAIR button AND sends the confirmation reply when enforced=true", async () => {
+    const state = newState({ account: { broadcast_optout_keywords: ["sair"], broadcast_optout_enforced: true } })
+    const sendReply = vi.fn(async () => {})
+    await handleOptOutButtonTap(
+      fakeDb(state),
+      { ...baseArgs, buttonText: "SAIR", buttonPayload: "SAIR" },
+      sendReply,
+    )
+
+    expect(state.inserts).toHaveLength(1)
+    expect(sendReply).toHaveBeenCalledTimes(1)
+  })
+
   it("blocks unconditionally on NÃO SOU A PESSOA, even with enforced=false and no matching keyword", async () => {
     const state = newState({
       account: { broadcast_optout_keywords: ["sair"], broadcast_optout_enforced: false },

@@ -58,9 +58,12 @@ export async function handleOptOutKeywords(
 
   if (keywords.length > 0 && matchesExactKeyword(args.text, keywords)) {
     await blockPhone(db, args.accountId, args.senderPhone, 'keyword', `keyword:${normalizeOptOutText(args.text)}`)
-    // Correção (pós Etapa 1) — sem accounts.broadcast_optout_enforced,
-    // a captura é silenciosa: mandar "você não vai mais receber" seria
-    // falso enquanto nada está de fato filtrando disparo pra essa conta.
+    // Capture (blockPhone above) ALWAYS runs and is ALWAYS respected
+    // at send time (Fase 2/Radar — broadcasts/cron, use-broadcast-
+    // sending, marketing-template-guard all check blocked_phones
+    // unconditionally now). broadcast_optout_enforced's only
+    // remaining job, here and in handleOptOutButtonTap below, is
+    // this one line: whether the customer gets a confirmation reply.
     if (enforced) await sendReply(DEFAULT_OPT_OUT_CONFIRMATION_TEXT)
     return
   }
@@ -137,6 +140,9 @@ export async function handleOptOutButtonTap(
   const matched = candidates.find((c) => c != null && matchesExactKeyword(c, keywords))
   if (matched !== undefined) {
     await blockPhone(db, args.accountId, args.senderPhone, 'keyword', `button:${normalizeOptOutText(matched)}`)
+    // Same note as handleOptOutKeywords above: enforced only decides
+    // whether a confirmation reply goes out, never whether the block
+    // itself counts.
     if (enforced) await sendReply(DEFAULT_OPT_OUT_CONFIRMATION_TEXT)
   }
 }

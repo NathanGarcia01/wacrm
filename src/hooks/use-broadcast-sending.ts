@@ -182,27 +182,23 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
 
     // Fase 5, Etapa 5 — marketing opt-out (blocked_phones, migration
     // 091), keyed by phone_normalized rather than contact_id so it
-    // still excludes a re-imported contact. Only applied when the
-    // account turned on enforcement (accounts.broadcast_optout_enforced
-    // — Settings → Vendas → Bloqueio de marketing); capture itself
-    // always runs regardless. Re-checked again at send time in the
-    // cron (src/app/api/broadcasts/cron/route.ts) — a phone blocked
-    // AFTER this broadcast was created still needs to be caught before
-    // its turn to actually send comes up.
+    // still excludes a re-imported contact. Re-checked again at send
+    // time in the cron (src/app/api/broadcasts/cron/route.ts) — a
+    // phone blocked AFTER this broadcast was created still needs to
+    // be caught before its turn to actually send comes up.
+    //
+    // Fase 2 (Radar) — produto: unconditional now, for every account.
+    // accounts.broadcast_optout_enforced used to gate this; it
+    // controls only the auto-reply confirmation text now (see
+    // src/lib/whatsapp/opt-out-handler.ts), never whether a block is
+    // actually respected when building the audience.
     if (accountId) {
-      const { data: accountRow } = await supabase
-        .from('accounts')
-        .select('broadcast_optout_enforced')
-        .eq('id', accountId)
-        .maybeSingle();
-      if (accountRow?.broadcast_optout_enforced) {
-        const { data: blockedRows } = await supabase
-          .from('blocked_phones')
-          .select('phone_normalized')
-          .is('unblocked_at', null);
-        const blockedSet = new Set((blockedRows ?? []).map((r) => r.phone_normalized as string));
-        contacts = contacts.filter((c) => !blockedSet.has(c.phone_normalized ?? ''));
-      }
+      const { data: blockedRows } = await supabase
+        .from('blocked_phones')
+        .select('phone_normalized')
+        .is('unblocked_at', null);
+      const blockedSet = new Set((blockedRows ?? []).map((r) => r.phone_normalized as string));
+      contacts = contacts.filter((c) => !blockedSet.has(c.phone_normalized ?? ''));
     }
 
     return contacts;

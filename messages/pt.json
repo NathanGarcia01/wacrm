@@ -2761,13 +2761,14 @@
       "title": "Bloqueio de marketing",
       "description": "Telefones que não devem mais receber disparos/campanhas, e as palavras-chave que acionam bloqueio automático na resposta do cliente.",
       "keywords": {
-        "title": "Palavras-chave e aplicação",
+        "title": "Palavras-chave e confirmação",
         "description": "Resposta do cliente com uma dessas palavras (mensagem inteira, sem outro texto) bloqueia o telefone automaticamente.",
-        "enforcedLabel": "Aplicar bloqueio nos disparos",
-        "enforcedHint": "Desligado: o bloqueio só é registrado. Ligado: bloqueados são excluídos dos disparos e recebem a confirmação automática.",
-        "enforcedSaveFailed": "Falha ao atualizar a aplicação do bloqueio",
-        "enforcedOn": "Aplicação nos disparos ativada",
-        "enforcedOff": "Aplicação nos disparos desativada",
+        "mandatoryBlockingNotice": "O bloqueio é sempre aplicado: quem pede pra sair (por palavra-chave ou pelo botão \"SAIR\"/\"NÃO SOU A PESSOA\" num disparo) nunca mais recebe outra campanha — isso vale pra toda conta e não pode ser desligado.",
+        "enforcedLabel": "Responder confirmação automática",
+        "enforcedHint": "Controla só a mensagem de confirmação enviada ao cliente quando ele pede pra sair — não controla o bloqueio em si, que já é sempre aplicado (veja o aviso acima).",
+        "enforcedSaveFailed": "Falha ao atualizar a resposta automática",
+        "enforcedOn": "Resposta automática ativada",
+        "enforcedOff": "Resposta automática desativada",
         "keywordsLabel": "Palavras-chave de opt-out",
         "keywordsHint": "Comparação sempre pela mensagem inteira (sem acento, minúsculas) — nunca por conter a palavra.",
         "keywordsEmpty": "Nenhuma palavra-chave cadastrada.",
@@ -2777,7 +2778,11 @@
         "saveButton": "Salvar",
         "saved": "Palavras-chave atualizadas",
         "saveFailed": "Falha ao salvar as palavras-chave",
-        "adminOnlyHint": "Somente administradores da conta podem editar."
+        "adminOnlyHint": "Somente administradores da conta podem editar.",
+        "confirmEmptyTitle": "Salvar lista vazia?",
+        "confirmEmptyDescription": "Sem nenhuma palavra-chave, nenhuma resposta de texto livre aciona o bloqueio automático (o botão \"SAIR\"/\"NÃO SOU A PESSOA\" de um disparo continua bloqueando, independente desta lista). Tem certeza?",
+        "confirmEmptyCancel": "Cancelar",
+        "confirmEmptyConfirm": "Salvar lista vazia"
       },
       "blockedPhones": {
         "title": "Telefones bloqueados",

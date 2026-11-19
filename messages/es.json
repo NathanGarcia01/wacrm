@@ -2761,13 +2761,14 @@
       "title": "Bloqueo de marketing",
       "description": "Teléfonos que ya no deben recibir campañas/difusiones, y las palabras clave que activan el bloqueo automático en la respuesta del cliente.",
       "keywords": {
-        "title": "Palabras clave y aplicación",
+        "title": "Palabras clave y confirmación",
         "description": "Una respuesta del cliente con una de estas palabras (el mensaje completo, sin otro texto) bloquea el teléfono automáticamente.",
-        "enforcedLabel": "Aplicar el bloqueo en los envíos",
-        "enforcedHint": "Desactivado: el bloqueo solo se registra. Activado: los bloqueados se excluyen de los envíos y reciben la confirmación automática.",
-        "enforcedSaveFailed": "Error al actualizar la aplicación del bloqueo",
-        "enforcedOn": "Aplicación en los envíos activada",
-        "enforcedOff": "Aplicación en los envíos desactivada",
+        "mandatoryBlockingNotice": "El bloqueo siempre se aplica: quien pide salir (por palabra clave o tocando \"SAIR\"/\"NÃO SOU A PESSOA\" en un envío) nunca más recibe otra campaña — esto vale para toda cuenta y no se puede desactivar.",
+        "enforcedLabel": "Enviar confirmación automática",
+        "enforcedHint": "Controla solo el mensaje de confirmación enviado al cliente cuando pide salir — no controla el bloqueo en sí, que siempre se aplica (ver el aviso arriba).",
+        "enforcedSaveFailed": "Error al actualizar la respuesta automática",
+        "enforcedOn": "Respuesta automática activada",
+        "enforcedOff": "Respuesta automática desactivada",
         "keywordsLabel": "Palabras clave de baja",
         "keywordsHint": "Comparación siempre contra el mensaje completo (minúsculas, sin acentos) — nunca por contener la palabra.",
         "keywordsEmpty": "Ninguna palabra clave configurada.",
@@ -2777,7 +2778,11 @@
         "saveButton": "Guardar",
         "saved": "Palabras clave actualizadas",
         "saveFailed": "Error al guardar las palabras clave",
-        "adminOnlyHint": "Solo los administradores de la cuenta pueden editar esto."
+        "adminOnlyHint": "Solo los administradores de la cuenta pueden editar esto.",
+        "confirmEmptyTitle": "¿Guardar lista vacía?",
+        "confirmEmptyDescription": "Sin palabras clave, ninguna respuesta de texto libre activa el bloqueo automático (el botón \"SAIR\"/\"NÃO SOU A PESSOA\" de un envío sigue bloqueando, sin depender de esta lista). ¿Estás seguro?",
+        "confirmEmptyCancel": "Cancelar",
+        "confirmEmptyConfirm": "Guardar lista vacía"
       },
       "blockedPhones": {
         "title": "Teléfonos bloqueados",

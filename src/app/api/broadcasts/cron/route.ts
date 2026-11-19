@@ -270,18 +270,6 @@ export async function GET(request: Request) {
     const accessToken = config.accessToken
     const configOwnerUserId = await resolveAccountOwnerUserId(admin, row.account_id)
 
-    // Fase 5, Etapa 5 — fetched once per broadcast (not per
-    // recipient): accounts.broadcast_optout_enforced gates whether
-    // blocked_phones is actually enforced on sends. Capture (writing
-    // to blocked_phones) always runs regardless of this flag; this
-    // only controls whether it changes who gets a message.
-    const { data: accountRow } = await admin
-      .from('accounts')
-      .select('broadcast_optout_enforced')
-      .eq('id', row.account_id)
-      .maybeSingle()
-    const optOutEnforced = accountRow?.broadcast_optout_enforced ?? false
-
     const { data: rawTemplateRow } = await admin
       .from('message_templates')
       .select('*')
@@ -418,8 +406,16 @@ export async function GET(request: Request) {
       // above: a broadcast can trickle out over many batches/days, so
       // a recipient who passed the creation-time check (resolveAudience,
       // src/hooks/use-broadcast-sending.ts) can still get blocked in
-      // the meantime. Only enforced when the account turned it on.
-      if (optOutEnforced && (await isPhoneBlocked(admin, row.account_id, rawPhone))) {
+      // the meantime.
+      //
+      // Fase 2 (Radar) — produto: unconditional now, for every
+      // account. accounts.broadcast_optout_enforced used to gate this
+      // (an account could leave it off and keep messaging someone who
+      // explicitly asked to stop); it now controls only the auto-reply
+      // confirmation text sent when a block is captured (see
+      // src/lib/whatsapp/opt-out-handler.ts) — never whether the
+      // block itself is respected at send time.
+      if (await isPhoneBlocked(admin, row.account_id, rawPhone)) {
         await admin
           .from('broadcast_recipients')
           .update({
