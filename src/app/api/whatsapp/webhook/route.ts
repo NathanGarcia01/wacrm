@@ -25,6 +25,7 @@ import { dispatchWebhookOutEvent } from '@/lib/integrations/webhook-out'
 import { openTicketIfNeeded, resolveInboundTicketAttribution } from '@/lib/tickets/lifecycle'
 import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 import { blockPhone, unblockPhone } from '@/lib/whatsapp/blocked-phones'
+import { cancelPendingInactivityFollowups } from '@/lib/automations/inactivity-followup'
 import {
   handleOptOutKeywords as optOutHandler,
   handleOptOutButtonTap as optOutButtonHandler,
@@ -502,6 +503,17 @@ async function cancelWaitingFlowRunForPhone(accountId: string, phone: string): P
   const contact = await findExistingContact(supabaseAdmin(), accountId, phone)
   if (!contact) return
   await cancelWaitingFlowRunsForContact(contact.id, 'opted_out')
+  // Fase 2 (Follow-up seguro) — mesma correção do caso "cliente
+  // respondeu" (ver o bloco logo após o UPDATE de conversations
+  // acima), mas pro caso "cliente entrou em opt-out" via sinal
+  // automático da Meta (erro 131050 ou toggle "stop" de promoções) —
+  // os dois call sites desta função já são exatamente os dois pontos
+  // de opt-out automático existentes no webhook.
+  try {
+    await cancelPendingInactivityFollowups(supabaseAdmin(), { accountId, contactId: contact.id }, 'opted_out')
+  } catch (err) {
+    console.error('[webhook] cancelPendingInactivityFollowups (opted_out) failed:', err)
+  }
 }
 
 /**
@@ -1183,6 +1195,24 @@ async function processMessage(
 
   if (convError) {
     console.error('Error updating conversation:', convError)
+  }
+
+  // Fase 2 (Follow-up seguro) — correção: qualquer mensagem inbound
+  // (texto, botão, mídia — não importa o tipo) significa "o cliente
+  // não está mais em silêncio", então cancela qualquer wait step/node
+  // pendente de uma automation/flow de inatividade pra este contato.
+  // Sem isso, um follow-up que já estava esperando (wait step) ia
+  // despachar o passo seguinte (ex. send_message) ignorando que a
+  // conversa mudou de estado durante a espera. Best-effort — nunca
+  // deve impedir o resto do processamento desta mensagem.
+  try {
+    await cancelPendingInactivityFollowups(
+      supabaseAdmin(),
+      { accountId, contactId: contactRecord.id },
+      'customer_replied',
+    )
+  } catch (err) {
+    console.error('[webhook] cancelPendingInactivityFollowups (customer_replied) failed:', err)
   }
 
   // Origin tagging — classified once, on the contact's first-ever

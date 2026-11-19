@@ -48,6 +48,8 @@ import { loadVariableContext, resolveVariables } from "./variables";
 import { assignTicket, closeTicketWithoutReason, findOpenTicket, returnToQueue } from "@/lib/tickets/lifecycle";
 import { runTicketSideEffect } from "@/lib/tickets/safe-run";
 import { isMarketingTemplateSendBlocked } from "@/lib/whatsapp/marketing-template-guard";
+import { isSessionWindowOpen } from "@/lib/whatsapp/session-window";
+import { isContactOptedOutForFollowup, logFollowupDispatch } from "@/lib/automations/inactivity-followup";
 import {
   endRun,
   evaluateConditionPredicate,
@@ -152,6 +154,19 @@ export async function runFlowsForTrigger(
 
     for (const flow of flows as FlowRow[]) {
       if (!(await triggerMatches(flow, input.context, input.contactId))) continue;
+      // Fase 2 (Follow-up seguro) — B1: mesma regra de "tentativa"
+      // do engine.ts de automations — UMA linha por disparo, não por
+      // nó de envio dentro do grafo.
+      const conversationIdForLog = input.context?.conversation_id;
+      if (flow.trigger_type === "inactivity" && input.contactId && conversationIdForLog) {
+        await logFollowupDispatch(db, {
+          accountId: flow.account_id,
+          flowId: flow.id,
+          conversationId: conversationIdForLog,
+          contactId: input.contactId,
+          outcome: "sent",
+        });
+      }
       try {
         await startWorkflowRun(flow, input.contactId ?? null, input.context ?? {});
       } catch (err) {
@@ -302,6 +317,20 @@ async function startWorkflowRun(
  * into a branch: `condition`/`randomizer` just repoint `currentKey`
  * and the same loop continues.
  */
+/**
+ * Fase 2 (Follow-up seguro) — B1. `advanceWorkflow` only receives
+ * `run` (a `flow_runs` row), which doesn't carry the parent flow's
+ * `trigger_type` — unlike automations' `runStep`, which already has
+ * the full `automation` row in scope. A small extra lookup here is
+ * simpler and lower-risk than threading a new parameter through
+ * `advanceWorkflow`'s two call sites (startWorkflowRun's fresh start
+ * and resumePendingWorkflowExecution's resume after a `wait` node).
+ */
+async function isInactivityTriggeredFlow(db: AdminClient, flowId: string): Promise<boolean> {
+  const { data } = await db.from("flows").select("trigger_type").eq("id", flowId).maybeSingle();
+  return data?.trigger_type === "inactivity";
+}
+
 async function advanceWorkflow(
   db: AdminClient,
   run: FlowRunRow,
@@ -340,6 +369,54 @@ async function advanceWorkflow(
         try {
           if (!run.contact_id) throw new Error("send_message needs a contact");
           const conversationId = await resolveConversationId(db, run);
+
+          // Fase 2 (Follow-up seguro) — B1: mesmo recheck fresco de
+          // engine.ts's send_message case, pro grafo de flows. Cobre
+          // o `wait` node: entre o disparo e a retomada
+          // (resumePendingWorkflowExecution), o cliente pode ter
+          // respondido ou entrado em opt-out.
+          if (await isInactivityTriggeredFlow(db, run.flow_id)) {
+            if (await isContactOptedOutForFollowup(db, run.account_id, run.contact_id)) {
+              await logFollowupDispatch(db, {
+                accountId: run.account_id,
+                flowId: run.flow_id,
+                conversationId,
+                contactId: run.contact_id,
+                outcome: "skipped",
+                reason: "opted_out",
+              });
+              await logEvent(db, run.id, "node_entered", node.node_key, {
+                node_type: "send_message",
+                skipped: true,
+                reason: "opted_out",
+              });
+              currentKey = cfg.next_node_key;
+              continue;
+            }
+            const { data: conv } = await db
+              .from("conversations")
+              .select("last_customer_message_at")
+              .eq("id", conversationId)
+              .maybeSingle();
+            if (!isSessionWindowOpen((conv?.last_customer_message_at as string | null) ?? null, Date.now())) {
+              await logFollowupDispatch(db, {
+                accountId: run.account_id,
+                flowId: run.flow_id,
+                conversationId,
+                contactId: run.contact_id,
+                outcome: "skipped",
+                reason: "outside_session_window",
+              });
+              await logEvent(db, run.id, "node_entered", node.node_key, {
+                node_type: "send_message",
+                skipped: true,
+                reason: "outside_session_window",
+              });
+              currentKey = cfg.next_node_key;
+              continue;
+            }
+          }
+
           const varContext = await loadVariableContext(db, {
             accountId: run.account_id,
             contactId: run.contact_id,
@@ -428,6 +505,35 @@ async function advanceWorkflow(
           }
 
           const conversationId = await resolveConversationId(db, run);
+
+          // Fase 2 (Follow-up seguro) — B1: mesmo recheck fresco de
+          // opt-out do send_message acima (isMarketingTemplateSendBlocked
+          // já cobre templates 'Marketing', mas follow-up de
+          // inatividade nunca deve mandar pra um opted-out mesmo com
+          // template Utility/Authentication). Sem checar a janela —
+          // template pode ser enviado fora dela de propósito.
+          if (
+            run.contact_id &&
+            (await isInactivityTriggeredFlow(db, run.flow_id)) &&
+            (await isContactOptedOutForFollowup(db, run.account_id, run.contact_id))
+          ) {
+            await logFollowupDispatch(db, {
+              accountId: run.account_id,
+              flowId: run.flow_id,
+              conversationId,
+              contactId: run.contact_id,
+              outcome: "skipped",
+              reason: "opted_out",
+            });
+            await logEvent(db, run.id, "node_entered", node.node_key, {
+              node_type: "send_template",
+              skipped: true,
+              reason: "opted_out",
+            });
+            currentKey = cfg.next_node_key;
+            continue;
+          }
+
           const varContext = await loadVariableContext(db, {
             accountId: run.account_id,
             contactId: run.contact_id,

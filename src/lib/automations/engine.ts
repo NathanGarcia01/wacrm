@@ -30,6 +30,8 @@ import { runTicketSideEffect } from '@/lib/tickets/safe-run'
 import { sendNpsSurvey } from '@/lib/nps/send-survey'
 import { loadVariableContext, resolveVariables } from '@/lib/flows/variables'
 import { isMarketingTemplateSendBlocked } from '@/lib/whatsapp/marketing-template-guard'
+import { isSessionWindowOpen } from '@/lib/whatsapp/session-window'
+import { isContactOptedOutForFollowup, logFollowupDispatch } from './inactivity-followup'
 
 /**
  * Thrown by the `stop_automation` step to unwind out of any nested
@@ -121,6 +123,22 @@ export async function runAutomationsForTrigger(input: DispatchInput): Promise<vo
 
     for (const automation of automations as Automation[]) {
       if (!(await triggerMatches(automation, input.context, input.contactId))) continue
+      // Fase 2 (Follow-up seguro) — B1: "tentativa" = UMA linha aqui
+      // por disparo, não por passo de envio dentro da automation (um
+      // automation com dois send_message steps ainda é 1 tentativa).
+      // Logado ANTES de executeAutomation de propósito — mesmo que a
+      // execução falhe ou seja interrompida num step qualquer, a
+      // tentativa já aconteceu.
+      const conversationIdForLog = input.context?.conversation_id
+      if (automation.trigger_type === 'inactivity' && input.contactId && conversationIdForLog) {
+        await logFollowupDispatch(db, {
+          accountId: automation.account_id,
+          automationId: automation.id,
+          conversationId: conversationIdForLog,
+          contactId: input.contactId,
+          outcome: 'sent',
+        })
+      }
       try {
         await executeAutomation(automation, input)
       } catch (err) {
@@ -410,6 +428,47 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const cfg = step.step_config as SendMessageStepConfig
       if (!args.contactId) throw new Error('send_message needs a contact')
       const conversationId = await resolveConversationId(args)
+
+      // Fase 2 (Follow-up seguro) — B1: recheck FRESCO de opt-out e
+      // da janela de 24h no momento do envio, não só quando o
+      // gatilho disparou. Cobre o caso de uma automation de
+      // inatividade parada num `wait` step: entre o disparo e a
+      // retomada (resumePendingExecution), o cliente pode ter
+      // respondido ou entrado em opt-out — este mesmo `runStep`
+      // roda tanto na execução síncrona quanto na retomada, então um
+      // único check aqui cobre os dois casos. send_template (abaixo)
+      // faz o mesmo check de opt-out, mas ignora a janela — template
+      // pode ser enviado fora dela.
+      if (args.automation.trigger_type === 'inactivity') {
+        if (await isContactOptedOutForFollowup(db, args.automation.account_id, args.contactId)) {
+          await logFollowupDispatch(db, {
+            accountId: args.automation.account_id,
+            automationId: args.automation.id,
+            conversationId,
+            contactId: args.contactId,
+            outcome: 'skipped',
+            reason: 'opted_out',
+          })
+          return 'send_message skipped — contact opted out (rechecked at send time)'
+        }
+        const { data: conv } = await db
+          .from('conversations')
+          .select('last_customer_message_at')
+          .eq('id', conversationId)
+          .maybeSingle()
+        if (!isSessionWindowOpen((conv?.last_customer_message_at as string | null) ?? null, Date.now())) {
+          await logFollowupDispatch(db, {
+            accountId: args.automation.account_id,
+            automationId: args.automation.id,
+            conversationId,
+            contactId: args.contactId,
+            outcome: 'skipped',
+            reason: 'outside_session_window',
+          })
+          return 'send_message skipped — outside the 24h session window (inactivity follow-up)'
+        }
+      }
+
       const varContext = await loadVariableContext(db, {
         accountId: args.automation.account_id,
         contactId: args.contactId,
@@ -448,6 +507,28 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       }
 
       const conversationId = await resolveConversationId(args)
+
+      // Fase 2 (Follow-up seguro) — B1: mesmo recheck fresco de
+      // opt-out do send_message acima (a checagem de
+      // isMarketingTemplateSendBlocked já cobre templates
+      // 'Marketing', mas só essa categoria — follow-up de
+      // inatividade nunca deve mandar pra um contato opted-out,
+      // mesmo com template Utility/Authentication). Sem checar a
+      // janela — template pode ser enviado fora dela de propósito.
+      if (args.automation.trigger_type === 'inactivity') {
+        if (await isContactOptedOutForFollowup(db, args.automation.account_id, args.contactId)) {
+          await logFollowupDispatch(db, {
+            accountId: args.automation.account_id,
+            automationId: args.automation.id,
+            conversationId,
+            contactId: args.contactId,
+            outcome: 'skipped',
+            reason: 'opted_out',
+          })
+          return 'send_template skipped — contact opted out (rechecked at send time)'
+        }
+      }
+
       const varContext = await loadVariableContext(db, {
         accountId: args.automation.account_id,
         contactId: args.contactId,

@@ -76,3 +76,27 @@ export function computeSessionWindow(
 
   return { status: "active", hoursLeft: SESSION_WINDOW_HOURS - hoursSince };
 }
+
+/**
+ * Timestamp-only variant of the same 24h rule as `computeSessionWindow`
+ * above, for callers that already have `last_customer_message_at` on
+ * hand (denormalized onto `conversations`, migration 120) and don't
+ * want to load the full message array just to ask "is the window
+ * still open?". Originally lived in src/lib/radar/classify.ts (Fase 2
+ * Etapa A); moved here once Follow-up seguro (Etapa B) needed the
+ * exact same check outside Radar — this is the more fundamental home
+ * for it. `classify.ts` re-exports it so existing Radar imports keep
+ * working unchanged.
+ *
+ * Null (never heard from the customer) reads as closed — nothing to
+ * reopen. No channel-type gate here (unlike computeSessionWindow) —
+ * callers that need the Evolution exemption should use
+ * computeSessionWindow instead; every current caller of this
+ * timestamp-only variant (Radar, follow-up automations) only deals
+ * with Cloud API conversations already.
+ */
+export function isSessionWindowOpen(lastCustomerMessageAt: string | null | undefined, now: number): boolean {
+  if (!lastCustomerMessageAt) return false;
+  const hoursSince = (now - new Date(lastCustomerMessageAt).getTime()) / (1000 * 60 * 60);
+  return hoursSince < SESSION_WINDOW_HOURS;
+}

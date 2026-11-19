@@ -9,8 +9,13 @@
 // mesma decisão de "está parado?" fora da query SQL.
 // ============================================================
 
-import { SESSION_WINDOW_HOURS } from "@/lib/whatsapp/session-window";
+import { isSessionWindowOpen } from "@/lib/whatsapp/session-window";
 import type { RadarGroup } from "@/types";
+
+// Re-exported for existing callers — the real implementation moved to
+// session-window.ts (Fase 2, Etapa B) since Follow-up seguro needed
+// the exact same check outside Radar.
+export { isSessionWindowOpen };
 
 export interface RadarClassifyInput {
   last_message_sender_type: string | null;
@@ -51,16 +56,4 @@ export function classifyRadarRow(
   }
 
   return null;
-}
-
-/**
- * Janela de 24h do WhatsApp ainda aberta (free text permitido) ou já
- * fechada (só template) — mesma regra de conversation-list-status.ts,
- * reaproveitando SESSION_WINDOW_HOURS em vez de hardcodar 24 de novo.
- * Null (nunca ouvimos o cliente) conta como fechada — nada a reabrir.
- */
-export function isSessionWindowOpen(lastCustomerMessageAt: string | null | undefined, now: number): boolean {
-  if (!lastCustomerMessageAt) return false;
-  const hoursSince = (now - new Date(lastCustomerMessageAt).getTime()) / (1000 * 60 * 60);
-  return hoursSince < SESSION_WINDOW_HOURS;
 }
