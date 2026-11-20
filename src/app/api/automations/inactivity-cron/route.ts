@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { runFlowsForTrigger } from '@/lib/flows/workflow-engine'
-import { isContactOptedOutForFollowup, logFollowupDispatch } from '@/lib/automations/inactivity-followup'
+import {
+  isContactOptedOutForFollowup,
+  logFollowupSkipOncePerSilencePeriod,
+} from '@/lib/automations/inactivity-followup'
 import { getAccountPlanFeatures } from '@/lib/billing/server'
 import type { InactivityTriggerConfig } from '@/types'
 
@@ -167,13 +170,17 @@ export async function GET(request: Request) {
       if (await isContactOptedOutForFollowup(db, accountId, contactId)) {
         skippedOptedOut++
         evaluated++
-        await logFollowupDispatch(db, {
-          accountId,
-          conversationId,
-          contactId,
-          outcome: 'skipped',
-          reason: 'opted_out',
-        })
+        // Correção — sem isto, uma conversa opted-out parada é
+        // reavaliada em TODO tick (ela nunca sai da varredura: opt-out
+        // não muda last_message_at), gravando uma linha nova a cada
+        // vez. Mesmo fix/índice único de max_attempts_reached/
+        // daily_cap_reached/outside_business_hours (migration 138) —
+        // ver DedupedFollowupSkipReason em inactivity-followup.ts.
+        await logFollowupSkipOncePerSilencePeriod(
+          db,
+          { accountId, conversationId, contactId, reason: 'opted_out' },
+          lastMessageAt,
+        )
         continue
       }
 

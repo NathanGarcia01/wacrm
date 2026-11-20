@@ -6,6 +6,7 @@ import {
   countFollowupSentToday,
   isContactOptedOutForFollowup,
   logFollowupDispatch,
+  logFollowupSkipOncePerSilencePeriod,
 } from './inactivity-followup'
 
 interface FakeState {
@@ -314,5 +315,105 @@ describe('countFollowupSentToday', () => {
     const db = fakeCountDb(rows)
     const now = new Date('2026-11-18T15:00:00.000Z')
     expect(await countFollowupSentToday(db, 'acc1', 'America/Sao_Paulo', now)).toBe(1)
+  })
+})
+
+interface UpsertedRow {
+  conversation_id: string
+  reason: string
+  silence_started_at: string | null
+  [key: string]: unknown
+}
+
+function fakeUpsertDb(rows: UpsertedRow[]): SupabaseClient {
+  function builder(table: string) {
+    let payload: Record<string, unknown> | undefined
+    const resolve = () => {
+      if (table !== 'followup_dispatch_log' || !payload) return { data: null, error: null }
+      const row = payload as unknown as UpsertedRow
+      // Simula a constraint única real (conversation_id, reason,
+      // silence_started_at) — migration 138 — com ON CONFLICT DO
+      // NOTHING (ignoreDuplicates): a 2ª+ chamada com a MESMA chave
+      // nunca grava uma linha nova.
+      const conflict = rows.some(
+        (r) =>
+          r.conversation_id === row.conversation_id &&
+          r.reason === row.reason &&
+          r.silence_started_at === row.silence_started_at,
+      )
+      if (!conflict) rows.push(row)
+      return { data: null, error: null }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const b: any = {
+      upsert: (p: Record<string, unknown>) => {
+        payload = p
+        return b
+      },
+      then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
+        Promise.resolve(resolve()).then(onF, onR),
+    }
+    return b
+  }
+  return { from: (t: string) => builder(t) } as unknown as SupabaseClient
+}
+
+describe('logFollowupSkipOncePerSilencePeriod', () => {
+  it('100 varreduras seguidas na mesma conversa (mesmo motivo, mesmo período) geram 1 linha, não 100', async () => {
+    const rows: UpsertedRow[] = []
+    const db = fakeUpsertDb(rows)
+    const silenceStartedAt = '2026-11-18T10:00:00.000Z'
+
+    for (let i = 0; i < 100; i++) {
+      await logFollowupSkipOncePerSilencePeriod(
+        db,
+        { accountId: 'acc1', conversationId: 'conv1', contactId: 'c1', reason: 'opted_out' },
+        silenceStartedAt,
+      )
+    }
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ conversation_id: 'conv1', reason: 'opted_out', silence_started_at: silenceStartedAt })
+  })
+
+  it('uma nova mensagem (silenceStartedAt avança) inicia um novo período e permite logar de novo', async () => {
+    const rows: UpsertedRow[] = []
+    const db = fakeUpsertDb(rows)
+
+    for (let i = 0; i < 5; i++) {
+      await logFollowupSkipOncePerSilencePeriod(
+        db,
+        { accountId: 'acc1', conversationId: 'conv1', contactId: 'c1', reason: 'opted_out' },
+        '2026-11-18T10:00:00.000Z',
+      )
+    }
+    for (let i = 0; i < 5; i++) {
+      await logFollowupSkipOncePerSilencePeriod(
+        db,
+        { accountId: 'acc1', conversationId: 'conv1', contactId: 'c1', reason: 'opted_out' },
+        '2026-11-19T10:00:00.000Z',
+      )
+    }
+
+    expect(rows).toHaveLength(2)
+  })
+
+  it('motivos diferentes na mesma conversa/período não colidem entre si', async () => {
+    const rows: UpsertedRow[] = []
+    const db = fakeUpsertDb(rows)
+    const silenceStartedAt = '2026-11-18T10:00:00.000Z'
+
+    await logFollowupSkipOncePerSilencePeriod(
+      db,
+      { accountId: 'acc1', conversationId: 'conv1', contactId: 'c1', reason: 'opted_out' },
+      silenceStartedAt,
+    )
+    await logFollowupSkipOncePerSilencePeriod(
+      db,
+      { accountId: 'acc1', conversationId: 'conv1', contactId: 'c1', reason: 'daily_cap_reached' },
+      silenceStartedAt,
+    )
+
+    expect(rows).toHaveLength(2)
   })
 })

@@ -81,7 +81,7 @@ const mocks = vi.hoisted(() => ({
   runAutomationsForTrigger: vi.fn(),
   runFlowsForTrigger: vi.fn(),
   isContactOptedOutForFollowup: vi.fn(),
-  logFollowupDispatch: vi.fn(),
+  logFollowupSkipOncePerSilencePeriod: vi.fn(),
   getAccountPlanFeatures: vi.fn(),
 }))
 
@@ -95,7 +95,7 @@ vi.mock('@/lib/flows/workflow-engine', () => ({
 
 vi.mock('@/lib/automations/inactivity-followup', () => ({
   isContactOptedOutForFollowup: mocks.isContactOptedOutForFollowup,
-  logFollowupDispatch: mocks.logFollowupDispatch,
+  logFollowupSkipOncePerSilencePeriod: mocks.logFollowupSkipOncePerSilencePeriod,
 }))
 
 vi.mock('@/lib/billing/server', () => ({
@@ -105,7 +105,7 @@ vi.mock('@/lib/billing/server', () => ({
 const runAutomationsForTriggerMock = mocks.runAutomationsForTrigger
 const runFlowsForTriggerMock = mocks.runFlowsForTrigger
 const isContactOptedOutForFollowupMock = mocks.isContactOptedOutForFollowup
-const logFollowupDispatchMock = mocks.logFollowupDispatch
+const logFollowupSkipOncePerSilencePeriodMock = mocks.logFollowupSkipOncePerSilencePeriod
 const getAccountPlanFeaturesMock = mocks.getAccountPlanFeatures
 
 import { GET } from './route'
@@ -128,7 +128,7 @@ beforeEach(() => {
   runAutomationsForTriggerMock.mockReset()
   runFlowsForTriggerMock.mockReset()
   isContactOptedOutForFollowupMock.mockReset().mockResolvedValue(false)
-  logFollowupDispatchMock.mockReset()
+  logFollowupSkipOncePerSilencePeriodMock.mockReset()
   getAccountPlanFeaturesMock.mockReset().mockResolvedValue({ hasFollowup: true })
 })
 
@@ -163,9 +163,10 @@ describe('hasFollowup gate', () => {
 })
 
 describe('opt-out pre-check', () => {
-  it('never dispatches to either engine for an opted-out contact, and logs the skip', async () => {
+  it('never dispatches to either engine for an opted-out contact, and logs the skip via the deduped logger', async () => {
     isContactOptedOutForFollowupMock.mockResolvedValue(true)
-    h.state.conversationsByAccount[ACCOUNT] = [{ id: CONVERSATION, contact_id: CONTACT, last_message_at: ago(25) }]
+    const lastMessageAt = ago(25)
+    h.state.conversationsByAccount[ACCOUNT] = [{ id: CONVERSATION, contact_id: CONTACT, last_message_at: lastMessageAt }]
 
     const res = await GET(request())
     const body = await res.json()
@@ -173,9 +174,14 @@ describe('opt-out pre-check', () => {
     expect(runAutomationsForTriggerMock).not.toHaveBeenCalled()
     expect(runFlowsForTriggerMock).not.toHaveBeenCalled()
     expect(body.skippedOptedOut).toBe(1)
-    expect(logFollowupDispatchMock).toHaveBeenCalledWith(
+    // Correção — mesma proteção de max_attempts_reached/daily_cap_reached/
+    // outside_business_hours (migration 138): a chamada precisa ir pro
+    // logger deduplicado, com o last_message_at da conversa como âncora
+    // do período de silêncio (silenceStartedAt), não pro insert simples.
+    expect(logFollowupSkipOncePerSilencePeriodMock).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ accountId: ACCOUNT, conversationId: CONVERSATION, contactId: CONTACT, outcome: 'skipped', reason: 'opted_out' }),
+      expect.objectContaining({ accountId: ACCOUNT, conversationId: CONVERSATION, contactId: CONTACT, reason: 'opted_out' }),
+      lastMessageAt,
     )
   })
 

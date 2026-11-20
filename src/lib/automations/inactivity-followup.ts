@@ -18,12 +18,23 @@ import { isWithinAccountBusinessHours } from '@/lib/attendance/business-hours'
  */
 
 export type FollowupOutcome = 'sent' | 'skipped'
-/** Os 3 motivos decididos dentro de triggerMatches, ANTES de
- *  executeAutomation/node de envio rodar — nunca escrevem em
- *  automation_logs/flow_runs, então precisam do dedup próprio de
- *  `logFollowupSkipOncePerSilencePeriod` (migration 138). */
-export type DedupedFollowupSkipReason = 'max_attempts_reached' | 'daily_cap_reached' | 'outside_business_hours'
-export type FollowupSkipReason = DedupedFollowupSkipReason | 'opted_out' | 'outside_session_window' | 'customer_replied'
+/** Motivos que, sem dedup próprio, gerariam uma linha nova em
+ *  followup_dispatch_log a cada varredura do cron enquanto a conversa
+ *  seguir bloqueada — nenhum deles passa por executeAutomation/node de
+ *  envio (que é de onde vem o dedup "1x por período" automático via
+ *  automation_logs/flow_runs), nem por um evento pontual do webhook
+ *  (como opted_out detectado via cancelPendingInactivityFollowups,
+ *  que dispara 1x por mensagem inbound, não 1x por tick de cron).
+ *  `opted_out` entra aqui especificamente pelo pré-check do CRON
+ *  (inactivity-cron/route.ts) — o MESMO motivo logado por
+ *  cancelPendingInactivityFollowups continua usando logFollowupDispatch
+ *  normal, pois ali é um evento, não uma varredura repetida. */
+export type DedupedFollowupSkipReason =
+  | 'max_attempts_reached'
+  | 'daily_cap_reached'
+  | 'outside_business_hours'
+  | 'opted_out'
+export type FollowupSkipReason = DedupedFollowupSkipReason | 'outside_session_window' | 'customer_replied'
 
 export interface LogFollowupDispatchArgs {
   accountId: string
