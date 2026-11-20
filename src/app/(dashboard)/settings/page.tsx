@@ -25,6 +25,7 @@ import { QuickRepliesSettings } from '@/components/settings/quick-replies-settin
 import { AttendanceSettings } from '@/components/settings/attendance-settings';
 import { RoutingSettings } from '@/components/settings/routing-settings';
 import { NpsSettings } from '@/components/settings/nps-settings';
+import { FollowupSettings } from '@/components/settings/followup-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import { IntegrationsPanel } from '@/components/settings/integrations-panel';
@@ -82,6 +83,7 @@ export default function SettingsPage() {
     attendance: <AttendanceSettings />,
     routing: <RoutingSettings />,
     nps: <NpsSettings />,
+    followup: <FollowupSettings />,
     members: <MembersTab />,
     api: <ApiKeysSettings />,
     integrations: <IntegrationsPanel />,
