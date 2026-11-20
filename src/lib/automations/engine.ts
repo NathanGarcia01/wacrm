@@ -35,6 +35,7 @@ import {
   evaluateInactivityFollowupGuards,
   isContactOptedOutForFollowup,
   logFollowupDispatch,
+  logFollowupSkipOncePerSilencePeriod,
 } from './inactivity-followup'
 
 /**
@@ -1097,14 +1098,34 @@ async function triggerMatches(
       })
       if (!guard.fire) {
         if (guard.reason) {
-          await logFollowupDispatch(db, {
-            accountId: automation.account_id,
-            automationId: automation.id,
-            conversationId,
-            contactId,
-            outcome: 'skipped',
-            reason: guard.reason,
-          })
+          // Estes 3 motivos (ver evaluateInactivityFollowupGuards) são
+          // decididos AQUI, antes de executeAutomation rodar — nunca
+          // escrevem em automation_logs, então o dedup "1x por período"
+          // de cima (automation_logs count) não os protege. Sem o
+          // upsert deduplicado, toda varredura do cron geraria uma
+          // linha nova enquanto a conversa seguir bloqueada.
+          if (typeof lastMessageAt === 'string') {
+            await logFollowupSkipOncePerSilencePeriod(
+              db,
+              {
+                accountId: automation.account_id,
+                automationId: automation.id,
+                conversationId,
+                contactId,
+                reason: guard.reason,
+              },
+              lastMessageAt,
+            )
+          } else {
+            await logFollowupDispatch(db, {
+              accountId: automation.account_id,
+              automationId: automation.id,
+              conversationId,
+              contactId,
+              outcome: 'skipped',
+              reason: guard.reason,
+            })
+          }
         }
         return false
       }

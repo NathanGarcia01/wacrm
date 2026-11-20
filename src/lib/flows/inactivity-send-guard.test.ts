@@ -81,6 +81,19 @@ vi.mock('./admin-client', () => {
         state.followupLogs.push({ created_at: new Date().toISOString(), ...(payload as Record<string, unknown>) })
         return { data: null, error: null }
       }
+      if (type === 'upsert') {
+        // Simulates ON CONFLICT (conversation_id, reason, silence_started_at) DO NOTHING
+        // (migration 138's unique index) — real DB-level dedup, not a read-then-write.
+        const row = payload as Record<string, unknown>
+        const conflict = state.followupLogs.some(
+          (r) =>
+            (r as Record<string, unknown>).conversation_id === row.conversation_id &&
+            (r as Record<string, unknown>).reason === row.reason &&
+            (r as Record<string, unknown>).silence_started_at === row.silence_started_at,
+        )
+        if (!conflict) state.followupLogs.push({ created_at: new Date().toISOString(), ...row })
+        return { data: null, error: null }
+      }
       // Count query (countFollowupAttemptsSinceLastReply /
       // countFollowupSentToday) — only ever filters with eq/gt/gte.
       const matched = state.followupLogs.filter((row) =>
@@ -107,6 +120,7 @@ vi.mock('./admin-client', () => {
     const b: Record<string, unknown> = {
       select: () => b,
       insert: (p: unknown) => ((ops.type = 'insert'), (ops.payload = p), b),
+      upsert: (p: unknown) => ((ops.type = 'upsert'), (ops.payload = p), b),
       update: (p: unknown) => ((ops.type = 'update'), (ops.payload = p), b),
       eq: (k: string, v: unknown) => (ops.filters.push(['eq', k, v]), b),
       neq: () => b,
@@ -511,5 +525,29 @@ describe('B2 — horário comercial (respect_business_hours)', () => {
     await runFlowsForTrigger(dispatchInput())
 
     expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 fix — dedup de skip por período de silêncio', () => {
+  it('100 varreduras seguidas na mesma conversa fora do horário geram 1 linha, não 100', async () => {
+    h.state.flows = [workflowFlow({ trigger_config: { respect_business_hours: true } })]
+    h.state.nodes = [
+      { node_key: 'start', flow_id: FLOW, node_type: 'start', config: { next_node_key: 'send1' } },
+      { node_key: 'send1', flow_id: FLOW, node_type: 'send_message', config: { text: 'oi', next_node_key: null } },
+    ]
+    h.state.businessHoursWindows = []
+    // last_message_at fixo — mesma âncora de período em toda varredura,
+    // igual ao cron chamando repetidamente sem ninguém responder.
+    const input = {
+      ...dispatchInput(),
+      context: { ...dispatchInput().context, vars: { ...dispatchInput().context.vars, last_message_at: ago(25) } },
+    }
+
+    for (let i = 0; i < 100; i++) {
+      await runFlowsForTrigger(input)
+    }
+
+    expect(h.state.sentTexts).toBe(0)
+    expect(h.state.followupLogs.filter((l) => l.reason === 'outside_business_hours')).toHaveLength(1)
   })
 })

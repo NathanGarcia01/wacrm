@@ -111,6 +111,19 @@ vi.mock('./admin-client', () => {
             state.followupLogs.push({ created_at: new Date().toISOString(), ...payload })
             return { data: null, error: null }
           }
+          if (type === 'upsert') {
+            // Simulates ON CONFLICT (conversation_id, reason, silence_started_at) DO NOTHING
+            // (migration 138's unique index) — real DB-level dedup, not a read-then-write.
+            const row = payload as Record<string, unknown>
+            const conflict = state.followupLogs.some(
+              (r) =>
+                r.conversation_id === row.conversation_id &&
+                r.reason === row.reason &&
+                r.silence_started_at === row.silence_started_at,
+            )
+            if (!conflict) state.followupLogs.push({ created_at: new Date().toISOString(), ...row })
+            return { data: null, error: null }
+          }
           // Count query (countFollowupAttemptsSinceLastReply /
           // countFollowupSentToday) — only ever filters with eq/gt/gte.
           const matched = state.followupLogs.filter((row) =>
@@ -133,6 +146,7 @@ vi.mock('./admin-client', () => {
     const b: Record<string, any> = {
       select: () => b,
       insert: (p: unknown) => ((type = 'insert'), (payload = p), b),
+      upsert: (p: unknown) => ((type = 'upsert'), (payload = p), b),
       update: (p: unknown) => ((type = 'update'), (payload = p), b),
       eq: (k: string, v: unknown) => (filters.push(['eq', k, v]), b),
       gt: (k: string, v: unknown) => (filters.push(['gt', k, v]), b),
@@ -624,5 +638,56 @@ describe('B2 — horário comercial (respect_business_hours)', () => {
     await runAutomationsForTrigger(dispatchInput())
 
     expect(h.state.sentTexts).toBe(1)
+  })
+})
+
+describe('B2 fix — dedup de skip por período de silêncio (max_attempts_reached/daily_cap_reached/outside_business_hours)', () => {
+  it('100 varreduras seguidas na mesma conversa fora do horário geram 1 linha, não 100', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { respect_business_hours: true } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.businessHoursWindows = [] // nenhuma janela cadastrada = sempre fora do horário
+    // Mesmo objeto de input reaproveitado 100x — exatamente como o cron
+    // chamaria 100 vezes seguidas sem NINGUÉM mandar mensagem nova: o
+    // last_message_at da conversa (a âncora do período de silêncio)
+    // não muda entre varreduras.
+    const input = dispatchInput()
+
+    for (let i = 0; i < 100; i++) {
+      await runAutomationsForTrigger(input)
+    }
+
+    expect(h.state.sentTexts).toBe(0)
+    const skipRows = h.state.followupLogs.filter((l) => l.reason === 'outside_business_hours')
+    expect(skipRows).toHaveLength(1)
+  })
+
+  it('uma nova mensagem (last_message_at avança) inicia um novo período e permite logar o skip de novo', async () => {
+    h.state.automations = [
+      { id: AUTOMATION, account_id: ACCOUNT, user_id: 'u1', trigger_type: 'inactivity', trigger_config: { respect_business_hours: true } },
+    ]
+    h.state.steps = [{ id: 's1', automation_id: AUTOMATION, parent_step_id: null, position: 0, step_type: 'send_message', step_config: { text: 'oi' } }]
+    h.state.businessHoursWindows = []
+    const firstPeriod = dispatchInput()
+
+    for (let i = 0; i < 5; i++) {
+      await runAutomationsForTrigger(firstPeriod)
+    }
+    expect(h.state.followupLogs.filter((l) => l.reason === 'outside_business_hours')).toHaveLength(1)
+
+    // Uma mensagem nova chega — o cron do próximo tick passaria um
+    // last_message_at mais recente, uma âncora de período diferente.
+    const secondPeriod = {
+      ...firstPeriod,
+      context: { ...firstPeriod.context, vars: { ...firstPeriod.context.vars, last_message_at: ago(1) } },
+    }
+
+    for (let i = 0; i < 5; i++) {
+      await runAutomationsForTrigger(secondPeriod)
+    }
+
+    // 1 linha do período antigo + 1 linha do período novo — nunca 10.
+    expect(h.state.followupLogs.filter((l) => l.reason === 'outside_business_hours')).toHaveLength(2)
   })
 })

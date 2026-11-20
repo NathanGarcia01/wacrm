@@ -53,6 +53,7 @@ import {
   evaluateInactivityFollowupGuards,
   isContactOptedOutForFollowup,
   logFollowupDispatch,
+  logFollowupSkipOncePerSilencePeriod,
 } from "@/lib/automations/inactivity-followup";
 import {
   endRun,
@@ -1463,14 +1464,32 @@ async function triggerMatches(
       });
       if (!guard.fire) {
         if (guard.reason) {
-          await logFollowupDispatch(db, {
-            accountId: flow.account_id,
-            flowId: flow.id,
-            conversationId,
-            contactId,
-            outcome: "skipped",
-            reason: guard.reason,
-          });
+          // Mesmo fix de engine.ts: estes 3 motivos nunca escrevem em
+          // flow_runs (decididos antes de executeWorkflowFlow rodar),
+          // então o dedup de cima não os protege — sem isto, toda
+          // varredura do cron geraria uma linha nova.
+          if (typeof lastMessageAt === "string") {
+            await logFollowupSkipOncePerSilencePeriod(
+              db,
+              {
+                accountId: flow.account_id,
+                flowId: flow.id,
+                conversationId,
+                contactId,
+                reason: guard.reason,
+              },
+              lastMessageAt,
+            );
+          } else {
+            await logFollowupDispatch(db, {
+              accountId: flow.account_id,
+              flowId: flow.id,
+              conversationId,
+              contactId,
+              outcome: "skipped",
+              reason: guard.reason,
+            });
+          }
         }
         return false;
       }

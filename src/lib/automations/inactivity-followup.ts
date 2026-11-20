@@ -18,13 +18,12 @@ import { isWithinAccountBusinessHours } from '@/lib/attendance/business-hours'
  */
 
 export type FollowupOutcome = 'sent' | 'skipped'
-export type FollowupSkipReason =
-  | 'opted_out'
-  | 'outside_session_window'
-  | 'customer_replied'
-  | 'max_attempts_reached'
-  | 'daily_cap_reached'
-  | 'outside_business_hours'
+/** Os 3 motivos decididos dentro de triggerMatches, ANTES de
+ *  executeAutomation/node de envio rodar — nunca escrevem em
+ *  automation_logs/flow_runs, então precisam do dedup próprio de
+ *  `logFollowupSkipOncePerSilencePeriod` (migration 138). */
+export type DedupedFollowupSkipReason = 'max_attempts_reached' | 'daily_cap_reached' | 'outside_business_hours'
+export type FollowupSkipReason = DedupedFollowupSkipReason | 'opted_out' | 'outside_session_window' | 'customer_replied'
 
 export interface LogFollowupDispatchArgs {
   accountId: string
@@ -313,7 +312,7 @@ export type InactivityFollowupGuardResult =
   // linha de auditoria (ver triggerMatches em engine.ts/
   // workflow-engine.ts, que só chama logFollowupDispatch quando
   // `reason` vem preenchido).
-  | { fire: false; reason?: FollowupSkipReason }
+  | { fire: false; reason?: DedupedFollowupSkipReason }
 
 /**
  * Fase 2 (Follow-up seguro) — B2. Único ponto de verdade pros 4 checks
@@ -361,4 +360,60 @@ export async function evaluateInactivityFollowupGuards(
   if (sentToday >= maxPerDay) return { fire: false, reason: 'daily_cap_reached' }
 
   return { fire: true }
+}
+
+export interface LogFollowupSkipOncePerSilencePeriodArgs {
+  accountId: string
+  automationId?: string | null
+  flowId?: string | null
+  conversationId: string
+  contactId: string
+  reason: DedupedFollowupSkipReason
+}
+
+/**
+ * Fase 2 (Follow-up seguro) — B2, correção. max_attempts_reached/
+ * daily_cap_reached/outside_business_hours são decididos dentro de
+ * `triggerMatches`, ANTES de executeAutomation/node de envio rodar —
+ * ou seja, NUNCA escrevem em automation_logs/flow_runs, que é de onde
+ * vem o dedup "só reavalia 1x por período de silêncio" que todo o
+ * resto do fluxo ganha de graça. Sem isso, toda varredura do cron
+ * (a cada poucos minutos, por horas/dias enquanto a conversa seguir
+ * bloqueada) grava uma linha nova em followup_dispatch_log pra essa
+ * conversa — 100 varreduras na mesma janela de silêncio geram 100
+ * linhas, não 1.
+ *
+ * `silenceStartedAt` é a âncora do período atual — o mesmo
+ * `conversations.last_message_at` que o cron já repassa em
+ * `ctx.vars.last_message_at` (muda só quando QUALQUER lado manda uma
+ * mensagem nova). Upsert com `ignoreDuplicates` contra o índice único
+ * (conversation_id, reason, silence_started_at) da migration 138 —
+ * não é um SELECT-antes-de-INSERT (que teria race entre ticks
+ * sobrepostos); o 2º+ insert do mesmo período vira
+ * `ON CONFLICT DO NOTHING` no banco, de forma atômica.
+ */
+export async function logFollowupSkipOncePerSilencePeriod(
+  db: SupabaseClient,
+  args: LogFollowupSkipOncePerSilencePeriodArgs,
+  silenceStartedAt: string,
+): Promise<void> {
+  const { error } = await db
+    .from('followup_dispatch_log')
+    .upsert(
+      {
+        account_id: args.accountId,
+        automation_id: args.automationId ?? null,
+        flow_id: args.flowId ?? null,
+        conversation_id: args.conversationId,
+        contact_id: args.contactId,
+        outcome: 'skipped',
+        reason: args.reason,
+        mode: 'live',
+        silence_started_at: silenceStartedAt,
+      },
+      { onConflict: 'conversation_id,reason,silence_started_at', ignoreDuplicates: true },
+    )
+  if (error) {
+    console.error('[inactivity-followup] logFollowupSkipOncePerSilencePeriod failed:', error)
+  }
 }
