@@ -39,6 +39,15 @@ describe('normalizeScopes', () => {
     expect(normalizeScopes('messages:send')).toBeNull();
     expect(normalizeScopes(undefined)).toBeNull();
   });
+
+  it('accepts the Fase 3A deals/tags scopes', () => {
+    expect(normalizeScopes(['deals:read', 'deals:write', 'tags:read', 'tags:write'])).toEqual([
+      'deals:read',
+      'deals:write',
+      'tags:read',
+      'tags:write',
+    ]);
+  });
 });
 
 describe('hasScope', () => {

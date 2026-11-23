@@ -21,6 +21,7 @@ import {
   User,
   UserCircle2,
   UsersRound,
+  Webhook,
   type LucideIcon,
 } from 'lucide-react';
 import { CONTACT_STATUS_LEAD_ORIGIN_UI_ENABLED } from '@/lib/feature-flags';
@@ -55,6 +56,7 @@ export const SETTINGS_SECTIONS = [
   'followup',
   'members',
   'api',
+  'leadSources',
   'integrations',
 ] as const;
 
@@ -118,6 +120,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   optOut: { id: 'optOut', icon: Ban, group: 'vendas' },
   members: { id: 'members', icon: UsersRound, group: 'avancado' },
   api: { id: 'api', icon: KeyRound, group: 'avancado' },
+  leadSources: { id: 'leadSources', icon: Webhook, group: 'avancado' },
   integrations: { id: 'integrations', icon: Plug, group: 'avancado' },
 };
 

@@ -4,10 +4,13 @@ The public API lets you drive your wacrm instance from your own
 scripts and automations — send messages, manage contacts, launch
 broadcasts — without going through the dashboard UI.
 
-> **Status:** groundwork release. Authentication, scopes, rate
-> limiting, and the `GET /api/v1/me` probe ship now. The data
-> endpoints (`messages`, `contacts`, …) land one at a time in
-> follow-up releases — see [Roadmap](#roadmap).
+> **Status:** authentication, scopes, rate limiting, `GET
+> /api/v1/me`, and the core `contacts`/`conversations`/`messages`/
+> `deals`/`tags` endpoints (Fase 3A) ship now — see
+> [`docs/api-v1.md`](./api-v1.md) for their full reference with curl
+> examples, plus the public lead-capture webhook
+> (`/api/v1/webhooks/in/<token>`). `messages:send` /
+> `broadcasts:send` remain on the [Roadmap](#roadmap).
 
 ## Authentication
 
@@ -50,6 +53,10 @@ it. Grant the minimum.
 | `contacts:write`     | Create and update contacts               |
 | `conversations:read` | List and read conversations              |
 | `broadcasts:send`    | Launch broadcast campaigns               |
+| `deals:read`         | List and read deals                      |
+| `deals:write`        | Create and update deals                  |
+| `tags:read`          | List tags                                |
+| `tags:write`         | Create tags and link them to contacts    |
 
 A key with **no scopes** still authenticates and can call
 `GET /api/v1/me` — useful for verifying a key works.
@@ -117,14 +124,26 @@ curl https://your-crm.example.com/api/v1/me \
 
 ## Roadmap
 
-Planned endpoints, shipping one per release (tracked in
-[#245](https://github.com/ArnasDon/wacrm/issues/245)):
+Shipped so far (see [`docs/api-v1.md`](./api-v1.md) for the full
+reference):
+
+- `GET/POST /api/v1/contacts`, `GET/PATCH /api/v1/contacts/{id}`
+  (`contacts:read` / `contacts:write`)
+- `GET /api/v1/conversations`, `GET /api/v1/conversations/{id}`
+  (`conversations:read`)
+- `GET /api/v1/conversations/{id}/messages` (`messages:read`)
+- `GET/POST /api/v1/deals`, `GET/PATCH /api/v1/deals/{id}`
+  (`deals:read` / `deals:write`)
+- `GET/POST /api/v1/tags`, contact↔tag linking (`tags:read` /
+  `tags:write`)
+- `POST /api/v1/webhooks/in/<token>` — public lead-capture webhook
+  (per-source token, no API key)
+
+Planned, tracked in
+[#245](https://github.com/ArnasDon/wacrm/issues/245):
 
 - `POST /api/v1/messages` — send a message to a phone number
   (`messages:send`)
-- `GET/POST /api/v1/contacts`, `GET/PATCH /api/v1/contacts/{id}`
-  (`contacts:read` / `contacts:write`)
-- `GET /api/v1/conversations` (`conversations:read`)
 - `POST /api/v1/broadcasts` (`broadcasts:send`)
 - Outbound event webhooks (so automations can react to inbound
   messages)

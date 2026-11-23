@@ -168,6 +168,12 @@ export const RATE_LIMITS = {
    *  the guessable-identifier surface (an email is far easier to know
    *  than ADMIN_SECRET), so this bounds password-guessing attempts. */
   adminLogin: { limit: 5, windowMs: 15 * 60_000 },
+  /** Public lead-capture webhook (`/api/v1/webhooks/in/[token]`), per
+   *  token. Landing pages/ad platforms can burst on a campaign launch,
+   *  but this is still a single form submit per lead — 30/min is well
+   *  above legitimate traffic for one source while bounding a retry
+   *  loop or a leaked-token abuse attempt. */
+  leadWebhookIn: { limit: 30, windowMs: 60_000 },
   /** CPF/CNPJ pre-check on signup (public, per-IP). This endpoint is
    *  an existence oracle by design (it has to tell the user "this
    *  document already has an account"), so the limit is tighter than
