@@ -1,5 +1,6 @@
 import {
   Ban,
+  Bot,
   Coins,
   Compass,
   FileText,
@@ -57,6 +58,7 @@ export const SETTINGS_SECTIONS = [
   'members',
   'api',
   'leadSources',
+  'mcp',
   'integrations',
 ] as const;
 
@@ -121,6 +123,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   members: { id: 'members', icon: UsersRound, group: 'avancado' },
   api: { id: 'api', icon: KeyRound, group: 'avancado' },
   leadSources: { id: 'leadSources', icon: Webhook, group: 'avancado' },
+  mcp: { id: 'mcp', icon: Bot, group: 'avancado' },
   integrations: { id: 'integrations', icon: Plug, group: 'avancado' },
 };
 

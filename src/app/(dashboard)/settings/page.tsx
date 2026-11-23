@@ -29,6 +29,7 @@ import { FollowupSettings } from '@/components/settings/followup-settings';
 import { MembersTab } from '@/components/settings/members-tab';
 import { ApiKeysSettings } from '@/components/settings/api-keys-settings';
 import { LeadSourcesSettings } from '@/components/settings/lead-sources-settings';
+import { McpSettings } from '@/components/settings/mcp-settings';
 import { IntegrationsPanel } from '@/components/settings/integrations-panel';
 import {
   resolveSection,
@@ -88,6 +89,7 @@ export default function SettingsPage() {
     members: <MembersTab />,
     api: <ApiKeysSettings />,
     leadSources: <LeadSourcesSettings />,
+    mcp: <McpSettings />,
     integrations: <IntegrationsPanel />,
   };
 
